@@ -11,5 +11,5 @@ export default function Hero3DMapPanel() {
         }
     }, []);
 
-    return <div ref={containerRef} style={{ width: '100%', height: '100vh' }}></div>;
+    return <div ref={containerRef} className="hero3dmap-scope" style={{ width: '100%', height: '100vh' }}></div>;
 }
