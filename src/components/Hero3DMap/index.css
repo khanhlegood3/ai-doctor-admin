@@ -229,7 +229,7 @@
 }
 
 
-textarea {
+.hero3dmap-scope textarea {
   flex: 1;
   min-height: 30px;
   height: 100px;
