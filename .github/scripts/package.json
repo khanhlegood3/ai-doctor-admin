@@ -1,0 +1,14 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "main": "ai-coder.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "khanhlx",
+  "license": "ISC",
+  "description": "bao-ve-co-the",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1"
+  }
+}

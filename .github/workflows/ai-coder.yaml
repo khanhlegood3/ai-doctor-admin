@@ -1,0 +1,72 @@
+name: Gemini AI Coder
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ai_code_generation:
+    if: startsWith(github.event.issue.body, '/gemini') || startsWith(github.event.comment.body, '/gemini')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Dependencies
+        run: |
+          cd .github/scripts
+          npm install @google/generative-ai
+
+      - name: Chạy Gemini AI Script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_BODY: ${{ github.event.comment.body || github.event.issue.body }}
+        run: node .github/scripts/ai-coder.js
+
+      - name: Commit và Tạo Pull Request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ai-feature-${{ github.event.comment.id || github.event.issue.id }}
+        run: |
+          # 1. Cấu hình Git đóng vai trò là một Bot
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 2. XÓA vật lý thư mục node_modules để tránh push rác lên repo
+          rm -rf .github/scripts/node_modules
+          
+          # 3. Ép Git sử dụng GITHUB_TOKEN để có quyền ghi (Khắc phục lỗi 403)
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          
+          # 4. Kiểm tra có file nào được AI tạo ra không
+          if [[ -z $(git status -s) ]]; then
+            echo "Không có thay đổi nào được tạo ra."
+            exit 0
+          fi
+          
+          # 5. Tạo nhánh mới và Commit
+          git checkout -b $BRANCH_NAME
+          git add .
+          git commit -m "feat: AI generated code từ Issue #${{ github.event.issue.number }}"
+          
+          # 6. Push lên GitHub
+          git push -u origin $BRANCH_NAME --force
+          
+          # 7. Tạo Pull Request
+          gh pr create \
+            --title "🤖 AI Update cho Issue #${{ github.event.issue.number }}" \
+            --body "Pull Request này được tự động tạo bởi Gemini AI từ yêu cầu của @${{ github.actor }}." \
+            --base main \
+            --head $BRANCH_NAME
