@@ -90,6 +90,39 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
     setActiveGestureKey(null)
   }, [sendKeyToGame])
 
+  // ============================================================================
+  // ĐỒNG BỘ TÊN + UUID TỪ PROFILE VÀO Ô "👤 NGƯỜI CHƠI" CỦA PORTAL
+  // ============================================================================
+  // portal-index.html là file tĩnh (không phải React), tự quản lý tên người
+  // chơi bằng localStorage riêng — trước đây phải tự gõ tay, không liên quan
+  // gì đến Profile đã đăng nhập. Vì cùng origin nên gọi thẳng hàm
+  // window.setPlayerIdentity mà portal-index.html expose ra (giống cách
+  // sendKeyToGame gọi contentWindow.setKey ở trên); postMessage chỉ là
+  // fallback nếu vì lý do gì đó không gọi thẳng được.
+  const syncPlayerIdentityToGame = useCallback(() => {
+    try {
+      const name = user?.name || ''
+      const uuid = user?.uuid || ''
+      if (typeof iframeRef.current?.contentWindow?.setPlayerIdentity === 'function') {
+        iframeRef.current.contentWindow.setPlayerIdentity(name, uuid)
+      } else {
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'PORTAL_PLAYER_IDENTITY',
+          name,
+          uuid
+        }, '*')
+      }
+    } catch (err) {
+      console.warn('[BodyProtectionJourneyPanel] Lỗi đồng bộ tên/UUID người chơi:', err)
+    }
+  }, [user?.name, user?.uuid])
+
+  // Nếu Profile đổi tên/UUID (VD: nâng cấp tài khoản) SAU KHI iframe đã load
+  // xong, đẩy lại đồng bộ ngay, không cần người dùng tải lại game.
+  useEffect(() => {
+    syncPlayerIdentityToGame()
+  }, [syncPlayerIdentityToGame])
+
   const handleHandMappingChange = useCallback((nextMapping) => {
     handMappingRef.current = nextMapping
   }, [])
@@ -261,6 +294,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
             style={{ border: 'none', display: 'block' }}
             // BẮT BUỘC: Thêm "camera" để iFrame được phép chiếm quyền
             allow="camera; microphone; autoplay; fullscreen; display-capture"
+            onLoad={syncPlayerIdentityToGame}
           />
 
           {fullscreen && !activeGame.hasLocalCamera && (
