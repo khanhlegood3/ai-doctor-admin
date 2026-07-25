@@ -291,6 +291,18 @@ export default function UserProfilePanel() {
 
   useEffect(() => () => stopCamera(), [])
   useEffect(() => { if (!cameraActive) return; setCameraNow(new Date()); const t = setInterval(() => setCameraNow(new Date()), 1000); return () => clearInterval(t) }, [cameraActive])
+  // BUG FIX: trước đây srcObject được gán ngay trong startCamera/switchCamera,
+  // TRƯỚC khi setCameraActive(true) — nhưng <video> chỉ được render khi
+  // cameraActive === true (xem `{cameraActive && (...<video>...)}` bên dưới),
+  // nên tại thời điểm gán, videoRef.current vẫn là null → gán bị bỏ qua lặng
+  // lẽ, video mount lên sau đó KHÔNG có srcObject → màn hình đen, không thấy
+  // hình người. Sửa bằng effect này: chạy lại mỗi khi cameraActive bật, lúc
+  // đó <video> chắc chắn đã mount nên videoRef.current tồn tại.
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current || !streamRef.current) return
+    videoRef.current.srcObject = streamRef.current
+    videoRef.current.play?.().catch(() => {})
+  }, [cameraActive])
 
   const stopCamera = () => { streamRef.current?.getTracks?.().forEach(t => t.stop()); streamRef.current = null; setCameraActive(false) }
   const useAccountAvatar = () => { if (!providerAvatar) return; setAvatarPreview(providerAvatar); setAvatarCustomized(false); setAvatarModelSource(null); setCameraError('') }
@@ -308,7 +320,6 @@ export default function UserProfilePanel() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false })
       streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
       setCameraActive(true)
     } catch (e) { setCameraError(vi ? `Không thể truy cập camera: ${e.message}` : `Cannot access camera: ${e.message}`) }
   }
@@ -321,7 +332,6 @@ export default function UserProfilePanel() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false })
         streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
         setCameraActive(true)
       } catch (e) { setCameraError(vi ? `Không thể đổi camera: ${e.message}` : `Cannot switch camera: ${e.message}`) }
     }, 200)
@@ -646,6 +656,14 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
 
   useEffect(() => () => stopCamera(), [])
   useEffect(() => { if (!cameraActive) return; setCameraNow(new Date()); const t = setInterval(() => setCameraNow(new Date()), 1000); return () => clearInterval(t) }, [cameraActive])
+  // Xem giải thích chi tiết ở UserProfilePanel phía trên: video chỉ mount khi
+  // cameraActive === true nên phải gán srcObject SAU khi mount, không phải
+  // ngay trong startCamera/switchCamera lúc videoRef.current còn null.
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current || !streamRef.current) return
+    videoRef.current.srcObject = streamRef.current
+    videoRef.current.play?.().catch(() => {})
+  }, [cameraActive])
 
   const stopCamera = () => { streamRef.current?.getTracks?.().forEach(t => t.stop()); streamRef.current = null; setCameraActive(false) }
   const useGeneratedAvatar = () => { setAvatarPreview(initialsAvatar(name || user?.name)); setAvatarCustomized(true); setAvatarModelSource(null); setCameraError('') }
@@ -662,7 +680,6 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: false })
       streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
       setCameraActive(true)
     } catch (e) { setCameraError(vi ? `Không thể truy cập camera: ${e.message}` : `Cannot access camera: ${e.message}`) }
   }
@@ -675,7 +692,6 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: next }, audio: false })
         streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
         setCameraActive(true)
       } catch (e) { setCameraError(vi ? `Không thể đổi camera: ${e.message}` : `Cannot switch camera: ${e.message}`) }
     }, 200)
