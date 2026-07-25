@@ -427,7 +427,7 @@ export default function App() {
             {active === 'adminConcept' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
             )}
-            {active === 'hero3DMap' && <Hero3DMapPanel onNext={goNext} nextLabel={nextLabel} />}
+            {active === 'hero3DMap' && <Hero3DMapPanel onNext={goNext} nextLabel={nextLabel} onOpenBodyProtectionJourney={() => setActive('bodyProtectionJourney')} />}
             {active === 'myPainPathBody' && <MyPainPathBodyPanel />}
             {active === 'myPainPathBodyPixel' && <MyPainPathBodyPixelPanel />}
             {active === 'myPainPathNoiTang' && <MyPainPathNoiTangPanel />}
