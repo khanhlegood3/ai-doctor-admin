@@ -182,14 +182,7 @@ export default function HeroZoneStackPopup({
         </div>
 
         <section className={`overflow-hidden rounded-[28px] border shadow-2xl ${isDark ? 'border-cyan-400/20 bg-slate-950/70 shadow-cyan-950/20' : 'border-cyan-100 bg-white/80 shadow-slate-200/70'}`}>
-          <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] md:p-6">
-            <StackToggleSwitch
-              checked={stackHeroZonesAsHuman}
-              onChange={() => setStackHeroZonesAsHuman((prev) => !prev)}
-              label={toggleLabel}
-              sublabel={toggleSublabel}
-              isDark={isDark}
-            />
+          <div className="p-5 md:p-6">
             <div className={`rounded-3xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-cyan-100 bg-white/80'}`}>
               <div className="text-4xl">{selectedHeroZone.icon}</div>
               <h3 className={`mt-2 text-xl font-extrabold ${isDark ? 'text-gray-100' : 'text-slate-900'}`}>{selectedHeroZone.title}</h3>
@@ -215,6 +208,15 @@ export default function HeroZoneStackPopup({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="px-5 pb-5 md:px-6 md:pb-6">
+            <StackToggleSwitch
+              checked={stackHeroZonesAsHuman}
+              onChange={() => setStackHeroZonesAsHuman((prev) => !prev)}
+              label={toggleLabel}
+              sublabel={toggleSublabel}
+              isDark={isDark}
+            />
           </div>
         </section>
 
