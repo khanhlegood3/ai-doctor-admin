@@ -364,12 +364,14 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
             <h2 className="h3dm-question">Show me exactly where</h2>
             <p className="h3dm-helper">Pick a body part from the dropdown, then tap the section that's bothering you. Tap an orange section again to remove it.</p>
 
-            <button className="h3dm-continueButton" disabled={selectedCount === 0} onClick={() => setWizardStep('q1')}>
-              {selectedCount === 0 ? t('selectSection') : t('continue')}
-            </button>
-            <button className="h3dm-continueButton h3dm-continueButton-blue" onClick={navigateToJourney}>
-              {t('gameSimulation')}
-            </button>
+            <div className="h3dm-detailedActions">
+              <button className="h3dm-btn" disabled={selectedCount === 0} onClick={() => setWizardStep('q1')}>
+                {selectedCount === 0 ? t('selectSection') : t('continue')}
+              </button>
+              <button className="h3dm-btn h3dm-btn-blue" onClick={navigateToJourney}>
+                {t('gameSimulation')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -587,6 +589,7 @@ const HERO3DMAP_CSS = `
   .h3dm-card { grid-template-columns: 1fr; }
   .h3dm-infoPane { min-height: auto; padding: 20px; }
   .h3dm-continueButton { position: static !important; width: 100%; margin-top: 10px; }
+  .h3dm-detailedActions { position: static; margin-top: 16px; }
   .h3dm-tabs { justify-content: center; }
 }
 
@@ -654,9 +657,36 @@ const HERO3DMAP_CSS = `
   cursor: pointer;
 }
 .h3dm-continueButton:disabled { opacity: 0.5; cursor: not-allowed; }
-.h3dm-continueButton-blue { bottom: -50px; background: #60a5fa; }
+.h3dm-continueButton-blue { background: #60a5fa; }
 .h3dm-continueButton-static { position: static; flex: 1; }
 .h3dm-continueButton-outline { background: #fff; color: #c85d3a; border: 1px solid #c85d3a; }
+
+/* Nhóm nút xếp chồng (vd: "Tiếp tục" + "Game Mô Phỏng...") ở bước detailed.
+   Dùng flex-column trong luồng bình thường thay vì offset âm (bottom: -50px)
+   để không bao giờ bị thanh điều hướng/khung ngoài của app che mất hoặc
+   nằm ngoài vùng có thể bấm được. */
+.h3dm-detailedActions {
+  position: absolute;
+  left: 52px;
+  right: 52px;
+  bottom: 46px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.h3dm-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #c85d3a;
+  color: #fff;
+  padding: 18px;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.h3dm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.h3dm-btn-blue { background: #60a5fa; }
 
 .h3dm-resultActions { display: flex; gap: 10px; margin-top: 20px; }
 
