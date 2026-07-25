@@ -167,10 +167,10 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="global-ai-chatbot-fab" style={styles.fab} aria-label="Mở AI Smart Agent">
-        <span style={styles.fabIcon}>🤗</span>
+      <button type="button" onClick={() => setOpen(true)} className="global-ai-chatbot-fab" style={styles.fab} aria-label="Mở Hero AI">
+        <span style={styles.fabIcon}>🦸</span>
         <span>
-          <strong>AI Smart Agent</strong>
+          <strong>Hero AI 🤗</strong>
           <small></small>
         </span>
       </button>
@@ -181,7 +181,7 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
   const resizeIcon = fullscreen ? '⤡' : '⤢'
 
   return (
-    <section className="global-ai-chatbot-panel" style={styles.panel} aria-label="AI Smart Agent">
+    <section className="global-ai-chatbot-panel" style={styles.panel} aria-label="Hero AI">
       <audio ref={audioElementRef} preload="none" style={{ display: 'none' }} />
       <button
         type="button"
@@ -206,7 +206,7 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
       <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeBottomRight }} aria-label="Đóng chatbot ở góc dưới phải">×</button>
       <header style={styles.header}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={styles.title}>🤗 AI Smart Agent</div>
+          <div style={styles.title}>🦸 Hero AI 🤗</div>
           <div style={styles.subtitle}>{status}</div>
         </div>
         <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeTopRight }} aria-label="Đóng chatbot">×</button>
