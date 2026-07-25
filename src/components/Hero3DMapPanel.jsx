@@ -39,7 +39,7 @@ const TRANSLATIONS = {
     startOver: 'Start over',
     close: 'Close',
     downloadPdf: 'Download PDF',
-    gameSimulation: 'Game Mô Phỏng Bảo Vệ Nội Tạng Này',
+    gameSimulation: 'Game Mô Phỏng Cách Bảo Vệ Nội Tạng',
   },
   vi: {
     selectArea: 'Chọn một vùng để tiếp tục',
@@ -62,7 +62,7 @@ const TRANSLATIONS = {
     startOver: 'Bắt đầu lại',
     close: 'Đóng',
     downloadPdf: 'Tải PDF',
-    gameSimulation: 'Game Mô Phỏng Bảo Vệ Nội Tạng Này',
+    gameSimulation: 'Game Mô Phỏng Cách Bảo Vệ Nội Tạng',
   },
 };
 
@@ -368,9 +368,6 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
               <button className="h3dm-btn" disabled={selectedCount === 0} onClick={() => setWizardStep('q1')}>
                 {selectedCount === 0 ? t('selectSection') : t('continue')}
               </button>
-              <button className="h3dm-btn h3dm-btn-blue" onClick={navigateToJourney}>
-                {t('gameSimulation')}
-              </button>
             </div>
           </div>
         </div>
@@ -456,9 +453,6 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
                 <button className="h3dm-continueButton h3dm-continueButton-static" onClick={() => setShowPreview(true)}>
                   {t('downloadPdf')}
                 </button>
-                <button className="h3dm-continueButton h3dm-continueButton-static h3dm-continueButton-blue" onClick={navigateToJourney}>
-                  {t('gameSimulation')}
-                </button>
                 <button className="h3dm-continueButton h3dm-continueButton-static h3dm-continueButton-outline" onClick={resetAll}>
                   {t('startOver')}
                 </button>
@@ -529,6 +523,12 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
     <div className="hero3dmap-scope" style={{ width: '100%', height: '100vh', overflowY: 'auto' }}>
       <style>{HERO3DMAP_CSS}</style>
       <div className="h3dm-app">{content}</div>
+
+      {/* Nút Game Mô Phỏng — luôn hiển thị ở MỌI tab/bước của trang "3D Map for
+          Hero" và không bao giờ bị disable, dù đang ở bước nào của wizard. */}
+      <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
+        {t('gameSimulation')}
+      </button>
     </div>
   );
 }
@@ -553,26 +553,31 @@ const HERO3DMAP_CSS = `
 
 .h3dm-app {
   min-height: 100%;
-  padding-bottom: 26px;
+  padding-bottom: clamp(70px, 12vw, 90px);
+}
+
+@media (max-width: 600px) {
+  .h3dm-app { padding-bottom: 76px; }
 }
 
 .h3dm-stage {
   position: relative;
-  width: calc(100% - 48px);
+  width: calc(100% - 24px);
   margin: 10px auto 0;
   border-radius: 18px;
   background: #282724;
-  padding: 50px 24px 12px;
-  min-height: 820px;
+  padding: clamp(28px, 6vw, 50px) clamp(14px, 3vw, 24px) 12px;
+  min-height: clamp(560px, 92vh, 820px);
   text-align: center;
+  box-sizing: border-box;
 }
 .h3dm-stage-detailed { background: #c75d3b; }
 
-.h3dm-title { color: #fff; margin: 0 0 10px; font-size: 30px; font-weight: 850; letter-spacing: -0.02em; }
-.h3dm-subtitle { color: #fff6ef; margin: 0; font-size: 20px; }
+.h3dm-title { color: #fff; margin: 0 0 10px; font-size: clamp(20px, 4vw, 30px); font-weight: 850; letter-spacing: -0.02em; }
+.h3dm-subtitle { color: #fff6ef; margin: 0; font-size: clamp(14px, 2.4vw, 20px); }
 
 .h3dm-card {
-  width: min(1260px, calc(100% - 120px));
+  width: min(1260px, calc(100% - 24px));
   margin: 18px auto 0;
   display: grid;
   grid-template-columns: 45% 55%;
@@ -582,18 +587,30 @@ const HERO3DMAP_CSS = `
   text-align: left;
 }
 
+/* Tablet (~768–1024px): giữ layout 2 cột nhưng bớt padding/kích thước để vừa
+   màn hình, tránh tràn ngang hoặc dồn cụm quá chật. */
+@media (max-width: 1024px) {
+  .h3dm-card { width: calc(100% - 24px); }
+  .h3dm-pixelPane, .h3dm-infoPane { padding: 28px 26px; min-height: 560px; }
+}
+
 @media (max-width: 900px) {
   .h3dm-card { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  .h3dm-card { grid-template-columns: 1fr; }
-  .h3dm-infoPane { min-height: auto; padding: 20px; }
-  .h3dm-continueButton { position: static !important; width: 100%; margin-top: 10px; }
+  .h3dm-card { grid-template-columns: 1fr; width: calc(100% - 16px); }
+  .h3dm-stage { width: calc(100% - 16px); min-height: auto; padding: 20px 12px 16px; }
+  .h3dm-pixelPane, .h3dm-infoPane { min-height: auto; padding: 18px; }
+  .h3dm-continueButton { position: static !important; width: 100%; margin-top: 14px; }
   .h3dm-detailedActions { position: static; margin-top: 16px; }
   .h3dm-tabs { justify-content: center; }
+  .h3dm-dotMap, .h3dm-dotMapBody { height: 340px; }
+  .h3dm-optionsGrid { grid-template-columns: 1fr; }
+  .h3dm-meta { grid-template-columns: 90px 1fr; font-size: 12px; }
+  .h3dm-question { font-size: 22px; }
 }
 
-.h3dm-pixelPane { min-height: 690px; background: #272622; padding: 30px 30px 26px; color: #c4bcb0; position: relative; }
+.h3dm-pixelPane { min-height: clamp(420px, 70vh, 690px); background: #272622; padding: clamp(18px, 3vw, 30px) clamp(16px, 3vw, 30px) 26px; color: #c4bcb0; position: relative; box-sizing: border-box; }
 .h3dm-pixelPane-placeholder { display: flex; align-items: center; justify-content: center; color: #8d887f; }
 
 .h3dm-kicker { display: block; color: #8d887f; font-family: monospace; letter-spacing: .18em; font-size: 12px; margin-bottom: 10px; }
@@ -603,16 +620,17 @@ const HERO3DMAP_CSS = `
   border: 1px solid rgba(255,255,255,.13);
   border-radius: 12px;
   padding: 13px 18px;
-  font-size: 17px;
+  font-size: 16px;
   color: #f5f0e8;
   background: #2b2925;
   outline: none;
+  box-sizing: border-box;
 }
 
-.h3dm-dotMap { position: relative; height: 520px; margin-top: 18px; }
+.h3dm-dotMap { position: relative; height: clamp(320px, 55vh, 520px); margin-top: 18px; }
 .h3dm-dotMapBody {
   position: relative;
-  height: 520px;
+  height: clamp(320px, 55vh, 520px);
   margin-top: 20px;
   background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px);
   background-size: 32px 32px;
@@ -635,24 +653,24 @@ const HERO3DMAP_CSS = `
 .h3dm-chipX { color: #d86b45; font-weight: 900; margin-left: 4px; }
 .h3dm-emptyHint { color: #837d73; font-size: 14px; font-style: italic; }
 
-.h3dm-infoPane { min-height: 690px; padding: 50px 52px; position: relative; background: #fffdfa; }
+.h3dm-infoPane { min-height: clamp(420px, 70vh, 690px); padding: clamp(24px, 4vw, 50px) clamp(20px, 4vw, 52px); position: relative; background: #fffdfa; box-sizing: border-box; }
 
-.h3dm-meta { display: grid; grid-template-columns: 120px 1fr; gap: 7px 18px; font-family: monospace; color: #948e85; letter-spacing: .08em; }
+.h3dm-meta { display: grid; grid-template-columns: 120px 1fr; gap: 7px 18px; font-family: monospace; color: #948e85; letter-spacing: .08em; font-size: 13px; }
 .h3dm-rule { border: 0; border-top: 1px solid #e4dfd6; margin: 28px 0; }
-.h3dm-question { font-size: 30px; margin: 0; letter-spacing: -0.04em; }
-.h3dm-helper { color: #69645e; font-size: 17px; line-height: 1.5; }
+.h3dm-question { font-size: clamp(20px, 3.2vw, 30px); margin: 0; letter-spacing: -0.04em; }
+.h3dm-helper { color: #69645e; font-size: clamp(14px, 2vw, 17px); line-height: 1.5; }
 
 .h3dm-continueButton {
   position: absolute;
-  left: 52px;
-  right: 52px;
-  bottom: 46px;
+  left: clamp(20px, 4vw, 52px);
+  right: clamp(20px, 4vw, 52px);
+  bottom: clamp(20px, 4vw, 46px);
   border: 0;
   border-radius: 12px;
   background: #c85d3a;
   color: #fff;
-  padding: 18px;
-  font-size: 17px;
+  padding: 16px;
+  font-size: 16px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -667,9 +685,9 @@ const HERO3DMAP_CSS = `
    nằm ngoài vùng có thể bấm được. */
 .h3dm-detailedActions {
   position: absolute;
-  left: 52px;
-  right: 52px;
-  bottom: 46px;
+  left: clamp(20px, 4vw, 52px);
+  right: clamp(20px, 4vw, 52px);
+  bottom: clamp(20px, 4vw, 46px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -680,13 +698,45 @@ const HERO3DMAP_CSS = `
   border-radius: 12px;
   background: #c85d3a;
   color: #fff;
-  padding: 18px;
-  font-size: 17px;
+  padding: 16px;
+  font-size: 16px;
   font-weight: 800;
   cursor: pointer;
+  box-sizing: border-box;
 }
 .h3dm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .h3dm-btn-blue { background: #60a5fa; }
+
+/* Nút Game Mô Phỏng — luôn nổi (fixed) trên mọi tab/bước, không disable. */
+.h3dm-gameFab {
+  position: fixed;
+  right: clamp(12px, 3vw, 24px);
+  bottom: clamp(12px, 3vw, 24px);
+  z-index: 60;
+  border: 0;
+  border-radius: 999px;
+  background: #60a5fa;
+  color: #fff;
+  padding: clamp(12px, 2.2vw, 16px) clamp(16px, 3vw, 24px);
+  font-size: clamp(13px, 1.6vw, 15px);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(0,0,0,.28);
+  max-width: calc(100vw - 24px);
+  line-height: 1.3;
+}
+.h3dm-gameFab:hover { filter: brightness(1.06); }
+
+@media (max-width: 600px) {
+  .h3dm-gameFab {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: calc(100% - 24px);
+    max-width: none;
+    text-align: center;
+  }
+}
 
 .h3dm-resultActions { display: flex; gap: 10px; margin-top: 20px; }
 
