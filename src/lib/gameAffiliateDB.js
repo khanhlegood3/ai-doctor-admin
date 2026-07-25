@@ -133,6 +133,14 @@ export async function getReferralsByReferrer(referrerUuid) {
   return getAllByIndex('referrals', 'by_referrer', referrerUuid)
 }
 
+// Gỡ quan hệ upline SAI/rác khỏi IndexedDB local (đi kèm DELETE phía server
+// trong AffiliateUUIDReferralPanel.jsx). Chỉ nên gọi khi chainStatus CHƯA
+// 'synced' — xem lý do trong api/affiliate-referral.js.
+export async function deleteReferralFor(refereeUuid) {
+  const rows = await getAllByIndex('referrals', 'by_referee', refereeUuid)
+  await Promise.all(rows.map((r) => tx('referrals', 'readwrite', s => s.delete(r.id))))
+}
+
 export async function markReferralSynced(id, txHash) {
   const row = await tx('referrals', 'readonly', s => s.get(id))
   if (!row) return
