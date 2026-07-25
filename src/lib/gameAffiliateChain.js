@@ -151,12 +151,41 @@ async function sendGaslessCall(uuid, { functionName, args }) {
   return txHash
 }
 
+// Lỗi từ Pimlico bundler (vd eth_estimateUserOperationGas) đôi khi trả về
+// revert reason ở dạng hex thô CHƯA decode (selector 0x08c379a0 = chuẩn ABI
+// Error(string)), khác với lỗi JSON-RPC thường có sẵn text người đọc được.
+// Nếu chỉ regex trực tiếp trên error.message, những case như "Already
+// registered" bị bỏ lỡ (message chỉ toàn hex) và bị coi nhầm là lỗi thật.
+function decodeAbiRevertReason(rawText) {
+  const match = rawText.match(/0x08c379a0[0-9a-fA-F]+/)
+  if (!match) return null
+  try {
+    const hex = match[0].slice(2)
+    const lengthHex = hex.slice(72, 136)
+    const length = parseInt(lengthHex, 16)
+    if (!Number.isFinite(length) || length <= 0 || length > 1000) return null
+    const dataHex = hex.slice(136, 136 + length * 2)
+    let str = ''
+    for (let i = 0; i < dataHex.length; i += 2) {
+      str += String.fromCharCode(parseInt(dataHex.slice(i, i + 2), 16))
+    }
+    return str
+  } catch {
+    return null
+  }
+}
+
+function getRevertMessage(error) {
+  const rawText = error?.message || String(error)
+  return decodeAbiRevertReason(rawText) || rawText
+}
+
 function isCooldownError(error) {
-  return /cooldown/i.test(error?.message || String(error))
+  return /cooldown/i.test(getRevertMessage(error))
 }
 
 function isAlreadyRegisteredError(error) {
-  return /Already registered/i.test(error?.message || String(error))
+  return /Already registered/i.test(getRevertMessage(error))
 }
 
 // ─── 1) Ghi quan hệ referral lên chain ─────────────────────────────────────
