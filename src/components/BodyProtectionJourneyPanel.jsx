@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ShieldCheck, Maximize2, Minimize2, Hand, Gamepad2 } from 'lucide-react'
+import { ShieldCheck, Maximize2, Minimize2, Hand } from 'lucide-react'
 import NavButtons from './NavButtons.jsx'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -13,29 +13,16 @@ import { registerReferralOnChain } from '../lib/gameAffiliateChain'
 // DANH SÁCH GAME & CẤU HÌNH CAMERA
 // Best Practice: Phân loại game tự quản lý camera và game cần Portal hỗ trợ AI.
 // ============================================================================
-const GAMES_LIST = [
-  {
-    id: 1,
-    title: "Portal Game (Tích hợp AI Camera)",
-    url: "/games/bao-ve-co-the-camera-key.html", // Đường dẫn tới game có sẵn camera
-    hasLocalCamera: true, // Trình duyệt sẽ tắt camera ngoài, cho phép iFrame tự xử lý
-    external: false
-  },
-  {
-    id: 2,
-    title: "Portal Game (Không Camera)",
-    url: "/games/portal-index.html", 
-    hasLocalCamera: false, // Portal bên ngoài sẽ bật camera AI và postMessage vào
-    external: false
-  },
-  {
-    id: 3,
-    title: "Angry Bird NFT (Vercel)",
-    url: "https://your-vercel-game-url.vercel.app", // Thay bằng URL thật của bạn
-    hasLocalCamera: false, 
-    external: true // Bắt buộc dùng postMessage vì khác Domain (CORS)
-  }
-];
+// Đã bỏ menu chọn game (Portal Game AI Camera / Portal Game Không Camera /
+// Angry Bird NFT) — trang này giờ chỉ load CỐ ĐỊNH đúng 1 game duy nhất:
+// public/games/portal-index.html (Portal bên ngoài tự bật camera AI và
+// postMessage vào, giống hành vi của "Portal Game (Không Camera)" trước đây).
+const GAME = {
+  title: "Portal Game",
+  url: "/games/portal-index.html",
+  hasLocalCamera: false,
+  external: false
+};
 
 const HOLD_FRAMES_TO_ACTIVATE = 3
 const HOLD_FRAMES_TO_RELEASE = 5
@@ -46,7 +33,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
   const isDark = theme === 'dark'
   
   // State quản lý Game đang được chọn
-  const [activeGame, setActiveGame] = useState(GAMES_LIST[0])
+  const activeGame = GAME
   const [fullscreen, setFullscreen] = useState(false)
   const [gestureOn, setGestureOn] = useState(false)
   const [activeGestureKey, setActiveGestureKey] = useState(null)
@@ -260,26 +247,6 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
               </button>
             </div>
           </div>
-        )}
-
-        {/* MENU CHỌN GAME */}
-        {!fullscreen && (
-           <div className="flex flex-wrap gap-2 mb-1">
-             {GAMES_LIST.map(game => (
-                <button
-                  key={game.id}
-                  onClick={() => setActiveGame(game)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all ${
-                      activeGame.id === game.id 
-                        ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-md' 
-                        : isDark ? 'bg-slate-800 text-gray-400 hover:bg-slate-700' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                  }`}
-                >
-                  <Gamepad2 size={16} />
-                  {game.title}
-                </button>
-             ))}
-           </div>
         )}
 
         <div
