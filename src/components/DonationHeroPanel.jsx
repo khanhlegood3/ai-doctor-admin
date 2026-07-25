@@ -215,20 +215,6 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
               }} />
               <span className="text-5xl relative">🧑‍⚕️</span>
             </div>
-            <div className="absolute left-[calc(100%-10px)] top-1/2 z-10 -translate-y-1/2">
-              <HeroMicVoiceButton
-                mode={mode}
-                activePanelLabel="Anh Hùng Hiến Tặng"
-                isVi={!isEn}
-                isDark={isDark}
-                micLabel={t.micLabel}
-                variant="expanded"
-                buttonSize={88}
-                iconSize={34}
-                holoEffect
-                compact
-              />
-            </div>
           </div>
 
           <p className={`text-[11px] sm:text-xs font-semibold uppercase tracking-[0.18em] ${isDark ? 'text-emerald-400/80' : 'text-emerald-600/80'}`}>{t.greeting}</p>
@@ -467,6 +453,23 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
               <ShieldCheck size={16} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
               {t.levelBadge(currentLevel)}
             </div>
+          </div>
+
+          {/* Micro — chuyển xuống dưới huy hiệu cấp độ, cùng kích thước với
+          Micro của trang "Lựa chọn Role Anh Hùng" (ChooseUserRolePanel) để
+          đồng bộ trải nghiệm giữa 2 trang. */}
+          <div className="flex items-center justify-center mt-8">
+            <HeroMicVoiceButton
+              mode={mode}
+              activePanelLabel="Anh Hùng Hiến Tặng"
+              isVi={!isEn}
+              isDark={isDark}
+              micLabel={t.micLabel}
+              variant="expanded"
+              buttonSize={144}
+              iconSize={58}
+              holoEffect
+            />
           </div>
         </div>
 
