@@ -45,10 +45,47 @@ export default function PdfPreviewModal({
   const printRef = useRef(null);
 
   const handleDownload = () => {
+    const source = printRef.current;
+    if (!source) return;
+
+    // QUAN TRỌNG: không chụp trực tiếp `source` vì nó đang nằm bên trong
+    // overlay `position: fixed`. html2canvas có giới hạn đã biết khi chụp
+    // phần tử `fixed`/lồng trong stacking context phức tạp — nó thường chụp
+    // sai tỉ lệ rồi phóng lại, khiến chữ bị "loãng"/nhạt màu. Giải pháp: clone
+    // nội dung ra một container ẩn, nằm NGOÀI luồng fixed, có nền trắng
+    // tường minh, rồi mới chạy html2pdf trên bản clone đó.
+    const clone = source.cloneNode(true);
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'absolute';
+    wrapper.style.top = '0';
+    wrapper.style.left = '-99999px';
+    wrapper.style.width = `${source.offsetWidth || 800}px`;
+    wrapper.style.background = '#ffffff';
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    const cleanup = () => {
+      if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+    };
+
     // @vite-ignore — tải động, chỉ dùng khi người dùng thực sự bấm nút.
-    import('html2pdf.js').then((html2pdf) => {
-      html2pdf.default().from(printRef.current).save(filename);
-    });
+    import('html2pdf.js')
+      .then((html2pdf) =>
+        html2pdf
+          .default()
+          .set({
+            html2canvas: { backgroundColor: '#ffffff', scale: 2, useCORS: true },
+            jsPDF: { unit: 'pt', format: 'a4' },
+          })
+          .from(clone)
+          .save(filename)
+      )
+      .then(cleanup)
+      .catch((err) => {
+        cleanup();
+        // eslint-disable-next-line no-console
+        console.error('PdfPreviewModal: failed to generate PDF', err);
+      });
   };
 
   return (
@@ -134,14 +171,16 @@ const styles = {
   printContent: {
     padding: 20,
     fontFamily: 'sans-serif',
+    background: '#ffffff',
+    color: '#222222',
   },
-  h1: { margin: '0 0 8px' },
-  h3: { margin: '18px 0 8px' },
-  subtitle: { margin: 0 },
-  ul: { paddingLeft: 20, margin: 0 },
+  h1: { margin: '0 0 8px', color: '#111111' },
+  h3: { margin: '18px 0 8px', color: '#111111' },
+  subtitle: { margin: 0, color: '#333333' },
+  ul: { paddingLeft: 20, margin: 0, color: '#222222' },
   table: { width: '100%', borderCollapse: 'collapse' },
-  th: { border: '1px solid #ccc', padding: 8, textAlign: 'left' },
-  td: { border: '1px solid #ccc', padding: 8, textAlign: 'left' },
+  th: { border: '1px solid #ccc', padding: 8, textAlign: 'left', color: '#111111' },
+  td: { border: '1px solid #ccc', padding: 8, textAlign: 'left', color: '#222222' },
   disclaimer: {
     fontSize: 12,
     marginTop: 20,
