@@ -1399,6 +1399,7 @@ export default function AvatarCreatorPanel() {
                     autoRotate={autoRotate}
                     showGrid={false}
                     showHeightRuler={showHeightRuler}
+                    showAxisGizmo
                     showBones={showBones}
                     showWireframe={showWireframe}
                     showTextures={showTextures}
@@ -1425,6 +1426,10 @@ export default function AvatarCreatorPanel() {
                 {vi
                   ? 'Đổi animation ở khung "Trình xem 3D & Animation" phía trên để cập nhật tư thế ở đây.'
                   : 'Change the animation in the "3D & Animation Viewer" panel above to update the pose shown here.'}
+                {' '}
+                {vi
+                  ? 'Bấm vào trục X/Y/Z ở góc dưới trái để xoay nhanh camera về đúng hướng đó.'
+                  : 'Click the X/Y/Z axis widget in the bottom-left corner to snap the camera to that view instantly.'}
               </span>
             </div>
           </div>
