@@ -76,6 +76,22 @@ function shortUuid(uuid) {
   return uuid.length > 14 ? `${uuid.slice(0, 8)}…${uuid.slice(-6)}` : uuid
 }
 
+// Phòng hờ trường hợp Mongo có nhiều doc trùng cho cùng 1 refereeUuid (vd do
+// race condition lúc test/đăng ký liên tiếp) — chỉ giữ 1 dòng/refereeUuid khi
+// hiển thị, ưu tiên dòng đã 'synced' nếu có.
+function dedupeByReferee(rows) {
+  const map = new Map()
+  for (const r of rows) {
+    const key = r.refereeUuid
+    if (!key) continue
+    const existing = map.get(key)
+    if (!existing || (r.chainStatus === 'synced' && existing.chainStatus !== 'synced')) {
+      map.set(key, r)
+    }
+  }
+  return Array.from(map.values())
+}
+
 // ─── Backend dùng chung (MongoDB qua /api/affiliate-referral) ─────────────
 // IndexedDB/localStorage chỉ tồn tại TRÊN TỪNG THIẾT BỊ — nếu User 2 đăng ký
 // trên máy của họ, User 1 mở app trên máy khác sẽ không có dữ liệu đó trong
@@ -149,6 +165,8 @@ export default function AffiliateUUIDReferralPanel() {
   const [copied, setCopied] = useState(false)
   const [upline, setUpline] = useState(null) // { referrerUuid, ... } nếu tôi đã có người giới thiệu
   const [downline, setDownline] = useState([]) // F1 trực tiếp của tôi
+  const [downlineF2, setDownlineF2] = useState([]) // F2 — do các F1 của tôi giới thiệu
+  const [downlineF3, setDownlineF3] = useState([]) // F3 — do các F2 của tôi giới thiệu
   const [inputUuid, setInputUuid] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [chainStatus, setChainStatus] = useState(null) // 'pending' | 'synced' | 'failed' | 'skipped'
@@ -197,9 +215,21 @@ export default function AffiliateUUIDReferralPanel() {
       }
     }
 
-    const serverDownline = await fetchServerDownline(myUuid)
+    // F1 trực tiếp của tôi
+    const serverDownline = dedupeByReferee(await fetchServerDownline(myUuid))
     setUpline(serverUpline)
     setDownline(serverDownline)
+
+    // F2: mỗi F1 của tôi cũng có downline riêng của họ — gộp lại thành tầng 2.
+    // F3: tương tự, lấy downline của từng F2 vừa gộp được ở trên.
+    // Chạy song song (Promise.all) theo từng tầng để không phải chờ tuần tự.
+    const f2Groups = await Promise.all(serverDownline.map((f1) => fetchServerDownline(f1.refereeUuid)))
+    const serverDownlineF2 = dedupeByReferee(f2Groups.flat())
+    setDownlineF2(serverDownlineF2)
+
+    const f3Groups = await Promise.all(serverDownlineF2.map((f2) => fetchServerDownline(f2.refereeUuid)))
+    const serverDownlineF3 = dedupeByReferee(f3Groups.flat())
+    setDownlineF3(serverDownlineF3)
   }, [myUuid])
 
   useEffect(() => { refresh() }, [refresh])
@@ -545,34 +575,50 @@ export default function AffiliateUUIDReferralPanel() {
         </div>
       </div>
 
-      {/* Danh sách F1 đã giới thiệu — tham khảo bảng "My Referrals" của refearnapp */}
+      {/* Cây thành viên đa tầng — F1 (10%) · F2 (5%) · F3 (2%), tham khảo
+          bảng "My Referrals" của refearnapp nhưng mở rộng đủ 3 tầng đúng
+          hoa hồng ở banner đầu trang. */}
       <div className={`mt-5 rounded-2xl border p-5 ${card}`}>
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2"><Network size={18} className="text-cyan-400" /><span className="font-bold text-sm">F1 đã giới thiệu qua UUID</span></div>
+          <div className="flex items-center gap-2"><Network size={18} className="text-cyan-400" /><span className="font-bold text-sm">Cây thành viên đa tầng qua UUID</span></div>
           <button type="button" onClick={refresh} className={`text-xs ${textDim} hover:text-cyan-400 flex items-center gap-1`}><RefreshCw size={12} /> Làm mới</button>
         </div>
-        {downline.length === 0 ? (
-          <p className={`text-xs ${textDim}`}>Chưa có ai đăng ký dưới UUID của bạn. Hãy gửi UUID ở trên cho bạn bè!</p>
-        ) : (
-          <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-            {downline.map((r) => (
-              <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
-                <span className="font-mono">{shortUuid(r.refereeUuid)}</span>
-                <span className="flex items-center gap-1.5">
-                  {r.txHash && (
-                    <a href={getBscScanTxUrl(r.txHash)} target="_blank" rel="noreferrer" title="Xem giao dịch trên BscScan Testnet" className="text-cyan-400 hover:text-cyan-300">
-                      <ExternalLink size={11} />
-                    </a>
-                  )}
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300' : r.chainStatus === 'failed' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/50'}`}>
-                    {r.chainStatus === 'synced' ? 'On-chain' : r.chainStatus === 'failed' ? 'Chờ đồng bộ' : 'Đang xử lý'}
-                  </span>
-                </span>
+
+        {[
+          { label: 'F1 · tầng 1 (10%)', rows: downline, emptyText: 'Chưa có ai đăng ký dưới UUID của bạn. Hãy gửi UUID ở trên cho bạn bè!' },
+          { label: 'F2 · tầng 2 (5%)', rows: downlineF2, emptyText: 'Chưa có F2 — sẽ xuất hiện khi F1 của bạn giới thiệu thêm người mới.' },
+          { label: 'F3 · tầng 3 (2%)', rows: downlineF3, emptyText: 'Chưa có F3 — sẽ xuất hiện khi F2 của bạn giới thiệu thêm người mới.' },
+        ].map((tier, idx) => (
+          <div key={tier.label} className={idx > 0 ? 'mt-4' : ''}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`text-xs font-bold ${textDim}`}>{tier.label}</span>
+              <span className="text-[10px] font-bold text-cyan-400">{tier.rows.length} người</span>
+            </div>
+            {tier.rows.length === 0 ? (
+              <p className={`text-xs ${textDim}`}>{tier.emptyText}</p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {tier.rows.map((r) => (
+                  <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
+                    <span className="font-mono">{shortUuid(r.refereeUuid)}</span>
+                    <span className="flex items-center gap-1.5">
+                      {r.txHash && (
+                        <a href={getBscScanTxUrl(r.txHash)} target="_blank" rel="noreferrer" title="Xem giao dịch trên BscScan Testnet" className="text-cyan-400 hover:text-cyan-300">
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300' : r.chainStatus === 'failed' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/50'}`}>
+                        {r.chainStatus === 'synced' ? 'On-chain' : r.chainStatus === 'failed' ? 'Chờ đồng bộ' : 'Đang xử lý'}
+                      </span>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-        <p className={`mt-3 text-[11px] ${textDim}`}>Xem chi tiết hoa hồng, sổ cái minh bạch và cây thành viên đầy đủ tại mục “{t ? t('affiliate') || 'Affiliate & Earn Đa Tầng' : 'Affiliate & Earn Đa Tầng'}”.</p>
+        ))}
+
+        <p className={`mt-4 text-[11px] ${textDim}`}>Xem chi tiết hoa hồng, sổ cái minh bạch và cây thành viên đầy đủ tại mục “{t ? t('affiliate') || 'Affiliate & Earn Đa Tầng' : 'Affiliate & Earn Đa Tầng'}”.</p>
       </div>
     </div>
   )
