@@ -5,6 +5,7 @@ import profileBannerImg from '../pages/AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar, { UuidAvatar3DDownloadButton } from './UserUuid3DAvatar.jsx'
 import AnimatedAvatarViewer from './AnimatedAvatarViewer'
 import ObjModelViewer from './ObjModelViewer'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const PROVIDER_META = {
   google: {
@@ -52,6 +53,113 @@ function ProfileAvatar3D({ source, size = 154, isDark }) {
         <ObjModelViewer modelUrl={source.modelFileUrl} mtlUrl={source.mtlUrl} isDark autoRotate showGrid={false} />
       ) : (
         <AnimatedAvatarViewer modelUrl={source.modelFileUrl} modelKind={kind === 'fbx' ? 'fbx' : 'gltf'} isDark autoRotate showGrid={false} showDragHint={false} />
+      )}
+    </div>
+  )
+}
+
+// ─── Khung "Textures" ────────────────────────────────────────────────────
+// Trích texture (ảnh dán lên model) nhúng THẬT bên trong chính file
+// glTF/VRM/GLB đang chọn — cùng cách tab "Textures" của AvatarCreatorPanel.jsx
+// làm (GLTFLoader -> parser.getDependency('texture', i)), chỉ khác là ở đây
+// chỉ lấy 1 texture đầu tiên để hiện gọn trong 1 khung duy nhất trên trang
+// hồ sơ. Định dạng OBJ/FBX không trích được theo cách này (không dùng
+// GLTFLoader) nên hiển thị "Không có texture" cho các định dạng đó.
+const profileModelTextureCache = new Map() // model url -> Promise<texture|null>
+
+function bytesFromDataUrlProfile(dataUrl) {
+  const commaIndex = dataUrl.indexOf(',')
+  if (commaIndex < 0) return 0
+  const base64Length = dataUrl.length - commaIndex - 1
+  return Math.round((base64Length * 3) / 4)
+}
+
+function extractFirstModelTexture(url, kind) {
+  if (!url || kind === 'obj' || kind === 'fbx') return Promise.resolve(null)
+  if (profileModelTextureCache.has(url)) return profileModelTextureCache.get(url)
+  const promise = new Promise((resolve) => {
+    const loader = new GLTFLoader()
+    loader.load(
+      url,
+      (gltf) => {
+        try {
+          const parser = gltf.parser
+          const textureDefs = parser?.json?.textures || []
+          if (!textureDefs.length) { resolve(null); return }
+          parser.getDependency('texture', 0)
+            .then((tex) => {
+              const img = tex?.image
+              if (!img) { resolve(null); return }
+              const width = img.naturalWidth || img.width || 0
+              const height = img.naturalHeight || img.height || 0
+              let previewUrl = ''
+              let bytes = 0
+              try {
+                const canvas = document.createElement('canvas')
+                canvas.width = width || 512
+                canvas.height = height || 512
+                const ctx = canvas.getContext('2d')
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+                previewUrl = canvas.toDataURL('image/png')
+                bytes = bytesFromDataUrlProfile(previewUrl)
+              } catch { previewUrl = img.src || '' }
+              if (!previewUrl) { resolve(null); return }
+              resolve({ url: previewUrl, width, height, bytes })
+            })
+            .catch(() => resolve(null))
+        } catch { resolve(null) }
+      },
+      undefined,
+      () => resolve(null),
+    )
+  })
+  profileModelTextureCache.set(url, promise)
+  return promise
+}
+
+// Khung Textures — nằm ngay trước khung Avatar 3D trên cùng 1 hàng; hàng
+// này (Textures + Avatar 3D) chỉ hiện khi user đã có avatar 3D
+// (avatarModelSource), nên component chỉ cần tự vệ thêm bằng cách trả về
+// null nếu bị dùng sai chỗ không có source.
+function ProfileAvatarTextureBox({ source, size = 154, isDark, vi, border, surface2, text3 }) {
+  const [state, setState] = useState('idle') // idle | loading | ok | empty
+  const [texture, setTexture] = useState(null)
+  const modelUrl = source?.modelFileUrl
+
+  useEffect(() => {
+    if (!modelUrl) { setState('idle'); setTexture(null); return }
+    let cancelled = false
+    setState('loading'); setTexture(null)
+    const kind = source.modelKind || (source.format === 'obj' ? 'obj' : source.format?.toUpperCase().includes('FBX') ? 'fbx' : 'gltf')
+    extractFirstModelTexture(modelUrl, kind).then((tex) => {
+      if (cancelled) return
+      setTexture(tex)
+      setState(tex ? 'ok' : 'empty')
+    })
+    return () => { cancelled = true }
+  }, [modelUrl])
+
+  if (!modelUrl) return null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: size, flex: `0 0 ${size}px` }}>
+      <div style={{ width: size, height: size, borderRadius: 20, overflow: 'hidden', border: `1px solid ${border}`, background: isDark ? '#0f172a' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {state === 'loading' && <span style={{ fontSize: 11, fontWeight: 700, color: text3, textAlign: 'center', padding: 10 }}>{vi ? '⏳ Đang tải texture...' : '⏳ Loading texture...'}</span>}
+        {state === 'empty' && <span style={{ fontSize: 11, fontWeight: 700, color: text3, textAlign: 'center', padding: 10 }}>{vi ? '🖼️ Không có texture' : '🖼️ No texture'}</span>}
+        {state === 'ok' && texture && <img src={texture.url} alt="texture" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+      </div>
+      {state === 'ok' && texture ? (
+        <a
+          href={texture.url}
+          download="avatar-texture.png"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 800, border: '1px solid rgba(156,111,255,0.4)', background: 'rgba(156,111,255,0.12)', color: '#9c6fff', textDecoration: 'none', fontFamily: 'inherit' }}
+        >
+          ⬇️ {vi ? 'Tải texture' : 'Download texture'}
+        </a>
+      ) : (
+        <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: text3, padding: '7px 0' }}>
+          {vi ? 'Textures' : 'Textures'}
+        </div>
       )}
     </div>
   )
@@ -405,55 +513,57 @@ export default function UserProfilePanel() {
           {/* Avatar column */}
           <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
             <div style={{ textAlign: 'center' }}>
-              {/* Khung Avatar 2D — ảnh đại diện chính. Có nút "Lưu" riêng ngay bên
-                  dưới để lưu tức thì vào user context, tránh bug: chụp camera/upload
-                  xong nhưng avatar nhỏ ở Topbar (trên-phải) và Sidebar (trên-trái)
-                  chưa cập nhật vì trước đây phải đợi bấm nút "Lưu hồ sơ" ở cuối form. */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ position: 'relative', width: 154, height: 154, margin: '0 auto' }}>
-                  <img src={avatarPreview || initialsAvatar(name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 154, height: 154, borderRadius: '50%', objectFit: 'cover', border: `4px solid ${providerMeta.border}`, boxShadow: `0 16px 45px ${providerMeta.border}` }} />
-                  <div style={{ position: 'absolute', right: 8, bottom: 8, width: 38, height: 38, borderRadius: '50%', background: provider === 'apple' ? '#111' : '#fff', border: `3px solid ${surface2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
-                    <ProviderBadge provider={provider} />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveAvatar2D}
-                  disabled={avatarSaving}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 10,
-                    padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 800,
-                    border: `1px solid ${providerMeta.border}`,
-                    background: avatarSaved ? 'rgba(0,230,118,0.12)' : providerMeta.soft,
-                    color: avatarSaved ? '#00c853' : providerMeta.color,
-                    cursor: avatarSaving ? 'wait' : 'pointer', opacity: avatarSaving ? 0.7 : 1, fontFamily: 'inherit',
-                  }}
-                >
-                  {avatarSaving
-                    ? (vi ? '⏳ Đang lưu...' : '⏳ Saving...')
-                    : avatarSaved
-                      ? (vi ? '✅ Đã lưu avatar 2D' : '✅ 2D avatar saved')
-                      : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
-                </button>
-              </div>
-
-              {/* 2 khung Avatar 3D — mỗi khung có nút riêng ngay bên dưới hình đó. */}
+              {/* Hàng 1: Khung Avatar 2D + Khung Avatar 3D UUID — mỗi khung có nút
+                  riêng ngay bên dưới hình đó. Avatar 2D có nút "Lưu" riêng để lưu
+                  tức thì vào user context, tránh bug: chụp camera/upload xong
+                  nhưng avatar nhỏ ở Topbar (trên-phải)/Sidebar (trên-trái) chưa
+                  cập nhật vì trước đây phải đợi bấm nút "Lưu hồ sơ" ở cuối form. */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 154, flex: '0 0 154px' }}>
-                  {avatarModelSource ? (
-                    <ProfileAvatar3D source={avatarModelSource} size={154} isDark={isDark} />
-                  ) : (
-                    <div style={{ width: 154, height: 154, borderRadius: 20, border: `1px dashed ${border}`, background: surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 10, color: text3, fontSize: 11, fontWeight: 700 }}>
-                      {vi ? 'Chưa có avatar 3D' : 'No 3D avatar yet'}
+                  <div style={{ position: 'relative', width: 154, height: 154 }}>
+                    <img src={avatarPreview || initialsAvatar(name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 154, height: 154, borderRadius: '50%', objectFit: 'cover', border: `4px solid ${providerMeta.border}`, boxShadow: `0 16px 45px ${providerMeta.border}` }} />
+                    <div style={{ position: 'absolute', right: 8, bottom: 8, width: 38, height: 38, borderRadius: '50%', background: provider === 'apple' ? '#111' : '#fff', border: `3px solid ${surface2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                      <ProviderBadge provider={provider} />
                     </div>
-                  )}
-                  <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveAvatar2D}
+                    disabled={avatarSaving}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+                      padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 800,
+                      border: `1px solid ${providerMeta.border}`,
+                      background: avatarSaved ? 'rgba(0,230,118,0.12)' : providerMeta.soft,
+                      color: avatarSaved ? '#00c853' : providerMeta.color,
+                      cursor: avatarSaving ? 'wait' : 'pointer', opacity: avatarSaving ? 0.7 : 1, fontFamily: 'inherit',
+                    }}
+                  >
+                    {avatarSaving
+                      ? (vi ? '⏳ Đang lưu...' : '⏳ Saving...')
+                      : avatarSaved
+                        ? (vi ? '✅ Đã lưu avatar 2D' : '✅ 2D avatar saved')
+                        : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
+                  </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
                   <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} />
                   <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
                 </div>
               </div>
+
+              {/* Hàng 2: Khung Textures + Khung Avatar 3D — chỉ hiện khi user đã
+                  chọn một avatar 3D (avatarModelSource); nếu chưa có thì ẩn luôn
+                  cả hàng này. */}
+              {avatarModelSource && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <ProfileAvatarTextureBox source={avatarModelSource} size={154} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 154, flex: '0 0 154px' }}>
+                    <ProfileAvatar3D source={avatarModelSource} size={154} isDark={isDark} />
+                    <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
+                  </div>
+                </div>
+              )}
               <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>{name || user?.name}</div>
               <div style={{ fontSize: 12, color: text3, marginBottom: 16 }}>{user?.email}</div>
             </div>
@@ -831,54 +941,56 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
               <div style={{ textAlign: 'center' }}>
-                {/* Khung Avatar 2D — ảnh đại diện chính, có nút "Lưu" riêng ngay bên
-                    dưới để lưu tức thì, tránh bug avatar nhỏ ở Topbar/Sidebar chưa
-                    đồng bộ sau khi chụp camera/upload. */}
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ position: 'relative', width: 140, height: 140, margin: '0 auto' }}>
-                    <img src={avatarPreview || initialsAvatar(name || user.name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 140, height: 140, borderRadius: '50%', objectFit: 'cover', border: '4px solid rgba(45,138,94,0.5)', boxShadow: '0 16px 45px rgba(45,138,94,0.35)' }} />
-                    <div style={{ position: 'absolute', right: 6, bottom: 6, width: 34, height: 34, borderRadius: '50%', background: '#fff', border: `3px solid ${surface2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', fontSize: 15 }}>
-                      🌿
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveAvatar2D}
-                    disabled={avatarSaving}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 10,
-                      padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 800,
-                      border: '1px solid rgba(45,138,94,0.4)',
-                      background: avatarSaved ? 'rgba(0,230,118,0.12)' : 'rgba(45,138,94,0.12)',
-                      color: avatarSaved ? '#00c853' : '#2d8a5e',
-                      cursor: avatarSaving ? 'wait' : 'pointer', opacity: avatarSaving ? 0.7 : 1, fontFamily: 'inherit',
-                    }}
-                  >
-                    {avatarSaving
-                      ? (vi ? '⏳ Đang lưu...' : '⏳ Saving...')
-                      : avatarSaved
-                        ? (vi ? '✅ Đã lưu avatar 2D' : '✅ 2D avatar saved')
-                        : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
-                  </button>
-                </div>
-
-                {/* 2 khung Avatar 3D — mỗi khung có nút riêng ngay bên dưới hình đó. */}
+                {/* Hàng 1: Khung Avatar 2D + Khung Avatar 3D UUID — mỗi khung có nút
+                    riêng ngay bên dưới hình đó. Avatar 2D có nút "Lưu" riêng để lưu
+                    tức thì, tránh bug avatar nhỏ ở Topbar/Sidebar chưa đồng bộ sau
+                    khi chụp camera/upload. */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 140, flex: '0 0 140px' }}>
-                    {avatarModelSource ? (
-                      <ProfileAvatar3D source={avatarModelSource} size={140} isDark={isDark} />
-                    ) : (
-                      <div style={{ width: 140, height: 140, borderRadius: 20, border: `1px dashed ${border}`, background: surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 10, color: text3, fontSize: 11, fontWeight: 700 }}>
-                        {vi ? 'Chưa có avatar 3D' : 'No 3D avatar yet'}
+                    <div style={{ position: 'relative', width: 140, height: 140 }}>
+                      <img src={avatarPreview || initialsAvatar(name || user.name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 140, height: 140, borderRadius: '50%', objectFit: 'cover', border: '4px solid rgba(45,138,94,0.5)', boxShadow: '0 16px 45px rgba(45,138,94,0.35)' }} />
+                      <div style={{ position: 'absolute', right: 6, bottom: 6, width: 34, height: 34, borderRadius: '50%', background: '#fff', border: `3px solid ${surface2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', fontSize: 15 }}>
+                        🌿
                       </div>
-                    )}
-                    <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSaveAvatar2D}
+                      disabled={avatarSaving}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+                        padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 800,
+                        border: '1px solid rgba(45,138,94,0.4)',
+                        background: avatarSaved ? 'rgba(0,230,118,0.12)' : 'rgba(45,138,94,0.12)',
+                        color: avatarSaved ? '#00c853' : '#2d8a5e',
+                        cursor: avatarSaving ? 'wait' : 'pointer', opacity: avatarSaving ? 0.7 : 1, fontFamily: 'inherit',
+                      }}
+                    >
+                      {avatarSaving
+                        ? (vi ? '⏳ Đang lưu...' : '⏳ Saving...')
+                        : avatarSaved
+                          ? (vi ? '✅ Đã lưu avatar 2D' : '✅ 2D avatar saved')
+                          : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
+                    </button>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
                     <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" />
                     <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
                   </div>
                 </div>
+
+                {/* Hàng 2: Khung Textures + Khung Avatar 3D — chỉ hiện khi user đã
+                    chọn một avatar 3D (avatarModelSource); nếu chưa có thì ẩn luôn
+                    cả hàng này. */}
+                {avatarModelSource && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+                    <ProfileAvatarTextureBox source={avatarModelSource} size={140} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 140, flex: '0 0 140px' }}>
+                      <ProfileAvatar3D source={avatarModelSource} size={140} isDark={isDark} />
+                      <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
+                    </div>
+                  </div>
+                )}
                 <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 4 }}>{name || user.name}</div>
                 <div style={{ fontSize: 11, color: text3, marginBottom: 16 }}>{vi ? 'Khách (chưa đăng nhập)' : 'Guest (not signed in)'}</div>
               </div>
