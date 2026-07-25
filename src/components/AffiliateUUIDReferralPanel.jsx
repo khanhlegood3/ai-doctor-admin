@@ -66,6 +66,41 @@ function shortUuid(uuid) {
   return uuid.length > 14 ? `${uuid.slice(0, 8)}…${uuid.slice(-6)}` : uuid
 }
 
+// ─── Backend dùng chung (MongoDB qua /api/affiliate-referral) ─────────────
+// IndexedDB/localStorage chỉ tồn tại TRÊN TỪNG THIẾT BỊ — nếu User 2 đăng ký
+// trên máy của họ, User 1 mở app trên máy khác sẽ không có dữ liệu đó trong
+// IndexedDB cục bộ. Gọi API này để cả 2 phía luôn thấy đúng quan hệ dù khác
+// thiết bị/trình duyệt. Local (IndexedDB) + on-chain vẫn được ghi song song
+// làm cache ngoại tuyến / minh bạch, nhưng server là nguồn hiển thị chính.
+async function fetchServerUpline(uuid) {
+  try {
+    const res = await fetch(`/api/affiliate-referral?referee=${encodeURIComponent(uuid)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.item || null
+  } catch { return null }
+}
+
+async function fetchServerDownline(uuid) {
+  try {
+    const res = await fetch(`/api/affiliate-referral?referrer=${encodeURIComponent(uuid)}`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data?.items) ? data.items : []
+  } catch { return [] }
+}
+
+async function postServerReferral({ referrerUuid, refereeUuid, code, source }) {
+  const res = await fetch('/api/affiliate-referral', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ referrerUuid, refereeUuid, code, source }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error || `Lỗi máy chủ (${res.status})`)
+  return data // { item, alreadyExisted }
+}
+
 export default function AffiliateUUIDReferralPanel() {
   const { user } = useAuth()
   const { theme, t } = useApp()
@@ -87,14 +122,18 @@ export default function AffiliateUUIDReferralPanel() {
 
   const refresh = useCallback(async () => {
     if (!myUuid) return
-    const [code, existingUpline, existingDownline] = await Promise.all([
+    const [code, localUpline, localDownline, serverUpline, serverDownline] = await Promise.all([
       getOrCreateReferralCode(myUuid),
       getReferralFor(myUuid),
       getReferralsByReferrer(myUuid),
+      fetchServerUpline(myUuid),
+      fetchServerDownline(myUuid),
     ])
     setMyCode(code)
-    setUpline(existingUpline)
-    setDownline(existingDownline)
+    // Server (MongoDB, dùng chung mọi thiết bị) là nguồn chính; chỉ dùng dữ
+    // liệu local làm dự phòng khi server không truy cập được (offline/lỗi).
+    setUpline(serverUpline || localUpline)
+    setDownline(serverDownline.length ? serverDownline : localDownline)
   }, [myUuid])
 
   useEffect(() => { refresh() }, [refresh])
@@ -132,25 +171,32 @@ export default function AffiliateUUIDReferralPanel() {
     setSubmitting(true)
     setChainStatus('pending')
     try {
-      const saved = await saveReferral({ referrerUuid, refereeUuid: myUuid, code: myCode, source: 'uuid_manual' })
-      if (!saved) {
-        setMessage({ type: 'error', text: 'Không thể ghi nhận quan hệ giới thiệu (dữ liệu không hợp lệ).' })
+      // 1) Ghi lên server (MongoDB) trước — đây là nguồn dữ liệu mà CẢ 2 phía
+      // (referrer & referee) sẽ đọc để hiển thị, bất kể đang ở thiết bị nào.
+      const serverResult = await postServerReferral({ referrerUuid, refereeUuid: myUuid, code: myCode, source: 'uuid_manual' })
+      if (serverResult.alreadyExisted && serverResult.item?.referrerUuid !== referrerUuid) {
+        setMessage({ type: 'error', text: `Bạn đã có người giới thiệu khác (${shortUuid(serverResult.item.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
         setChainStatus(null)
+        await refresh()
         return
       }
+
+      // 2) Ghi cache local (IndexedDB) + cây MLM local để 2 màn hình Affiliate
+      // trong app hiển thị nhất quán ngay cả khi offline.
+      const saved = await saveReferral({ referrerUuid, refereeUuid: myUuid, code: myCode, source: 'uuid_manual' })
       linkLocalTree({ referrerUuid, refereeUuid: myUuid, refereeName: user?.name })
 
-      // Ghi quan hệ referral lên chain (gasless) để đồng bộ chéo thiết bị —
+      // 3) Ghi quan hệ referral lên chain (gasless) để minh bạch/đối soát —
       // best-effort: nếu lỗi (vd chưa cấu hình Pimlico API key thật) vẫn giữ
-      // nguyên quan hệ đã lưu local, chỉ báo trạng thái "chưa đồng bộ on-chain".
-      const chainResult = await registerReferralOnChain({ id: saved.id, referrerUuid, refereeUuid: myUuid })
+      // nguyên quan hệ đã lưu ở server, chỉ báo trạng thái "chưa đồng bộ on-chain".
+      const chainResult = await registerReferralOnChain({ id: saved?.id, referrerUuid, refereeUuid: myUuid })
       setChainStatus(chainResult.ok ? 'synced' : 'failed')
 
       setMessage({
         type: 'success',
         text: chainResult.ok
           ? `Đăng ký thành công! Bạn là F1 của ${shortUuid(referrerUuid)}. Hoa hồng 3 tầng (F1 10% · F2 5% · F3 2%) đã được kích hoạt trên chain.`
-          : `Đã ghi nhận bạn là F1 của ${shortUuid(referrerUuid)} (lưu cục bộ). Đồng bộ on-chain sẽ tự thử lại sau.`,
+          : `Đăng ký thành công! Bạn là F1 của ${shortUuid(referrerUuid)}. Đồng bộ on-chain sẽ tự thử lại sau.`,
       })
       setInputUuid('')
       await refresh()
@@ -272,7 +318,7 @@ export default function AffiliateUUIDReferralPanel() {
         ) : (
           <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
             {downline.map((r) => (
-              <div key={r.id} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
+              <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
                 <span className="font-mono">{shortUuid(r.refereeUuid)}</span>
                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300' : r.chainStatus === 'failed' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/50'}`}>
                   {r.chainStatus === 'synced' ? 'On-chain' : r.chainStatus === 'failed' ? 'Chờ đồng bộ' : 'Đang xử lý'}
