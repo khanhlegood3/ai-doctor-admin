@@ -83,6 +83,7 @@ export default function AffiliateUUIDReferralPanel() {
 
   const card = isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-black/10'
   const textDim = isDark ? 'text-white/50' : 'text-slate-500'
+  const textMain = isDark ? 'text-slate-100' : 'text-slate-900'
 
   const refresh = useCallback(async () => {
     if (!myUuid) return
@@ -174,7 +175,7 @@ export default function AffiliateUUIDReferralPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-10">
+    <div className={`mx-auto max-w-4xl px-4 py-6 pb-28 md:px-8 md:py-10 ${textMain}`}>
       <div className="mb-6">
         <div className={`mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${isDark ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300' : 'border-cyan-500/30 bg-cyan-50 text-cyan-700'}`}>
           <Link2 size={13} /> Đăng Ký Affiliate 3 Tầng
