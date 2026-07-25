@@ -39,7 +39,7 @@ const TRANSLATIONS = {
     startOver: 'Start over',
     close: 'Close',
     downloadPdf: 'Download PDF',
-    gameSimulation: 'Game Mô Phỏng Cách Bảo Vệ Nội Tạng',
+    gameSimulation: 'Game Bảo Vệ Nội Tạng',
   },
   vi: {
     selectArea: 'Chọn một vùng để tiếp tục',
@@ -62,7 +62,7 @@ const TRANSLATIONS = {
     startOver: 'Bắt đầu lại',
     close: 'Đóng',
     downloadPdf: 'Tải PDF',
-    gameSimulation: 'Game Mô Phỏng Cách Bảo Vệ Nội Tạng',
+    gameSimulation: 'Game Bảo Vệ Nội Tạng',
   },
 };
 
@@ -228,8 +228,19 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
     return () => window.removeEventListener('language-changed', handleLangChange);
   }, []);
 
-  const navigateToJourney = () => {
-    if (onOpenBodyProtectionJourney) onOpenBodyProtectionJourney();
+  // Điều hướng sang trang "Hành Trình Bảo Vệ Cơ Thể". Hàm này PHẢI luôn thực
+  // thi khi người dùng bấm nút Game, bất kể đang ở bước nào của wizard hay
+  // có modal (PDF preview...) đang mở hay không.
+  const navigateToJourney = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (typeof onOpenBodyProtectionJourney === 'function') {
+      onOpenBodyProtectionJourney();
+    } else {
+      console.warn('[Hero3DMapPanel] onOpenBodyProtectionJourney chưa được truyền vào — không thể điều hướng sang trang "Hành Trình Bảo Vệ Cơ Thể".');
+    }
   };
 
   const handleBodyDotClick = (areaId) => {
@@ -717,7 +728,8 @@ const HERO3DMAP_CSS = `
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: 5;
+  z-index: 2000;
+  pointer-events: auto;
   border: 0;
   border-radius: 999px;
   background: #60a5fa;
