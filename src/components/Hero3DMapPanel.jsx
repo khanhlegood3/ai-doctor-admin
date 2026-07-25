@@ -260,6 +260,10 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
 
     return (
       <div className="h3dm-stage">
+        <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
+          {t('gameSimulation')}
+        </button>
+
         <h1 className="h3dm-title">Tell us where it hurts.</h1>
         <p className="h3dm-subtitle">Tap on the body below, and we'll help you understand what's going on.</p>
 
@@ -342,6 +346,9 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
     return (
       <div className="h3dm-stage h3dm-stage-detailed">
         <button className="h3dm-backStepBtn" onClick={() => setWizardStep('body')}>{t('back')}</button>
+        <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
+          {t('gameSimulation')}
+        </button>
 
         <h1 className="h3dm-title">Detailed Body Pixel Check</h1>
         <p className="h3dm-subtitle">Zoom into specific organs and sections to locate your pain</p>
@@ -383,6 +390,9 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
         onClick={() => setWizardStep(questionNum === 1 ? 'detailed' : questionNum === 2 ? 'q1' : 'q2')}
       >
         {t('back')}
+      </button>
+      <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
+        {t('gameSimulation')}
       </button>
 
       <h1 className="h3dm-title">{t('analysisTitle')}</h1>
@@ -430,6 +440,9 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
       <>
         <div className="h3dm-stage h3dm-stage-detailed">
           <button className="h3dm-backStepBtn" onClick={() => setWizardStep('q3')}>{t('back')}</button>
+          <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
+            {t('gameSimulation')}
+          </button>
 
           <h1 className="h3dm-title">{t('analysisTitle')}</h1>
           <p className="h3dm-subtitle">{t('analysisSubtitle')}</p>
@@ -523,12 +536,6 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
     <div className="hero3dmap-scope" style={{ width: '100%', height: '100vh', overflowY: 'auto' }}>
       <style>{HERO3DMAP_CSS}</style>
       <div className="h3dm-app">{content}</div>
-
-      {/* Nút Game Mô Phỏng — luôn hiển thị ở MỌI tab/bước của trang "3D Map for
-          Hero" và không bao giờ bị disable, dù đang ở bước nào của wizard. */}
-      <button type="button" className="h3dm-gameFab" onClick={navigateToJourney}>
-        {t('gameSimulation')}
-      </button>
     </div>
   );
 }
@@ -553,11 +560,7 @@ const HERO3DMAP_CSS = `
 
 .h3dm-app {
   min-height: 100%;
-  padding-bottom: clamp(70px, 12vw, 90px);
-}
-
-@media (max-width: 600px) {
-  .h3dm-app { padding-bottom: 76px; }
+  padding-bottom: 26px;
 }
 
 .h3dm-stage {
@@ -707,34 +710,38 @@ const HERO3DMAP_CSS = `
 .h3dm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .h3dm-btn-blue { background: #60a5fa; }
 
-/* Nút Game Mô Phỏng — luôn nổi (fixed) trên mọi tab/bước, không disable. */
+/* Nút Game Mô Phỏng — nằm ở góc trên-phải của MỌI bước (h3dm-stage có
+   position: relative), cùng hàng với nút "Quay lại" (top-left). Luôn hiển
+   thị, không bao giờ có thuộc tính disabled. */
 .h3dm-gameFab {
-  position: fixed;
-  right: clamp(12px, 3vw, 24px);
-  bottom: clamp(12px, 3vw, 24px);
-  z-index: 60;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
   border: 0;
   border-radius: 999px;
   background: #60a5fa;
   color: #fff;
-  padding: clamp(12px, 2.2vw, 16px) clamp(16px, 3vw, 24px);
-  font-size: clamp(13px, 1.6vw, 15px);
+  font-family: monospace;
+  padding: 8px 16px;
+  font-size: clamp(11px, 1.5vw, 13px);
   font-weight: 800;
+  letter-spacing: .02em;
+  line-height: 1.35;
   cursor: pointer;
-  box-shadow: 0 8px 22px rgba(0,0,0,.28);
-  max-width: calc(100vw - 24px);
-  line-height: 1.3;
+  text-align: center;
+  max-width: min(280px, 58vw);
+  box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
 .h3dm-gameFab:hover { filter: brightness(1.06); }
 
 @media (max-width: 600px) {
   .h3dm-gameFab {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: calc(100% - 24px);
-    max-width: none;
-    text-align: center;
+    top: 10px;
+    right: 10px;
+    padding: 7px 11px;
+    font-size: 10px;
+    max-width: 48vw;
   }
 }
 
