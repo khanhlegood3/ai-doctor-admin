@@ -56,6 +56,20 @@ const AFFILIATE_CONTRACT = import.meta.env.VITE_AFFILIATE_CONTRACT_ADDRESS
 
 const ENTRY_POINT = { address: '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789', version: '0.6' }
 
+// ─── Export cho UI: link "xem trên chain" kiểu Moralis / BscScan Testnet ──
+// Cho phép AffiliateUUIDReferralPanel.jsx (và các panel khác) tự dựng link
+// tới BscScan Testnet mà không cần biết địa chỉ contract / định dạng URL.
+export const AFFILIATE_CONTRACT_ADDRESS = AFFILIATE_CONTRACT
+export const BSCSCAN_TESTNET_BASE_URL = 'https://testnet.bscscan.com'
+
+export function getBscScanAddressUrl(address) {
+  return address ? `${BSCSCAN_TESTNET_BASE_URL}/address/${address}` : null
+}
+
+export function getBscScanTxUrl(txHash) {
+  return txHash ? `${BSCSCAN_TESTNET_BASE_URL}/tx/${txHash}` : null
+}
+
 // ABI thật, lấy nguyên văn từ artifact đã compile của HienMauAffiliate.sol
 const AFFILIATE_ABI = [
   { inputs: [], stateMutability: 'nonpayable', type: 'constructor' },
