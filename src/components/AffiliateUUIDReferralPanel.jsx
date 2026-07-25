@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Copy, CheckCircle2, Users, UserPlus, Link2, ShieldCheck,
   Loader2, AlertTriangle, Network, Gift, ArrowRight, RefreshCw,
+  ExternalLink, Radio,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
@@ -11,7 +12,14 @@ import {
   getReferralsByReferrer,
   saveReferral,
 } from '../lib/gameAffiliateDB'
-import { registerReferralOnChain } from '../lib/gameAffiliateChain'
+import {
+  registerReferralOnChain,
+  getGameAffiliateWalletAddress,
+  AFFILIATE_CONTRACT_ADDRESS,
+  BSCSCAN_TESTNET_BASE_URL,
+  getBscScanAddressUrl,
+  getBscScanTxUrl,
+} from '../lib/gameAffiliateChain'
 
 // =====================================================================================
 // ĐĂNG KÝ AFFILIATE 3 TẦNG (UUID) — tham khảo mô hình dashboard Affiliate của
@@ -116,24 +124,52 @@ export default function AffiliateUUIDReferralPanel() {
   const [chainStatus, setChainStatus] = useState(null) // 'pending' | 'synced' | 'failed' | 'skipped'
   const [message, setMessage] = useState(null) // { type: 'success'|'error', text }
 
+  // Ví ẩn danh on-chain tương ứng với UUID này — dùng để dựng link BscScan
+  // Testnet, giống cách xem 1 địa chỉ trên Moralis / BscScan explorer.
+  const myWalletAddress = useMemo(() => (myUuid ? getGameAffiliateWalletAddress(myUuid) : null), [myUuid])
+
   const card = isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-black/10'
   const textDim = isDark ? 'text-white/50' : 'text-slate-500'
   const textMain = isDark ? 'text-slate-100' : 'text-slate-900'
 
   const refresh = useCallback(async () => {
     if (!myUuid) return
-    const [code, localUpline, localDownline, serverUpline, serverDownline] = await Promise.all([
-      getOrCreateReferralCode(myUuid),
-      getReferralFor(myUuid),
-      getReferralsByReferrer(myUuid),
-      fetchServerUpline(myUuid),
-      fetchServerDownline(myUuid),
-    ])
+    const code = await getOrCreateReferralCode(myUuid)
     setMyCode(code)
-    // Server (MongoDB, dùng chung mọi thiết bị) là nguồn chính; chỉ dùng dữ
-    // liệu local làm dự phòng khi server không truy cập được (offline/lỗi).
-    setUpline(serverUpline || localUpline)
-    setDownline(serverDownline.length ? serverDownline : localDownline)
+
+    // 1) LUÔN kiểm tra MongoDB (server) TRƯỚC — đây là nguồn sự thật dùng
+    // chung cho mọi thiết bị. Không còn ưu tiên IndexedDB local nữa.
+    let serverUpline = await fetchServerUpline(myUuid)
+
+    // 2) Auto-migrate: nếu máy này có 1 quan hệ "upline" cũ trong IndexedDB
+    // (đăng ký từ TRƯỚC KHI có backend Mongo) nhưng Mongo chưa hề biết đến
+    // nó, tự động đẩy quan hệ đó lên Mongo đúng 1 lần. Đây chính là ca của
+    // bug vừa gặp: user đã bấm "Đăng ký" ở bản cũ (chỉ lưu local), giờ lên
+    // bản mới cần tự "hợp thức hoá" quan hệ đó vào Mongo để referrer ở thiết
+    // bị khác cũng thấy được, thay vì cứ hiển thị mãi theo local mà Mongo
+    // không hề hay biết.
+    if (!serverUpline) {
+      const localUpline = await getReferralFor(myUuid)
+      if (localUpline?.referrerUuid) {
+        try {
+          const migrated = await postServerReferral({
+            referrerUuid: localUpline.referrerUuid,
+            refereeUuid: myUuid,
+            code: localUpline.code || code,
+            source: localUpline.source ? `${localUpline.source}_migrated` : 'uuid_manual_migrated',
+          })
+          serverUpline = migrated.item
+        } catch {
+          // Không migrate được (vd offline) — KHÔNG hiển thị local như đã xác
+          // nhận, để tránh lặp lại chính bug vừa gặp; để trống, người dùng
+          // bấm "Làm mới" hoặc đăng ký lại khi có mạng.
+        }
+      }
+    }
+
+    const serverDownline = await fetchServerDownline(myUuid)
+    setUpline(serverUpline)
+    setDownline(serverDownline)
   }, [myUuid])
 
   useEffect(() => { refresh() }, [refresh])
@@ -278,6 +314,11 @@ export default function AffiliateUUIDReferralPanel() {
               <div className="flex items-center gap-1.5 font-bold mb-1"><CheckCircle2 size={13} /> Bạn đã là F1 của:</div>
               <div className="font-mono">{shortUuid(upline.referrerUuid)}</div>
               <div className={`mt-1 ${textDim}`}>{upline.chainStatus === 'synced' ? 'Đã đồng bộ on-chain ✓' : upline.chainStatus === 'failed' ? 'Chưa đồng bộ on-chain — sẽ tự thử lại' : 'Đang chờ đồng bộ on-chain…'}</div>
+              {upline.txHash && (
+                <a href={getBscScanTxUrl(upline.txHash)} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 font-bold text-cyan-400 hover:underline">
+                  <ExternalLink size={11} /> Xem giao dịch trên BscScan Testnet
+                </a>
+              )}
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
@@ -307,6 +348,36 @@ export default function AffiliateUUIDReferralPanel() {
         </div>
       </div>
 
+      {/* Giám sát On-chain — link BscScan Testnet, xem trực tiếp như Moralis/
+          BSC testnet explorer, không cần công cụ riêng: địa chỉ contract
+          HienMauAffiliate + ví ẩn danh gắn với UUID của bạn. */}
+      <div className={`mt-5 rounded-2xl border p-5 ${card}`}>
+        <div className="flex items-center gap-2 mb-3"><Radio size={18} className="text-emerald-400" /><span className="font-bold text-sm">Giám sát On-chain (BscScan Testnet)</span></div>
+        <div className="space-y-2 text-xs">
+          <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
+            <div>
+              <div className={textDim}>Ví on-chain của bạn</div>
+              <div className="font-mono mt-0.5">{myWalletAddress ? shortUuid(myWalletAddress) : '—'}</div>
+            </div>
+            {myWalletAddress && (
+              <a href={getBscScanAddressUrl(myWalletAddress)} target="_blank" rel="noreferrer" className="shrink-0 flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 font-bold text-emerald-400 hover:bg-emerald-500/25">
+                <ExternalLink size={12} /> Xem
+              </a>
+            )}
+          </div>
+          <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
+            <div>
+              <div className={textDim}>Smart contract HienMauAffiliate</div>
+              <div className="font-mono mt-0.5">{shortUuid(AFFILIATE_CONTRACT_ADDRESS)}</div>
+            </div>
+            <a href={getBscScanAddressUrl(AFFILIATE_CONTRACT_ADDRESS)} target="_blank" rel="noreferrer" className="shrink-0 flex items-center gap-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-1.5 font-bold text-cyan-400 hover:bg-cyan-500/25">
+              <ExternalLink size={12} /> Xem
+            </a>
+          </div>
+        </div>
+        <p className={`mt-3 text-[11px] ${textDim}`}>Mở trực tiếp trên {BSCSCAN_TESTNET_BASE_URL.replace('https://', '')} để xem lịch sử giao dịch, số dư và sự kiện on-chain (ReferralRegistered, CommissionPaid…) — không cần API key, tương tự cách xem trên Moralis Explorer.</p>
+      </div>
+
       {/* Danh sách F1 đã giới thiệu — tham khảo bảng "My Referrals" của refearnapp */}
       <div className={`mt-5 rounded-2xl border p-5 ${card}`}>
         <div className="flex items-center justify-between mb-3">
@@ -320,8 +391,15 @@ export default function AffiliateUUIDReferralPanel() {
             {downline.map((r) => (
               <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
                 <span className="font-mono">{shortUuid(r.refereeUuid)}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300' : r.chainStatus === 'failed' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/50'}`}>
-                  {r.chainStatus === 'synced' ? 'On-chain' : r.chainStatus === 'failed' ? 'Chờ đồng bộ' : 'Đang xử lý'}
+                <span className="flex items-center gap-1.5">
+                  {r.txHash && (
+                    <a href={getBscScanTxUrl(r.txHash)} target="_blank" rel="noreferrer" title="Xem giao dịch trên BscScan Testnet" className="text-cyan-400 hover:text-cyan-300">
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300' : r.chainStatus === 'failed' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/10 text-white/50'}`}>
+                    {r.chainStatus === 'synced' ? 'On-chain' : r.chainStatus === 'failed' ? 'Chờ đồng bộ' : 'Đang xử lý'}
+                  </span>
                 </span>
               </div>
             ))}
