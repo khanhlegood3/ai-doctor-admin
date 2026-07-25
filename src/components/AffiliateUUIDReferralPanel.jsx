@@ -11,6 +11,7 @@ import {
   getReferralFor,
   getReferralsByReferrer,
   saveReferral,
+  deleteReferralFor,
 } from '../lib/gameAffiliateDB'
 import {
   registerReferralOnChain,
@@ -20,6 +21,7 @@ import {
   getBscScanAddressUrl,
   getBscScanTxUrl,
 } from '../lib/gameAffiliateChain'
+import { fetchUnifiedHistory } from '../services/moralisService'
 
 // =====================================================================================
 // ĐĂNG KÝ AFFILIATE 3 TẦNG (UUID) — tham khảo mô hình dashboard Affiliate của
@@ -107,6 +109,34 @@ async function postServerReferral({ referrerUuid, refereeUuid, code, source }) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data?.error || `Lỗi máy chủ (${res.status})`)
   return data // { item, alreadyExisted }
+}
+
+// Đồng bộ lại chainStatus/txHash lên Mongo SAU KHI registerReferralOnChain()
+// chạy xong — nếu bỏ bước này, doc trên Mongo (nguồn hiển thị chính) sẽ mãi
+// kẹt ở "pending" dù ví đã đăng ký xong trên chain thật.
+async function patchServerReferral({ refereeUuid, chainStatus, txHash }) {
+  try {
+    const res = await fetch('/api/affiliate-referral', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refereeUuid, chainStatus, txHash }),
+    })
+    const data = await res.json().catch(() => ({}))
+    return res.ok ? data?.item || null : null
+  } catch { return null }
+}
+
+// Gỡ 1 quan hệ SAI/rác (vd migrate nhầm dữ liệu test cũ) — chỉ server chấp
+// nhận xoá khi chainStatus CHƯA 'synced'.
+async function deleteServerReferral(refereeUuid) {
+  const res = await fetch('/api/affiliate-referral', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refereeUuid }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error || `Lỗi máy chủ (${res.status})`)
+  return data // { deleted: true }
 }
 
 export default function AffiliateUUIDReferralPanel() {
@@ -228,6 +258,15 @@ export default function AffiliateUUIDReferralPanel() {
       const chainResult = await registerReferralOnChain({ id: saved?.id, referrerUuid, refereeUuid: myUuid })
       setChainStatus(chainResult.ok ? 'synced' : 'failed')
 
+      // 4) Đồng bộ ngược trạng thái on-chain lên Mongo — nếu bỏ bước này,
+      // doc trên server (nguồn hiển thị chính) sẽ mãi kẹt "pending" dù ví đã
+      // đăng ký xong trên chain thật, khiến UI hiện sai mãi mãi.
+      await patchServerReferral({
+        refereeUuid: myUuid,
+        chainStatus: chainResult.ok ? 'synced' : 'failed',
+        txHash: chainResult.txHash || null,
+      })
+
       setMessage({
         type: 'success',
         text: chainResult.ok
@@ -241,6 +280,78 @@ export default function AffiliateUUIDReferralPanel() {
       setChainStatus('failed')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const [retrying, setRetrying] = useState(false)
+  const [unlinking, setUnlinking] = useState(false)
+  const [txHistory, setTxHistory] = useState(null) // null = chưa tải; [] = tải rồi nhưng rỗng
+  const [loadingTxHistory, setLoadingTxHistory] = useState(false)
+  const [txHistoryError, setTxHistoryError] = useState(null)
+
+  // Tải lịch sử giao dịch (Native + ERC-20) của ví on-chain gắn với UUID —
+  // hiển thị ngay trong app, giống bảng "Transactions" của Moralis Explorer,
+  // thay vì phải mở BscScan mới xem được.
+  const handleLoadTxHistory = async () => {
+    if (!myWalletAddress) return
+    setLoadingTxHistory(true)
+    setTxHistoryError(null)
+    try {
+      const apiKey = import.meta.env.VITE_YOUR_MORALIS_API_KEY
+      const rows = await fetchUnifiedHistory(myWalletAddress, apiKey)
+      setTxHistory(rows)
+    } catch (err) {
+      setTxHistoryError(err?.message || 'Không tải được lịch sử giao dịch từ Moralis.')
+    } finally {
+      setLoadingTxHistory(false)
+    }
+  }
+
+  // Thử đồng bộ on-chain lại cho quan hệ ĐÃ có ở Mongo nhưng chưa 'synced'
+  // (vd bị lỗi mạng lần trước, hoặc quan hệ vừa migrate từ local chưa từng
+  // được gửi lên chain).
+  const handleRetrySync = async () => {
+    if (!upline?.referrerUuid || !myUuid) return
+    setRetrying(true)
+    setMessage(null)
+    try {
+      const localRow = await getReferralFor(myUuid)
+      const chainResult = await registerReferralOnChain({ id: localRow?.id, referrerUuid: upline.referrerUuid, refereeUuid: myUuid })
+      await patchServerReferral({
+        refereeUuid: myUuid,
+        chainStatus: chainResult.ok ? 'synced' : 'failed',
+        txHash: chainResult.txHash || null,
+      })
+      setMessage({
+        type: chainResult.ok ? 'success' : 'error',
+        text: chainResult.ok ? 'Đã đồng bộ on-chain thành công!' : `Vẫn chưa đồng bộ được: ${chainResult.error || 'lỗi không rõ'}`,
+      })
+      await refresh()
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  // Gỡ 1 quan hệ SAI/rác (vd dữ liệu test cũ tự động migrate nhầm lên Mongo)
+  // — chỉ khi CHƯA đồng bộ on-chain, để không lệch với dữ liệu trên contract.
+  const handleUnlink = async () => {
+    if (!upline?.referrerUuid || !myUuid) return
+    if (upline.chainStatus === 'synced') {
+      setMessage({ type: 'error', text: 'Quan hệ này đã đồng bộ on-chain — không thể tự gỡ nữa.' })
+      return
+    }
+    if (!window.confirm(`Gỡ liên kết "Bạn là F1 của ${shortUuid(upline.referrerUuid)}"? Chỉ dùng khi đây là dữ liệu sai/dữ liệu test cũ.`)) return
+    setUnlinking(true)
+    setMessage(null)
+    try {
+      await deleteServerReferral(myUuid)
+      await deleteReferralFor(myUuid)
+      setMessage({ type: 'success', text: 'Đã gỡ liên kết. Bạn có thể dán UUID người giới thiệu đúng để đăng ký lại.' })
+      await refresh()
+    } catch (err) {
+      setMessage({ type: 'error', text: err?.message || 'Không gỡ được liên kết.' })
+    } finally {
+      setUnlinking(false)
     }
   }
 
@@ -319,6 +430,16 @@ export default function AffiliateUUIDReferralPanel() {
                   <ExternalLink size={11} /> Xem giao dịch trên BscScan Testnet
                 </a>
               )}
+              {upline.chainStatus !== 'synced' && (
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <button type="button" onClick={handleRetrySync} disabled={retrying} className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 font-bold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-60">
+                    {retrying ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Thử đồng bộ on-chain lại
+                  </button>
+                  <button type="button" onClick={handleUnlink} disabled={unlinking} className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 font-bold text-red-400 hover:bg-red-500/20 disabled:opacity-60">
+                    {unlinking ? <Loader2 size={11} className="animate-spin" /> : <AlertTriangle size={11} />} Gỡ liên kết (nếu sai)
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
@@ -376,6 +497,52 @@ export default function AffiliateUUIDReferralPanel() {
           </div>
         </div>
         <p className={`mt-3 text-[11px] ${textDim}`}>Mở trực tiếp trên {BSCSCAN_TESTNET_BASE_URL.replace('https://', '')} để xem lịch sử giao dịch, số dư và sự kiện on-chain (ReferralRegistered, CommissionPaid…) — không cần API key, tương tự cách xem trên Moralis Explorer.</p>
+
+        {/* Bảng giao dịch dạng Moralis — tải theo yêu cầu (không tự động, để
+            không tốn quota API key mỗi lần vào trang). */}
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={handleLoadTxHistory}
+            disabled={!myWalletAddress || loadingTxHistory}
+            className="flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-bold hover:bg-white/5 disabled:opacity-50"
+          >
+            {loadingTxHistory ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            {loadingTxHistory ? 'Đang tải…' : 'Tải lịch sử giao dịch (Moralis)'}
+          </button>
+
+          {txHistoryError && (
+            <p className="mt-2 text-[11px] text-red-400">{txHistoryError}</p>
+          )}
+
+          {txHistory && (
+            txHistory.length === 0 ? (
+              <p className={`mt-2 text-[11px] ${textDim}`}>Ví này chưa có giao dịch nào trên BSC Testnet.</p>
+            ) : (
+              <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {txHistory.map((row) => (
+                  <a
+                    key={row.hash}
+                    href={getBscScanTxUrl(row.hash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center justify-between text-[11px] rounded-lg px-2.5 py-1.5 hover:bg-cyan-500/10 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className={`rounded px-1.5 py-0.5 font-bold ${row.type === 'sent' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                        {row.type === 'sent' ? 'Gửi' : 'Nhận'}
+                      </span>
+                      <span className="font-mono">{shortUuid(row.hash)}</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-cyan-400 font-bold">
+                      {row.valueEth} {row.name || 'BNB'} <ExternalLink size={10} />
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {/* Danh sách F1 đã giới thiệu — tham khảo bảng "My Referrals" của refearnapp */}
