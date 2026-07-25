@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import PdfPreviewModal from './common/PdfPreviewModal.jsx';
+import SymptomConclusionCharts from './charts/SymptomD3Charts.jsx';
 import { useApp } from '../context/AppContext';
 
 // ============================================================================
@@ -37,6 +38,10 @@ const TRANSLATIONS = {
     specialists: 'Recommended specialists',
     orthopedist: 'Orthopedist',
     generalPractitioner: 'General practitioner',
+    chartsHeading: 'Visual Summary',
+    durationChartLabel: 'Duration progress',
+    severityChartLabel: 'Severity level',
+    specialistsChartLabel: 'Specialist confidence',
     startOver: 'Start over',
     close: 'Close',
     downloadPdf: 'Download PDF',
@@ -106,6 +111,10 @@ const TRANSLATIONS = {
     specialists: 'Bác sĩ chuyên khoa đề xuất',
     orthopedist: 'Bác sĩ chỉnh hình',
     generalPractitioner: 'Bác sĩ đa khoa',
+    chartsHeading: 'Biểu Đồ Trực Quan',
+    durationChartLabel: 'Tiến triển thời gian',
+    severityChartLabel: 'Mức độ nghiêm trọng',
+    specialistsChartLabel: 'Độ tin cậy chuyên khoa',
     startOver: 'Bắt đầu lại',
     close: 'Đóng',
     downloadPdf: 'Tải PDF',
@@ -659,6 +668,31 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
   const renderResultStep = () => {
     const part = PARTS.find((p) => p.id === activePart) || PARTS[0];
 
+    // Dữ liệu cho các biểu đồ D3 (xem `./charts/SymptomD3Charts.jsx`) — chỉ
+    // truyền vào label/index đã dịch sẵn, mọi logic vẽ nằm ở file kia.
+    const durationStages = tOptions('options2');
+    const durationIndex = durationStages.indexOf(answers.duration);
+    const severityStages = tOptions('options3');
+    const severityIndex = severityStages.indexOf(answers.severity);
+    const specialistsChartData = [
+      { label: t('orthopedist'), value: 50 },
+      { label: t('generalPractitioner'), value: 25 },
+    ];
+
+    const conclusionCharts = (
+      <SymptomConclusionCharts
+        chartsHeading={t('chartsHeading')}
+        durationStages={durationStages}
+        durationIndex={durationIndex}
+        durationLabel={t('durationChartLabel')}
+        severityStages={severityStages}
+        severityIndex={severityIndex}
+        severityLabel={t('severityChartLabel')}
+        specialists={specialistsChartData}
+        specialistsLabel={t('specialistsChartLabel')}
+      />
+    );
+
     return (
       <>
         <div className="h3dm-stage h3dm-stage-detailed">
@@ -690,6 +724,10 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
               <h2 className="h3dm-question">{t('specialists')}</h2>
               <p className="h3dm-helper">1. {t('orthopedist')} - 50%</p>
               <p className="h3dm-helper">2. {t('generalPractitioner')} - 25%</p>
+
+              <hr className="h3dm-rule" />
+
+              {conclusionCharts}
 
               <div className="h3dm-resultActions">
                 <button className="h3dm-continueButton h3dm-continueButton-static" onClick={() => setShowPreview(true)}>
@@ -726,6 +764,7 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
                 ['2', t('generalPractitioner'), '25%'],
               ],
             }}
+            charts={conclusionCharts}
             disclaimer={t('pdfDisclaimer')}
             filename="SymptomSummary.pdf"
             downloadLabel={t('downloadPdf')}

@@ -23,6 +23,10 @@ import React, { useRef } from 'react';
 //       headers: ['#', 'Specialist', 'Confidence'],
 //       rows: [['1', 'Orthopedist', '50%'], ['2', 'General practitioner', '25%']],
 //     }}
+//     charts={<SymptomConclusionCharts ... />}  // optional — bất kỳ ReactNode
+//       // nào (vd: biểu đồ D3 từ `../charts/SymptomD3Charts.jsx`), được chèn
+//       // vào sau bảng và trước disclaimer, cả trên màn hình lẫn trong PDF
+//       // xuất ra (html2canvas chụp lại đúng SVG này).
 //     disclaimer="DISCLAIMER: ..."
 //     filename="SymptomSummary.pdf"
 //     downloadLabel="Download PDF"
@@ -36,6 +40,7 @@ export default function PdfPreviewModal({
   subtitle = '',
   lists = [],
   table = null,
+  charts = null,
   disclaimer = '',
   filename = 'Document.pdf',
   downloadLabel = 'Download PDF',
@@ -129,6 +134,8 @@ export default function PdfPreviewModal({
               </table>
             </>
           ) : null}
+
+          {charts}
 
           {disclaimer ? <p style={styles.disclaimer}>{disclaimer}</p> : null}
         </div>
