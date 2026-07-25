@@ -42,6 +42,7 @@ import StressReliefPanel from './components/StressReliefPanel.jsx'
 import PrintCenter from './print/PrintCenter.jsx'
 import UserProfilePanel from './components/UserProfilePanel.jsx'
 import DonationHeroPanel from './components/DonationHeroPanel.jsx'
+import AffiliateUUIDReferralPanel from './components/AffiliateUUIDReferralPanel.jsx'
 import BodyProtectionJourneyPanel from './components/BodyProtectionJourneyPanel.jsx'
 import Hero3DMapPanel from './components/Hero3DMapPanel.jsx'
 import MyPainPathBodyPanel from './components/MyPainPathBodyPanel.jsx'
@@ -154,6 +155,7 @@ export default function App() {
     adminConcept: 'AI Doctor Admin Panel',
     chooseUserRole: 'Chọn Vai Trò Anh Hùng',
     donationHero: 'Anh Hùng Hiến Tặng',
+    affiliateUuidReferral: 'Đăng Ký Affiliate 3 Tầng',
     bodyProtectionJourney: 'Hành Trình Bảo Vệ Cơ Thể',
     hero3DMap: '3D Map for Hero',
     myPainPathBody: 'My Pain Path Body',
@@ -499,6 +501,7 @@ export default function App() {
             {active === 'donationHero' && (
               <DonationHeroPanel mode="member" onBack={() => setActive('chooseUserRole')} />
             )}
+            {active === 'affiliateUuidReferral' && <AffiliateUUIDReferralPanel />}
             {active === 'bodyProtectionJourney' && (
               <BodyProtectionJourneyPanel
                 onNext={goNext}
