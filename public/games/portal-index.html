@@ -65,6 +65,11 @@
     background:transparent; border:none; outline:none; color:var(--amber); font-family:var(--font-mono);
     font-size:14px; width:130px; border-bottom:1px dashed var(--border-hi); padding-bottom:2px;
   }
+  .player-uuid-badge{
+    font-size:10.5px; font-family:var(--font-mono); color:var(--text-faint); white-space:nowrap;
+    border-left:1px solid var(--border); padding-left:8px; letter-spacing:.5px;
+  }
+  .player-uuid-badge:empty{ display:none; }
 
   /* ===== HERO ===== */
   .hero{ position:relative; padding:38px 4px 26px; text-align:center; }
@@ -500,6 +505,7 @@
     <div class="player-box">
       <label>👤 NGƯỜI CHƠI</label>
       <input id="playerNameInput" type="text" maxlength="20" placeholder="Nhập tên...">
+      <span id="playerUuidBadge" class="player-uuid-badge"></span>
     </div>
   </div>
 
@@ -722,6 +728,7 @@
   };
   const LB_KEY = "gamePortalLeaderboard_v1";
   const NAME_KEY = "gamePortalPlayerName_v1";
+  const UUID_KEY = "gamePortalPlayerUuid_v1";
   const MAX_ENTRIES = 500;
 
   // ===================== STATE / STORAGE =====================
@@ -729,10 +736,43 @@
   function saveLB(list){ try{ localStorage.setItem(LB_KEY, JSON.stringify(list.slice(-MAX_ENTRIES))); }catch(e){} }
   function getPlayerName(){ return (localStorage.getItem(NAME_KEY) || "").trim(); }
   function setPlayerName(n){ try{ localStorage.setItem(NAME_KEY, n); }catch(e){} }
+  function getPlayerUUID(){ return (localStorage.getItem(UUID_KEY) || "").trim(); }
+  function setPlayerUUID(u){ try{ localStorage.setItem(UUID_KEY, u || ""); }catch(e){} }
 
   const playerInput = document.getElementById('playerNameInput');
+  const playerUuidBadge = document.getElementById('playerUuidBadge');
   playerInput.value = getPlayerName();
   playerInput.addEventListener('input', () => setPlayerName(playerInput.value));
+
+  function renderPlayerUuidBadge(){
+    const uuid = getPlayerUUID();
+    if(!uuid){ playerUuidBadge.textContent = ''; playerUuidBadge.title = ''; return; }
+    playerUuidBadge.textContent = '🆔 ' + uuid.slice(0, 8) + '…';
+    playerUuidBadge.title = uuid;
+  }
+  renderPlayerUuidBadge();
+
+  // ===================== ĐỒNG BỘ VỚI PROFILE (APP CHA) =====================
+  // Trang portal này là file tĩnh, độc lập với React app — trước đây tên
+  // người chơi phải tự gõ tay, không liên quan gì tới Profile đã đăng nhập.
+  // App cha (BodyProtectionJourneyPanel.jsx) gọi hàm này ngay khi iframe load
+  // xong (same-origin nên gọi thẳng qua contentWindow), truyền tên + UUID lấy
+  // từ Profile — ưu tiên đồng bộ tên hiển thị & UUID, người chơi vẫn có thể tự
+  // sửa tên riêng cho ván chơi nếu muốn.
+  window.setPlayerIdentity = function(name, uuid){
+    const trimmedName = (name || '').trim();
+    if(trimmedName){ setPlayerName(trimmedName); playerInput.value = trimmedName; }
+    setPlayerUUID(uuid);
+    renderPlayerUuidBadge();
+  };
+
+  // Fallback qua postMessage — dùng khi truy cập contentWindow trực tiếp bị
+  // chặn (ví dụ do sandbox), theo đúng pattern PORTAL_VKEY đã có sẵn.
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if(!data || data.type !== 'PORTAL_PLAYER_IDENTITY') return;
+    window.setPlayerIdentity(data.name, data.uuid);
+  });
 
   function currentPlayer(){ return getPlayerName() || "Người chơi ẩn danh"; }
 
