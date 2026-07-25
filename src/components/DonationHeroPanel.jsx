@@ -324,7 +324,7 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
                         sm:w-[min(520px,calc(100vw-2rem))]
                         md:w-[min(580px,calc(100vw-3rem))]
                         lg:w-[min(640px,calc(100vw-4rem))]
-                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 pointer-events-auto
+                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 sm:scale-[0.8] pointer-events-auto
                       `}
                     >
                       <div className={`relative rounded-2xl border p-3 shadow-2xl ${isDark ? 'border-emerald-400/20 bg-[#0f172a]' : 'border-emerald-100 bg-white'}`}>
@@ -352,7 +352,7 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
                         sm:w-[min(720px,calc(100vw-2rem))]
                         md:w-[min(820px,calc(100vw-3rem))]
                         lg:w-[min(920px,calc(100vw-4rem))]
-                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 pointer-events-auto
+                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 sm:scale-[0.8] pointer-events-auto
                       `}
                     >
                       <div className={`relative rounded-2xl border p-3 shadow-2xl ${isDark ? 'border-emerald-400/20 bg-[#0f172a]' : 'border-emerald-100 bg-white'}`}>
@@ -386,7 +386,7 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
                         sm:w-[min(720px,calc(100vw-2rem))]
                         md:w-[min(820px,calc(100vw-3rem))]
                         lg:w-[min(920px,calc(100vw-4rem))]
-                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 pointer-events-auto
+                        transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 sm:scale-[0.8] pointer-events-auto
                       `}
                     >
                       <div className={`relative rounded-2xl border p-3 shadow-2xl ${isDark ? 'border-sky-400/20 bg-[#0f172a]' : 'border-sky-100 bg-white'}`}>

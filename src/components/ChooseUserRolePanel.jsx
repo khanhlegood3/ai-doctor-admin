@@ -131,7 +131,7 @@ export default function ChooseUserRolePanel({ mode = 'guest', onSelectRole, onEn
     <div
       className={`
         absolute left-1/2 bottom-full z-30 mb-4 w-[min(580px,calc(100vw-2rem))] -translate-x-1/2
-        transition-all duration-200 ease-out origin-bottom pointer-events-auto
+        transition-all duration-200 ease-out origin-bottom sm:scale-[0.8] pointer-events-auto
       `}
     >
       <div className={`relative rounded-2xl border p-3 shadow-2xl ${isDark ? 'border-emerald-400/20 bg-[#0f172a]' : 'border-emerald-100 bg-white'}`}>

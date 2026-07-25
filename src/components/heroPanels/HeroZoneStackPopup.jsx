@@ -170,7 +170,7 @@ export default function HeroZoneStackPopup({
     sm:w-[min(820px,calc(100vw-2rem))]
     md:w-[min(920px,calc(100vw-3rem))]
     lg:w-[min(1040px,calc(100vw-4rem))]
-    transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 pointer-events-auto
+    transition-all duration-200 ease-out origin-bottom z-30 opacity-100 scale-100 sm:scale-[0.8] pointer-events-auto
   `;
 
   return (
