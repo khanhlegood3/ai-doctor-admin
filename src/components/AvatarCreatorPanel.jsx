@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Search, Shuffle, ChevronLeft, ChevronRight, Info, LayoutGrid, List,
   Share2, Ruler, Play, Pause, Download, ExternalLink, Sparkles, Box, Image as ImageIcon,
-  ShieldCheck, Link as LinkIcon, Hash, Coins,
+  ShieldCheck, Link as LinkIcon, Hash, Coins, MoveVertical,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
@@ -432,6 +432,8 @@ export default function AvatarCreatorPanel() {
   const [modelStats, setModelStats] = useState(null)
   const [autoRotate, setAutoRotate] = useState(true)
   const [showMeasureGrid, setShowMeasureGrid] = useState(true)
+  const [showHeightRuler, setShowHeightRuler] = useState(false)
+  const [modelHeightMeters, setModelHeightMeters] = useState(null)
   const [showBones, setShowBones] = useState(false)
   const [showWireframe, setShowWireframe] = useState(false)
   const [showTextures, setShowTextures] = useState(true)
@@ -1022,13 +1024,14 @@ export default function AvatarCreatorPanel() {
                   <button type="button" onClick={() => setShowInfoOverlay((v) => !v)} style={iconBtnStyle(showInfoOverlay)} title={vi ? 'Hiện thông tin' : 'Toggle info'}><Info size={15} /></button>
                   <button type="button" onClick={handleShare} style={iconBtnStyle(false)} title={vi ? 'Copy link' : 'Share'}><Share2 size={15} /></button>
                   <button type="button" onClick={() => setShowMeasureGrid((v) => !v)} style={iconBtnStyle(showMeasureGrid)} title={vi ? 'Lưới đo' : 'Measurement grid'}><Ruler size={15} /></button>
+                  <button type="button" onClick={() => setShowHeightRuler((v) => !v)} style={iconBtnStyle(showHeightRuler)} title={vi ? 'Thước đo chiều cao' : 'Height ruler'} aria-pressed={showHeightRuler}><MoveVertical size={15} /></button>
                   <button type="button" onClick={() => setShowBones((v) => !v)} style={iconBtnStyle(showBones)} title={vi ? 'Hiện xương' : 'Show Bones'} aria-pressed={showBones}>🦴</button>
                   <button type="button" onClick={() => setShowWireframe((v) => !v)} style={iconBtnStyle(showWireframe)} title="Wireframe" aria-pressed={showWireframe}><Box size={15} /></button>
                   <button type="button" onClick={() => setShowTextures((v) => !v)} style={iconBtnStyle(showTextures)} title="Textures" aria-pressed={showTextures}><ImageIcon size={15} /></button>
                   <button type="button" onClick={() => setAutoRotate((v) => !v)} style={iconBtnStyle(autoRotate)} title={vi ? 'Tự xoay' : 'Auto-rotate'}>{autoRotate ? <Pause size={15} /> : <Play size={15} />}</button>
                 </div>
                 <span style={{ padding: '4px 8px', borderRadius: 999, background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)', color: palette.text2, fontSize: 10, fontWeight: 900 }}>
-                  {shareStatus || 'VRM Inspector'}
+                  {shareStatus || (showHeightRuler && modelHeightMeters ? `${vi ? 'Cao' : 'Height'}: ${modelHeightMeters.toFixed(2)} m` : 'VRM Inspector')}
                 </span>
               </div>
 
@@ -1048,6 +1051,7 @@ export default function AvatarCreatorPanel() {
                       isDark={isDark}
                       autoRotate={autoRotate}
                       showGrid={showMeasureGrid}
+                      showHeightRuler={showHeightRuler}
                       showBones={showBones}
                       showWireframe={showWireframe}
                       showTextures={showTextures}
@@ -1056,6 +1060,8 @@ export default function AvatarCreatorPanel() {
                           setAnimationLoadStatus(vi ? `Lỗi: ${update.error}` : `Error: ${update.error}`)
                         } else if (update.stats) {
                           setModelStats(update.stats)
+                        } else if (typeof update.realHeightMeters === 'number') {
+                          setModelHeightMeters(update.realHeightMeters)
                         } else if (typeof update.trackCount === 'number') {
                           setAnimationLoadStatus(vi
                             ? `${selectedAnimation} đã tải xong · ${update.trackCount} tracks`
@@ -1209,6 +1215,7 @@ export default function AvatarCreatorPanel() {
                         isDark={isDark}
                         autoRotate={autoRotate}
                         showGrid={showMeasureGrid}
+                        showHeightRuler={showHeightRuler}
                         showBones={false}
                         showWireframe={false}
                         showTextures={showTextures}
@@ -1275,6 +1282,7 @@ export default function AvatarCreatorPanel() {
                 ) : <span />}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => setShowMeasureGrid((v) => !v)} style={iconBtnStyle(showMeasureGrid)} title={vi ? 'Lưới đo' : 'Measurement grid'}><Ruler size={15} /></button>
+                  <button type="button" onClick={() => setShowHeightRuler((v) => !v)} style={iconBtnStyle(showHeightRuler)} title={vi ? 'Thước đo chiều cao' : 'Height ruler'} aria-pressed={showHeightRuler}><MoveVertical size={15} /></button>
                   <button type="button" onClick={() => setShowBones((v) => !v)} style={iconBtnStyle(showBones)} title={vi ? 'Hiện xương' : 'Show Bones'} aria-pressed={showBones}>🦴</button>
                   <button type="button" onClick={() => setShowWireframe((v) => !v)} style={iconBtnStyle(showWireframe)} title="Wireframe" aria-pressed={showWireframe}><Box size={15} /></button>
                   <button type="button" onClick={() => setShowTextures((v) => !v)} style={iconBtnStyle(showTextures)} title="Textures" aria-pressed={showTextures}><ImageIcon size={15} /></button>
@@ -1294,6 +1302,7 @@ export default function AvatarCreatorPanel() {
                   isDark={isDark}
                   autoRotate={autoRotate}
                   showGrid={showMeasureGrid}
+                  showHeightRuler={showHeightRuler}
                   showBones={showBones}
                   showWireframe={showWireframe}
                   showTextures={showTextures}
@@ -1303,6 +1312,8 @@ export default function AvatarCreatorPanel() {
                       setAnimationLoadStatus(vi ? `Lỗi: ${update.error}` : `Error: ${update.error}`)
                     } else if (update.stats) {
                       setModelStats(update.stats)
+                    } else if (typeof update.realHeightMeters === 'number') {
+                      setModelHeightMeters(update.realHeightMeters)
                     } else if (typeof update.trackCount === 'number') {
                       setAnimationLoadStatus(vi
                         ? `${selectedAnimation} đã tải xong · ${update.trackCount} tracks`
@@ -1327,6 +1338,11 @@ export default function AvatarCreatorPanel() {
                   ? 'Render 3D nội bộ bằng THREE.js/WebGL (canvas thật, không dùng iframe) nên không dính lỗi CSP frame-ancestors của trang nguồn. Kéo để xoay.'
                   : 'Rendered internally with THREE.js/WebGL (a real canvas, no iframe), so it never hits the source site\'s CSP frame-ancestors restriction. Drag to rotate.'}
               </span>
+              {showHeightRuler && modelHeightMeters && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#00b8cc', fontSize: 11, fontWeight: 900 }}>
+                  <MoveVertical size={12} /> {modelHeightMeters.toFixed(2)} m {vi ? '(chiều cao thực tế)' : '(real height)'}
+                </span>
+              )}
               {modelStats && (
                 <span style={{ color: palette.text3, fontSize: 11, fontWeight: 800 }}>
                   {modelStats.vertices ? `${modelStats.vertices.toLocaleString()} ${vi ? 'đỉnh' : 'verts'}` : ''}
@@ -1352,6 +1368,7 @@ export default function AvatarCreatorPanel() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setShowHeightRuler((v) => !v)} style={iconBtnStyle(showHeightRuler)} title={vi ? 'Thước đo chiều cao' : 'Height ruler'} aria-pressed={showHeightRuler}><MoveVertical size={15} /></button>
                 <button type="button" onClick={() => setShowBones((v) => !v)} style={iconBtnStyle(showBones)} title={vi ? 'Hiện xương' : 'Show Bones'} aria-pressed={showBones}>🦴</button>
                 <button type="button" onClick={() => setShowWireframe((v) => !v)} style={iconBtnStyle(showWireframe)} title="Wireframe" aria-pressed={showWireframe}><Box size={15} /></button>
                 <button type="button" onClick={() => setShowTextures((v) => !v)} style={iconBtnStyle(showTextures)} title="Textures" aria-pressed={showTextures}><ImageIcon size={15} /></button>
@@ -1381,6 +1398,7 @@ export default function AvatarCreatorPanel() {
                     isDark={isDark}
                     autoRotate={autoRotate}
                     showGrid={false}
+                    showHeightRuler={showHeightRuler}
                     showBones={showBones}
                     showWireframe={showWireframe}
                     showTextures={showTextures}

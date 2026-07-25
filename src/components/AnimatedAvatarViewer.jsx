@@ -7,6 +7,72 @@ import { VRMLoaderPlugin } from '@pixiv/three-vrm'
 import { Pointer } from 'lucide-react'
 import { retargetMixamoClip } from '../lib/vrm/loadMixamoAnimation'
 
+// Builds a small billboarded text label (canvas -> texture -> Sprite),
+// used for the height-ruler's meter markings and the "actual height" tag.
+// Kept tiny/dependency-free rather than pulling in a text-geometry lib.
+export function makeRulerLabelSprite(text, { color = '#e2e8f0', bg = null, fontSize = 46, bold = false } = {}) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 96
+  const ctx = canvas.getContext('2d')
+  if (bg) {
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  }
+  ctx.font = `${bold ? '900' : '700'} ${fontSize}px 'Segoe UI', Arial, sans-serif`
+  ctx.fillStyle = color
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 6, canvas.height / 2)
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.minFilter = THREE.LinearFilter
+  texture.needsUpdate = true
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false })
+  const sprite = new THREE.Sprite(material)
+  sprite.renderOrder = 1001
+  sprite.scale.set(0.34, 0.34 * (canvas.height / canvas.width), 1)
+  return sprite
+}
+
+// Builds the full height-ruler group: a vertical scale from 0m to 2m with
+// minor ticks every 0.1m and labeled major ticks every 0.5m, positioned just
+// to the left of the avatar. Purely a visual reference scale (world units in
+// this viewer are meters, matching VRM/glTF convention).
+export function buildHeightRulerGroup(isDark) {
+  const group = new THREE.Group()
+  group.name = 'osaHeightRuler'
+  const lineColor = isDark ? 0x64748b : 0x475569
+  const majorColor = isDark ? 0xcbd5e1 : 0x1e293b
+
+  const points = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2, 0)]
+  const baseline = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(points),
+    new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.65 })
+  )
+  baseline.renderOrder = 999
+  group.add(baseline)
+
+  for (let mm = 0; mm <= 20; mm += 1) {
+    const y = mm / 10
+    const isMajor = mm % 5 === 0
+    const tickLen = isMajor ? 0.09 : 0.04
+    const tickGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, y, 0),
+      new THREE.Vector3(tickLen, y, 0),
+    ])
+    const tick = new THREE.Line(tickGeom, new THREE.LineBasicMaterial({
+      color: isMajor ? majorColor : lineColor, transparent: true, opacity: isMajor ? 0.9 : 0.5,
+    }))
+    group.add(tick)
+    if (isMajor) {
+      const label = makeRulerLabelSprite(`${y.toFixed(1)}m`, { color: isDark ? '#cbd5e1' : '#1e293b', fontSize: 40 })
+      label.position.set(tickLen + 0.09, y, 0)
+      group.add(label)
+    }
+  }
+  return group
+}
+
 // Real three.js viewer: loads the avatar with GLTFLoader (registering
 // @pixiv/three-vrm's VRMLoaderPlugin so VRM 0.x/1.0 humanoid rigs are parsed
 // out of the glTF extensions, not just rendered as a dumb mesh), loads the
@@ -24,6 +90,7 @@ export default function AnimatedAvatarViewer({
   isDark,
   autoRotate,
   showGrid,
+  showHeightRuler = false,
   showBones = false,
   showWireframe = false,
   showTextures = true,
@@ -86,6 +153,17 @@ export default function AnimatedAvatarViewer({
     grid.visible = !!showGrid
     scene.add(grid)
 
+    // Height ruler: a static 0–2m vertical scale to the avatar's left, plus
+    // a highlighted line/label (filled in once the model loads, see
+    // frameAndStore below) marking where this avatar's real height lands.
+    const heightRuler = buildHeightRulerGroup(isDark)
+    heightRuler.position.set(-0.85, 0, 0)
+    heightRuler.visible = !!showHeightRuler
+    scene.add(heightRuler)
+    const heightMarker = new THREE.Group()
+    heightMarker.visible = !!showHeightRuler
+    scene.add(heightMarker)
+
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.target.set(0, 1, 0)
     controls.enableDamping = true
@@ -104,7 +182,7 @@ export default function AnimatedAvatarViewer({
     const clock = new THREE.Clock()
 
     stateRef.current = {
-      scene, camera, renderer, controls, grid,
+      scene, camera, renderer, controls, grid, heightRuler, heightMarker,
       mixer: null, avatarRoot: null, vrm: null, currentAction: null, boneHelpers: [], boneMarkers: [], boneMarkerGeometry: null, boneMarkerMaterial: null, modelMaterials: [], disposed: false,
     }
 
@@ -141,6 +219,33 @@ export default function AnimatedAvatarViewer({
       avatarRoot.scale.setScalar(scale)
       avatarRoot.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale)
       scene.add(avatarRoot)
+
+      // Height-ruler marker: this viewer always normalizes the avatar's
+      // *displayed* height to 1.7 world units (see `scale` above) so every
+      // model frames consistently in the camera regardless of its real
+      // scale — so the marker line always sits at y=1.7 (the true visual
+      // top-of-head here), while the label text reports the avatar's real,
+      // un-normalized height as read from its own model data.
+      const heightMarker = stateRef.current.heightMarker
+      if (heightMarker) {
+        heightMarker.children.forEach((child) => {
+          child.geometry?.dispose?.()
+          child.material?.map?.dispose?.()
+          child.material?.dispose?.()
+        })
+        heightMarker.clear()
+        const markerY = 1.7
+        const markLine = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.85, markerY, 0), new THREE.Vector3(0.18, markerY, 0)]),
+          new THREE.LineDashedMaterial({ color: 0x00e5ff, dashSize: 0.045, gapSize: 0.03, transparent: true, opacity: 0.9 })
+        )
+        markLine.computeLineDistances()
+        heightMarker.add(markLine)
+        const label = makeRulerLabelSprite(`${height.toFixed(2)} m`, { color: '#00e5ff', bold: true, fontSize: 44 })
+        label.position.set(0.26, markerY, 0)
+        heightMarker.add(label)
+      }
+      onStatusChange?.({ realHeightMeters: Number(height.toFixed(3)) })
       const mixer = new THREE.AnimationMixer(avatarRoot)
       stateRef.current.mixer = mixer
       stateRef.current.avatarRoot = avatarRoot
@@ -305,7 +410,7 @@ export default function AnimatedAvatarViewer({
         if (obj.geometry) obj.geometry.dispose()
         if (obj.material) {
           const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
-          materials.forEach((m) => m.dispose?.())
+          materials.forEach((m) => { m.map?.dispose?.(); m.dispose?.() })
         }
       })
       if (container) container.innerHTML = ''
@@ -320,6 +425,10 @@ export default function AnimatedAvatarViewer({
   useEffect(() => {
     if (stateRef.current.grid) stateRef.current.grid.visible = !!showGrid
   }, [showGrid])
+  useEffect(() => {
+    if (stateRef.current.heightRuler) stateRef.current.heightRuler.visible = !!showHeightRuler
+    if (stateRef.current.heightMarker) stateRef.current.heightMarker.visible = !!showHeightRuler
+  }, [showHeightRuler])
   useEffect(() => {
     applyBoneVisibility(showBones)
   }, [showBones])
