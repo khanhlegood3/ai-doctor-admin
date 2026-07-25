@@ -17,9 +17,21 @@
 //     đổi referrer giữa chừng — cùng quy tắc với gameAffiliateDB.saveReferral).
 //
 // Methods:
-//   GET  ?referrer=<uuid>  -> { items: [...] }  (F1 trực tiếp của uuid này)
-//   GET  ?referee=<uuid>   -> { item: {...} | null } (tuyến trên của uuid này)
-//   POST { referrerUuid, refereeUuid, code, source } -> { item, alreadyExisted }
+//   GET    ?referrer=<uuid>  -> { items: [...] }  (F1 trực tiếp của uuid này)
+//   GET    ?referee=<uuid>   -> { item: {...} | null } (tuyến trên của uuid này)
+//   POST   { referrerUuid, refereeUuid, code, source } -> { item, alreadyExisted }
+//   PATCH  { refereeUuid, chainStatus, txHash } -> { item }
+//     Cập nhật lại trạng thái on-chain SAU KHI registerReferralOnChain() gọi
+//     thành công (hoặc thất bại) — nếu thiếu bước này, doc trên Mongo (nguồn
+//     hiển thị chính từ khi sửa luồng "check Mongo trước") sẽ mãi mãi kẹt ở
+//     chainStatus: 'pending' dù ví đã đăng ký xong trên chain, khiến UI luôn
+//     hiện "Đang chờ đồng bộ on-chain" dù thực tế đã xong.
+//   DELETE { refereeUuid }   -> { deleted: true }
+//     Tự gỡ 1 quan hệ SAI/rác (vd dữ liệu test cũ tự động migrate nhầm từ
+//     IndexedDB local trước khi có backend Mongo). Chỉ cho gỡ khi CHƯA
+//     chainStatus === 'synced' — một khi đã ghi thật lên contract
+//     (registerReferral) thì contract tự chặn đăng ký lại ("Already
+//     registered"), nên xoá ở Mongo lúc đó sẽ làm lệch dữ liệu so với chain.
 
 import { connectToDatabase } from './_lib/mongodb.js';
 
@@ -84,7 +96,56 @@ export default async function handler(req, res) {
       return res.status(201).json({ item: doc, alreadyExisted: false });
     }
 
-    res.setHeader('Allow', 'GET, POST');
+    if (req.method === 'PATCH') {
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+      const refereeUuid = String(body?.refereeUuid || '').trim();
+      const chainStatus = body?.chainStatus;
+      const txHash = body?.txHash ?? null;
+
+      if (!refereeUuid) {
+        return res.status(400).json({ error: 'Thiếu refereeUuid.' });
+      }
+      if (!['pending', 'synced', 'failed'].includes(chainStatus)) {
+        return res.status(400).json({ error: 'chainStatus không hợp lệ.' });
+      }
+
+      const updated = await col.findOneAndUpdate(
+        { refereeUuid },
+        { $set: { chainStatus, txHash, chainSyncedAt: new Date().toISOString() } },
+        { returnDocument: 'after' },
+      );
+      if (!updated) {
+        return res.status(404).json({ error: 'Không tìm thấy quan hệ để cập nhật.' });
+      }
+      return res.status(200).json({ item: updated });
+    }
+
+    if (req.method === 'DELETE') {
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch { body = {}; }
+      }
+      const refereeUuid = String(body?.refereeUuid || req.query?.refereeUuid || '').trim();
+      if (!refereeUuid) {
+        return res.status(400).json({ error: 'Thiếu refereeUuid.' });
+      }
+
+      const existing = await col.findOne({ refereeUuid });
+      if (!existing) {
+        return res.status(200).json({ deleted: false, note: 'Không có quan hệ nào để gỡ.' });
+      }
+      if (existing.chainStatus === 'synced') {
+        return res.status(409).json({ error: 'Quan hệ này đã đồng bộ on-chain — không thể tự gỡ (contract đã ghi nhận "Already registered").' });
+      }
+
+      await col.deleteOne({ refereeUuid });
+      return res.status(200).json({ deleted: true });
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (error) {
     console.error('[api/affiliate-referral] error:', error);
