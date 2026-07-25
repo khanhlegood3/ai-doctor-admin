@@ -64,6 +64,7 @@ const TRANSLATIONS = {
     showExactly: 'Show me exactly where',
     showExactlyHelper: "Pick a body part from the dropdown, then tap the section that's bothering you. Tap an orange section again to remove it.",
     tapASection: 'TAP A SECTION',
+    highlightedSections: 'HIGHLIGHTED SECTIONS',
     // Step 3 — Q&A wizard
     questionOf: 'QUESTION {n} OF 3',
     visualPlaceholder: 'Visual placeholder',
@@ -132,6 +133,7 @@ const TRANSLATIONS = {
     showExactly: 'Chỉ chính xác vị trí',
     showExactlyHelper: 'Chọn một bộ phận cơ thể từ danh sách, sau đó chạm vào phần đang khiến bạn khó chịu. Chạm lại vào phần màu cam để bỏ chọn.',
     tapASection: 'CHỌN MỘT PHẦN',
+    highlightedSections: 'VÙNG ĐÃ CHỌN',
     // Bước 3 — Bộ câu hỏi
     questionOf: 'CÂU HỎI {n}/3',
     visualPlaceholder: 'Khung minh hoạ trực quan',
@@ -357,6 +359,55 @@ function BodyPixelDetail({ activePart, selectedSections, onPartChange, onToggleS
 }
 
 // ---------------------------------------------------------------------------
+// Sub-component: Organ Pixel Preview (bản vẽ CHỈ ĐỌC — dùng lại ở các bước
+// Q&A và Kết quả để thay cho khung "Khung minh hoạ trực quan" trống trước
+// đây. Vẽ lại đúng bộ phận + các khu vực người dùng đã chọn ở bước trước,
+// highlight màu cam cho vùng đã chọn, và liệt kê tên các vùng đó bên dưới.
+// ---------------------------------------------------------------------------
+function OrganPixelPreview({ activePart, selectedSections, t, tPart, tSection }) {
+  const dots = useMemo(() => buildOrganDots(activePart), [activePart]);
+
+  return (
+    <div className="h3dm-pixelPane">
+      <span className="h3dm-kicker">{tPart(activePart).toUpperCase()}</span>
+
+      <div className="h3dm-dotMap" aria-label={t('ariaInternalMap')}>
+        {dots.map((dot) => {
+          const isSelected = selectedSections.includes(dot.section);
+          return (
+            <span
+              key={dot.id}
+              className="h3dm-dot h3dm-dot-static"
+              title={tSection(dot.section)}
+              style={{
+                left: `${dot.x * 2.38}%`,
+                top: `${dot.y * 2.45}%`,
+                background: isSelected ? '#cc623d' : '#4d493f',
+                boxShadow: isSelected ? '0 0 6px 1px rgba(204,98,61,.85)' : 'none',
+              }}
+            />
+          );
+        })}
+      </div>
+
+      <div className="h3dm-chipsTitle">{tPart(activePart).toUpperCase()} · {t('highlightedSections')}</div>
+      <div className="h3dm-chips">
+        {selectedSections.length === 0 ? (
+          <span className="h3dm-emptyHint">{t('selectSection')}</span>
+        ) : (
+          selectedSections.map((section) => (
+            <span key={section} className="h3dm-chip h3dm-chip-static">
+              {tSection(section)}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 // Main panel
 // ---------------------------------------------------------------------------
 export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
@@ -565,7 +616,13 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
       <p className="h3dm-subtitle">{t('analysisSubtitle')}</p>
 
       <div className="h3dm-card">
-        <div className="h3dm-pixelPane h3dm-pixelPane-placeholder">{t('visualPlaceholder')}</div>
+        <OrganPixelPreview
+          activePart={activePart}
+          selectedSections={selectedSections}
+          t={t}
+          tPart={tPart}
+          tSection={tSection}
+        />
 
         <div className="h3dm-infoPane">
           <div className="h3dm-meta">
@@ -614,7 +671,13 @@ export default function Hero3DMapPanel({ onOpenBodyProtectionJourney }) {
           <p className="h3dm-subtitle">{t('analysisSubtitle')}</p>
 
           <div className="h3dm-card">
-            <div className="h3dm-pixelPane h3dm-pixelPane-placeholder">{t('visualPlaceholder')}</div>
+            <OrganPixelPreview
+              activePart={activePart}
+              selectedSections={selectedSections}
+              t={t}
+              tPart={tPart}
+              tSection={tSection}
+            />
 
             <div className="h3dm-infoPane">
               <h2 className="h3dm-question">{t('summary')}</h2>
@@ -815,10 +878,12 @@ const HERO3DMAP_CSS = `
   cursor: pointer;
   transition: background 0.15s;
 }
+.h3dm-dot-static { cursor: default; pointer-events: none; }
 
 .h3dm-chipsTitle { font-family: monospace; letter-spacing: .16em; color: #9c968d; font-size: 12px; margin-bottom: 12px; margin-top: 16px; }
 .h3dm-chips { display: flex; flex-wrap: wrap; gap: 9px; min-height: 36px; }
 .h3dm-chip { border: 0; border-radius: 18px; background: #56524b; color: #f0ece5; padding: 8px 12px; font-size: 14px; cursor: pointer; }
+.h3dm-chip-static { cursor: default; background: #cc623d; color: #fff8f3; font-weight: 700; }
 .h3dm-chipX { color: #d86b45; font-weight: 900; margin-left: 4px; }
 .h3dm-emptyHint { color: #837d73; font-size: 14px; font-style: italic; }
 
