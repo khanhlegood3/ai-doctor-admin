@@ -63,7 +63,6 @@ import PatientReflectPanel from './components/PatientReflectPanel.jsx'
 import MyImageToVideoPanel from './components/MyImageToVideoPanel.jsx'
 import AffiliateSystemControlPanel from './components/AffiliateSystemControlPanel.jsx'
 import AffiliateSystemPanel from './components/AffiliateSystemPanel.jsx'
-import AffiliateReferralLandingPage from './components/AffiliateReferralLandingPage.jsx'
 import AffiliateWebhookAdmin from './components/admin/AffiliateWebhookAdmin.jsx'
 import MoralisPlaygroundAdmin from './components/admin/MoralisPlaygroundAdmin.jsx'
 import AffiliateSystemAdminPanel from './components/admin/AffiliateSystemAdminPanel.jsx'
@@ -419,10 +418,18 @@ export default function App() {
   const prevLabel = prevPanel ? panelLabels[prevPanel] : null
   const nextLabel = nextPanel ? panelLabels[nextPanel] : null
 
-  const referralRouteMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/r\/[^/?#]+/i) : null
+  // Link Affiliate dạng cũ /r/<code> KHÔNG còn có trang render riêng
+  // (AffiliateReferralLandingPage đã bị gỡ bỏ — trùng lặp/không đồng bộ với
+  // luồng LoginPage tab "Đăng ký" chuẩn). Nếu ai đó vẫn còn giữ link cũ dạng
+  // này, chuyển hướng ngay sang trang chủ kèm ?ref=<code> để đi đúng luồng
+  // chuẩn (LoginPage, tab Đăng ký) thay vì vào thẳng trang Đăng ký F1 cũ.
+  const referralRouteMatch = typeof window !== 'undefined' ? window.location.pathname.match(/^\/r\/([^/?#]+)/i) : null
 
   if (referralRouteMatch) {
-    return <AffiliateReferralLandingPage />
+    if (typeof window !== 'undefined') {
+      window.location.replace(`${window.location.origin}/?ref=${encodeURIComponent(referralRouteMatch[1])}`)
+    }
+    return null
   }
 
   if (loading) {
