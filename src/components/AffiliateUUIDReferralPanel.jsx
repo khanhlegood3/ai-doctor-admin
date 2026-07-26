@@ -54,8 +54,8 @@ function loadLocalTree() {
 }
 
 // Giữ đồng bộ với cây MLM local dùng chung bởi AffiliateSystemPanel.jsx /
-// AffiliateReferralLandingPage.jsx (key `cdoc_affiliate_v1`, id dạng `me-{uuid}`)
-// để 2 màn hình Affiliate trong app hiển thị cùng 1 dữ liệu.
+// AffiliateSystemControlPanel.jsx (key `cdoc_affiliate_v1`, id dạng `me-{uuid}`)
+// để các màn hình Affiliate trong app hiển thị cùng 1 dữ liệu.
 function linkLocalTree({ referrerUuid, refereeUuid, refereeName }) {
   const state = loadLocalTree()
   const users = Array.isArray(state.users) ? [...state.users] : []

@@ -327,7 +327,9 @@ export default function AffiliateSystemPanel({ onNext, nextLabel, onPrev, prevLa
   }
 
   const copyRefLink = () => {
-    const link = `${window.location.origin}/r/${viewingUserId}`
+    const params = new URLSearchParams({ ref: viewingUserId })
+    if (me?.name) params.set('refName', me.name)
+    const link = `${window.location.origin}/?${params.toString()}`
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(link).catch(() => {})
     }

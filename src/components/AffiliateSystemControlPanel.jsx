@@ -447,8 +447,26 @@ export default function AffiliateSystem() {
 
   const cooldownStr = getCooldownDisplay();
 
-  const handleCopyLink = () => {
-    showToast("Thành công", "Đã sao chép liên kết giới thiệu vào bộ nhớ tạm.", "success");
+  // Link giới thiệu ĐỒNG BỘ với AffiliateSystemPanel.jsx / AffiliateUUIDReferralPanel.jsx:
+  // luôn dùng domain thật đang chạy (window.location.origin, không hard-code tay)
+  // + query ?ref=<id>&refName=<tên> để App.jsx đưa thẳng người bấm vào LoginPage
+  // (tab Đăng ký) — KHÔNG dùng lại định dạng /r/<id> cũ (đã bị gỡ bỏ).
+  const referralLink = typeof window !== 'undefined' && viewingUserStat
+    ? (() => {
+        const params = new URLSearchParams({ ref: viewingUserStat.id });
+        if (viewingUserStat.name) params.set('refName', viewingUserStat.name);
+        return `${window.location.origin}/?${params.toString()}`;
+      })()
+    : '';
+
+  const handleCopyLink = async () => {
+    if (!referralLink) return;
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      showToast("Thành công", "Đã sao chép liên kết giới thiệu vào bộ nhớ tạm.", "success");
+    } catch {
+      showToast("Lỗi", "Không thể sao chép liên kết. Hãy tự bôi đen và copy.", "error");
+    }
   };
 
   // --- UI COMPONENTS ---
@@ -675,7 +693,7 @@ export default function AffiliateSystem() {
                       <input 
                         type="text" 
                         readOnly 
-                        value={`https://hien-mau-nhan-van.vercel.app/r/${viewingUserStat.id}`}
+                        value={referralLink}
                         className="w-full bg-transparent text-slate-300 text-sm px-3 outline-none"
                       />
                     </div>
