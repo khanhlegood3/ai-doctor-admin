@@ -276,35 +276,14 @@ export function AuthProvider({ children }) {
     // tính (Google/Apple) — tên tự gõ tay lúc đăng ký email/ẩn danh KHÔNG
     // được coi là verified (xem Mức 2).
     const verified = user?.provider === 'google' || user?.provider === 'apple'
-    // User ID (vd "KhanhLX1") — do LoginPage.jsx cho chọn NGAY LÚC ĐĂNG KÝ,
-    // trước khi uuid thật sự tồn tại, nên tạm gửi qua sessionStorage rồi gắn
-    // vào lần đồng bộ profile ĐẦU TIÊN sau khi có uuid. Chỉ dùng 1 LẦN rồi
-    // xoá — tránh việc lần đăng nhập tiếp theo (uuid khác, vd sau khi đăng
-    // xuất rồi vào ẩn danh) vô tình bị gán nhầm cùng 1 User ID cũ.
-    let pendingUserId = null
-    try { pendingUserId = sessionStorage.getItem('cdoc_pending_user_id') || null } catch { /* ignore */ }
+    // User ID KHÔNG còn được hỏi lúc đăng ký nữa (chỉ đặt sau, từ màn Profile
+    // qua updateUserId() bên dưới) — lần đồng bộ tên này không kèm userId.
     fetch('/api/user-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid, name, secret, verified, userId: pendingUserId || undefined }),
+      body: JSON.stringify({ uuid, name, secret, verified }),
     })
-      .then((res) => {
-        if (pendingUserId && res.ok) {
-          try { sessionStorage.removeItem('cdoc_pending_user_id') } catch { /* ignore */ }
-          // Lưu userId vào state + storage cục bộ ngay, để màn Profile hiện
-          // đúng User ID vừa đăng ký mà không cần load lại trang.
-          setUser(u => (u && u.uuid === uuid) ? { ...u, userId: pendingUserId } : u)
-          if (user?.isAnonymous) {
-            updateAnonSession({ userId: pendingUserId }).catch(() => {})
-          } else if (user?.email) {
-            try {
-              const users = getUsers()
-              if (users[user.email]) { users[user.email].userId = pendingUserId; saveUsers(users) }
-            } catch { /* ignore */ }
-          }
-        }
-      })
-      .catch(() => { /* ignore — không có mạng cũng không sao, thử lại lần đổi tiếp theo (userId giữ nguyên trong sessionStorage để thử lại) */ })
+      .catch(() => { /* ignore — không có mạng cũng không sao, thử lại ở lần đổi tên tiếp theo */ })
   }, [user?.uuid, user?.name, user?.provider])
 
   // ─── Đồng bộ NGƯỢC userId từ server nếu thiết bị này chưa có cục bộ ──────
@@ -671,12 +650,16 @@ export function AuthProvider({ children }) {
     saveSession(null)
   }
 
-  // ── Đặt/đổi User ID từ màn Profile (sau khi tài khoản/uuid đã tồn tại) ───────
+  // ── Đặt User ID từ màn Profile (sau khi tài khoản/uuid đã tồn tại) ───────────
   // Dùng lại đúng /api/user-profile POST (đã hỗ trợ userId) — không cần
   // endpoint riêng. Validate định dạng ở client trước cho phản hồi nhanh,
-  // server (USER_ID_REGEX + unique index) vẫn là điểm chặn cuối cùng.
+  // server (USER_ID_REGEX + unique index + "chỉ set 1 lần") vẫn là điểm chặn
+  // cuối cùng. CHỈ ĐƯỢC LƯU 1 LẦN DUY NHẤT — không cho đổi lại sau khi đã có
+  // userId, để tránh lạm dụng (vd đổi liên tục để "chiếm" nhiều handle đẹp
+  // rồi nhả ra, hoặc gây nhầm lẫn cho người đã lỡ chia sẻ User ID cũ).
   const updateUserId = async (newUserId) => {
     if (!user?.uuid) throw new Error('Chưa có tài khoản/UUID để đặt User ID.')
+    if (user.userId) throw new Error('Bạn đã đặt User ID rồi — mỗi tài khoản chỉ được đặt User ID 1 lần duy nhất, không thể đổi lại.')
     const id = String(newUserId || '').trim()
     if (!/^[A-Za-z0-9_]{3,24}$/.test(id)) {
       throw new Error('User ID không hợp lệ — chỉ chữ không dấu, số, gạch dưới, 3-24 ký tự.')
