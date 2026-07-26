@@ -30,9 +30,15 @@ export default function LoginPage({ onSuccess, onBack }) {
   // hợp gõ nhầm/gõ bừa tên khác với UUID thật.
   const [referrerUuid, setReferrerUuid] = useState('')
   const [referrerName, setReferrerName] = useState('')
+  const [referrerUserId, setReferrerUserId] = useState('')
   const [referrerVerified, setReferrerVerified] = useState(false)
+  const [referrerNotFound, setReferrerNotFound] = useState(false)
   const [resolvingReferrerName, setResolvingReferrerName] = useState(false)
-  const referrerNameCacheRef = useRef({}) // { [uuid]: { name, verified } } — tránh tra lại uuid vừa mới tra xong
+  const referrerNameCacheRef = useRef({}) // { [uuid]: { name, verified, userId } | 'not_found' } — tránh tra lại uuid vừa mới tra xong
+  // Gợi ý User ID lấy từ URL (?refId=) lúc chưa tra lại server — CHỈ dùng để
+  // phát hiện SAI LỆCH với dữ liệu thật (xem cảnh báo bên dưới), không bao
+  // giờ hiển thị như đã xác minh.
+  const [linkHintUserId, setLinkHintUserId] = useState('')
 
   useEffect(() => {
     try {
@@ -40,6 +46,7 @@ export default function LoginPage({ onSuccess, onBack }) {
       if (pending?.uuid) {
         setReferrerUuid(pending.uuid)
         if (pending.name) setReferrerName(pending.name) // hiện tạm ngay (optimistic) trong lúc chờ tra lại từ server — CHƯA coi là verified
+        if (pending.userId) setLinkHintUserId(pending.userId)
       }
     } catch { /* ignore */ }
   }, [])
@@ -51,25 +58,32 @@ export default function LoginPage({ onSuccess, onBack }) {
   useEffect(() => {
     try {
       if (referrerUuid.trim()) {
-        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: referrerUuid.trim(), name: referrerName, verified: referrerVerified }))
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: referrerUuid.trim(), name: referrerName, userId: referrerUserId, verified: referrerVerified }))
       } else {
         sessionStorage.removeItem('cdoc_pending_referral')
       }
     } catch { /* ignore */ }
-  }, [referrerUuid, referrerName, referrerVerified])
+  }, [referrerUuid, referrerName, referrerUserId, referrerVerified])
 
-  // Tự tra tên + trạng thái xác minh theo UUID mỗi khi UUID đổi (debounce
-  // 400ms để không gọi API liên tục lúc đang gõ/dán). "verified" = true CHỈ
-  // khi tên đó được đăng ký từ 1 phiên đăng nhập Google/Apple (xem
+  // Tự tra tên + User ID + trạng thái xác minh theo UUID mỗi khi UUID đổi
+  // (debounce 400ms để không gọi API liên tục lúc đang gõ/dán). "verified" =
+  // true CHỈ khi tên đó được đăng ký từ 1 phiên đăng nhập Google/Apple (xem
   // AuthContext.jsx) — tên tự khai lúc đăng ký email/ẩn danh luôn hiện là
   // "chưa xác minh", để User 2 tự cân nhắc mức độ tin cậy.
+  //
+  // Mức 3 chống giả mạo: ưu tiên hiển thị User ID (duy nhất toàn hệ thống,
+  // được bảo vệ bởi "khoá sở hữu" ở api/user-profile.js) làm định danh chính
+  // để đối chiếu — Tên hiển thị (name) KHÔNG duy nhất nên 2 người khác nhau
+  // hoàn toàn có thể trùng tên, không đủ để khẳng định "đúng người".
   useEffect(() => {
     const uuid = referrerUuid.trim()
-    if (!uuid) { setReferrerName(''); setReferrerVerified(false); setResolvingReferrerName(false); return }
+    if (!uuid) { setReferrerName(''); setReferrerUserId(''); setReferrerVerified(false); setReferrerNotFound(false); setResolvingReferrerName(false); return }
     if (uuid in referrerNameCacheRef.current) {
       const cached = referrerNameCacheRef.current[uuid]
-      setReferrerName(cached?.name || '')
-      setReferrerVerified(!!cached?.verified)
+      if (cached === 'not_found') { setReferrerName(''); setReferrerUserId(''); setReferrerVerified(false); setReferrerNotFound(true) }
+      else {
+        setReferrerName(cached?.name || ''); setReferrerUserId(cached?.userId || ''); setReferrerVerified(!!cached?.verified); setReferrerNotFound(false)
+      }
       return
     }
     setResolvingReferrerName(true)
@@ -77,10 +91,15 @@ export default function LoginPage({ onSuccess, onBack }) {
       try {
         const res = await fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
         const data = await res.json().catch(() => ({}))
-        const resolved = { name: res.ok ? (data?.name || '') : '', verified: res.ok ? !!data?.verified : false }
-        referrerNameCacheRef.current[uuid] = resolved
-        setReferrerName(resolved.name)
-        setReferrerVerified(resolved.verified)
+        const hasProfile = res.ok && (data?.name || data?.userId)
+        if (!hasProfile) {
+          referrerNameCacheRef.current[uuid] = 'not_found'
+          setReferrerName(''); setReferrerUserId(''); setReferrerVerified(false); setReferrerNotFound(true)
+        } else {
+          const resolved = { name: data?.name || '', userId: data?.userId || '', verified: !!data?.verified }
+          referrerNameCacheRef.current[uuid] = resolved
+          setReferrerName(resolved.name); setReferrerUserId(resolved.userId); setReferrerVerified(resolved.verified); setReferrerNotFound(false)
+        }
       } catch {
         // Giữ nguyên tên optimistic (nếu có từ link) khi không tra được do lỗi mạng
       } finally {
@@ -501,21 +520,58 @@ export default function LoginPage({ onSuccess, onBack }) {
 
             {referrerUuid.trim() && (
               <>
-                <label style={s.label}>{lang === 'vi' ? 'Tên người giới thiệu' : 'Referrer name'}</label>
+                <label style={s.label}>{lang === 'vi' ? 'Định danh người giới thiệu (User ID)' : "Referrer's identity (User ID)"}</label>
                 <input
-                  style={{ ...s.input, marginBottom: 4, opacity: 0.85, cursor: 'not-allowed' }}
+                  style={{ ...s.input, marginBottom: 4, opacity: 0.85, cursor: 'not-allowed', fontFamily: referrerUserId ? 'monospace' : 'inherit' }}
                   readOnly
-                  value={resolvingReferrerName ? (lang === 'vi' ? 'Đang tra cứu…' : 'Looking up…') : (referrerName || (lang === 'vi' ? 'Không tìm thấy tên — kiểm tra lại UUID' : 'Name not found — double-check the UUID'))}
+                  value={
+                    resolvingReferrerName
+                      ? (lang === 'vi' ? 'Đang tra cứu từ máy chủ…' : 'Looking up from server…')
+                      : referrerNotFound
+                        ? (lang === 'vi' ? 'Không tìm thấy hồ sơ — kiểm tra lại UUID' : 'No profile found — double-check the UUID')
+                        : referrerUserId
+                          ? `@${referrerUserId}`
+                          : (referrerName || (lang === 'vi' ? 'Không tìm thấy tên — kiểm tra lại UUID' : 'Name not found — double-check the UUID'))
+                  }
                 />
-                {!resolvingReferrerName && referrerName && (
+                {/* User ID (nếu có) là bằng chứng mạnh nhất — duy nhất toàn hệ
+                    thống, được server xác nhận theo đúng UUID. Tên hiển thị chỉ
+                    là thông tin phụ, KHÔNG duy nhất nên không đủ để khẳng định
+                    "đúng người". */}
+                {!resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
+                  <div style={{ fontSize: 11, color: isDark ? 'rgba(232,240,248,0.55)' : '#777', marginBottom: 4 }}>
+                    {referrerUserId
+                      ? (referrerName ? `${lang === 'vi' ? 'Tên hiển thị' : 'Display name'}: ${referrerName}` : (lang === 'vi' ? 'Chưa đặt tên hiển thị' : 'No display name set'))
+                      : (lang === 'vi' ? '⚠ Người này chưa đặt User ID — chỉ có tên hiển thị (không duy nhất), hãy đối chiếu kỹ UUID.' : "⚠ This person hasn't set a User ID yet — only a display name (not unique), double-check the UUID.")}
+                  </div>
+                )}
+                {!resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
                   <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 12,
                     fontSize: 11, fontWeight: 700,
-                    color: referrerVerified ? '#2d8a5e' : (isDark ? 'rgba(232,240,248,0.45)' : '#999'),
+                    color: referrerUserId ? '#2d8a5e' : (referrerVerified ? '#2d8a5e' : (isDark ? 'rgba(232,240,248,0.45)' : '#999')),
                   }}>
-                    {referrerVerified
-                      ? `✓ ${lang === 'vi' ? 'Đã xác minh qua Google' : 'Verified via Google'}`
-                      : `⚠ ${lang === 'vi' ? 'Tự khai, chưa xác minh' : 'Self-declared, unverified'}`}
+                    {referrerUserId
+                      ? `✓ ${lang === 'vi' ? 'Đã xác minh từ máy chủ theo UUID — User ID duy nhất, không thể giả mạo' : 'Server-verified by UUID — unique User ID, cannot be spoofed'}`
+                      : referrerVerified
+                        ? `✓ ${lang === 'vi' ? 'Đã xác minh qua Google' : 'Verified via Google'}`
+                        : `⚠ ${lang === 'vi' ? 'Tự khai, chưa xác minh' : 'Self-declared, unverified'}`}
+                  </div>
+                )}
+                {referrerNotFound && (
+                  <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,152,0,0.35)', background: 'rgba(255,152,0,0.1)', color: '#ff9800', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
+                    {lang === 'vi' ? 'UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.' : "This UUID has no profile in the system — double-check before registering, or commissions may go to a non-existent account."}
+                  </div>
+                )}
+                {/* Cảnh báo giả mạo: link ghi User ID/tên khác với hồ sơ thật
+                    tra được từ server theo đúng UUID — dấu hiệu ai đó đã sửa
+                    tay tham số ?refId=/?refName= trên URL để giả danh người
+                    khác trong khi UUID thật (nơi hoa hồng chảy vào) là của họ. */}
+                {!resolvingReferrerName && linkHintUserId && referrerUserId && linkHintUserId.toLowerCase() !== referrerUserId.toLowerCase() && (
+                  <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.35)', background: 'rgba(255,82,82,0.1)', color: '#ff5252', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
+                    {lang === 'vi'
+                      ? `⚠️ Link ghi User ID "${linkHintUserId}" nhưng hồ sơ thật của UUID này là "${referrerUserId}" — có thể ai đó đang cố giả mạo. Chỉ tin phần đã xác minh ở trên.`
+                      : `⚠️ The link claims User ID "${linkHintUserId}" but this UUID's real profile is "${referrerUserId}" — possible impersonation. Only trust the verified info above.`}
                   </div>
                 )}
               </>
