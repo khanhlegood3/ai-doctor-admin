@@ -528,7 +528,7 @@ export default function App() {
         initialMode={loginInitialMode}
         onSuccess={() => setHasCompletedLogin(true)}
         onBack={() => setPreLoginView('hero')}
-        onShowProjectInfo={() => setPreLoginView('chooseRole')}
+        onShowProjectInfo={() => setPreLoginView('landing')}
       />
     )
   }
