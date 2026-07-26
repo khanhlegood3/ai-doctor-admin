@@ -344,15 +344,158 @@ function ProfileActionButton({ active, children, onClick, disabled, accent = '#0
   )
 }
 
+// ─── User ID card — đặt/đổi handle công khai duy nhất toàn hệ thống ────────
+// Dùng chung cho cả tài khoản thật lẫn khách (anonymous) — vì userId gắn
+// theo uuid, không theo email, nên khách cũng có thể đặt trước khi nâng
+// cấp. Live-check trùng dùng lại đúng /api/user-profile?checkUserId= và
+// USER_ID_REGEX giống hệt LoginPage.jsx (trang Đăng ký) để trải nghiệm nhất
+// quán.
+const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/
+
+function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, text, text2, text3, accent = '#00b8cc', accentBorder = 'rgba(0,184,204,0.32)', accentSoft = 'rgba(0,184,204,0.08)' }) {
+  const currentUserId = user?.userId || ''
+  const [editing, setEditing] = useState(!currentUserId)
+  const [value, setValue] = useState(currentUserId)
+  const [checking, setChecking] = useState(false)
+  const [available, setAvailable] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const cacheRef = useRef({})
+
+  // Nếu user.userId thay đổi từ bên ngoài (vd đồng bộ ngược từ server) trong
+  // lúc KHÔNG đang sửa, cập nhật lại ô nhập để không hiện giá trị cũ.
+  useEffect(() => { if (!editing) setValue(currentUserId) }, [currentUserId, editing])
+
+  const handleChange = (e) => {
+    // Tự lọc bỏ ký tự không hợp lệ ngay lúc gõ, giống hệt LoginPage.jsx.
+    const cleaned = e.target.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 24)
+    setValue(cleaned); setError(''); setSuccess(false)
+  }
+
+  useEffect(() => {
+    const id = value.trim()
+    if (!id || id.length < 3) { setAvailable(null); setChecking(false); return }
+    // Gõ lại đúng User ID hiện tại của chính mình -> khỏi cần hỏi server.
+    if (id.toLowerCase() === currentUserId.toLowerCase()) { setAvailable(true); setChecking(false); return }
+    const key = id.toLowerCase()
+    if (key in cacheRef.current) { setAvailable(cacheRef.current[key]); return }
+    setChecking(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/user-profile?checkUserId=${encodeURIComponent(id)}`)
+        const data = await res.json().catch(() => ({}))
+        const ok = res.ok ? !!data?.available : null
+        cacheRef.current[key] = ok
+        setAvailable(ok)
+      } catch {
+        setAvailable(null)
+      } finally {
+        setChecking(false)
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [value, currentUserId])
+
+  const handleSave = async () => {
+    const id = value.trim()
+    if (!id) { setError(vi ? 'Vui lòng nhập User ID.' : 'Please enter a User ID.'); return }
+    if (!USER_ID_REGEX.test(id)) { setError(vi ? 'User ID không hợp lệ — chỉ chữ không dấu, số, gạch dưới, 3-24 ký tự.' : 'Invalid User ID — letters/numbers/underscore only, 3-24 characters.'); return }
+    if (checking) { setError(vi ? 'Đang kiểm tra User ID, vui lòng đợi một chút…' : 'Still checking User ID availability, please wait…'); return }
+    if (available === false) { setError(vi ? `User ID "${id}" đã có người dùng — hãy chọn User ID khác.` : `User ID "${id}" is already taken — please pick another.`); return }
+    setSaving(true); setError('')
+    try {
+      await updateUserId(id)
+      setSuccess(true); setEditing(false)
+      setTimeout(() => setSuccess(false), 2200)
+    } catch (e) {
+      setError(e?.message || (vi ? 'Không thể cập nhật User ID.' : 'Could not update User ID.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(currentUserId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }).catch(() => {})
+  }
+
+  return (
+    <div style={{ border: `1px solid ${accentBorder}`, borderRadius: 16, padding: 16, background: accentSoft }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: editing ? 10 : (currentUserId ? 8 : 4) }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: accent, letterSpacing: '.1em', textTransform: 'uppercase' }}>
+          {vi ? 'User ID (định danh công khai)' : 'User ID (public handle)'}
+        </div>
+        {!editing && (
+          <button type="button" onClick={() => { setValue(currentUserId); setEditing(true); setError(''); setSuccess(false) }} style={{ background: 'none', border: `1px solid ${accentBorder}`, borderRadius: 8, padding: '4px 10px', color: accent, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+            {currentUserId ? (vi ? 'Đổi' : 'Change') : (vi ? 'Đặt User ID' : 'Set User ID')}
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        currentUserId ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <code style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 800, color: isDark ? '#fff' : accent, flex: 1, wordBreak: 'break-all' }}>@{currentUserId}</code>
+            <button onClick={handleCopy} style={{ padding: '6px 8px', borderRadius: 8, border: `1px solid ${accentBorder}`, background: 'none', cursor: 'pointer', color: copied ? '#00e676' : accent, fontSize: 13, flexShrink: 0 }}>
+              {copied ? '✓' : '📋'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: text3, lineHeight: 1.5 }}>
+            {vi ? 'Bạn chưa đặt User ID — hãy đặt 1 handle ngắn, duy nhất để chia sẻ với người khác thay vì UUID dài.' : "You haven't set a User ID yet — pick a short, unique handle to share with others instead of the long UUID."}
+          </div>
+        )
+      ) : (
+        <>
+          <input
+            value={value}
+            onChange={handleChange}
+            maxLength={24}
+            autoCapitalize="off" autoCorrect="off" spellCheck={false}
+            placeholder="KhanhLX1"
+            style={{ ...inputStyle(border, surface2, text), fontFamily: 'monospace', marginBottom: 6 }}
+          />
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
+            {value.trim().length === 0 ? (
+              <span style={{ color: text3, fontWeight: 400 }}>{vi ? 'Không dấu, không khoảng trắng, 3-24 ký tự (chữ/số/gạch dưới).' : 'No spaces, no accents, 3-24 characters (letters/numbers/underscore).'}</span>
+            ) : value.trim().length < 3 ? (
+              <span style={{ color: '#ff9800' }}>{vi ? 'Cần ít nhất 3 ký tự.' : 'Needs at least 3 characters.'}</span>
+            ) : checking ? (
+              <span style={{ color: text3 }}>{vi ? 'Đang kiểm tra…' : 'Checking…'}</span>
+            ) : available === true ? (
+              <span style={{ color: '#2d8a5e' }}>✓ {value.trim().toLowerCase() === currentUserId.toLowerCase() && currentUserId ? (vi ? 'User ID hiện tại của bạn' : 'Your current User ID') : (vi ? `"${value}" có thể dùng` : `"${value}" is available`)}</span>
+            ) : available === false ? (
+              <span style={{ color: '#ff5252' }}>✗ {vi ? `"${value}" đã có người dùng` : `"${value}" is already taken`}</span>
+            ) : null}
+          </div>
+          {error && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.28)', background: 'rgba(255,82,82,0.08)', color: '#ff5252', fontSize: 11, lineHeight: 1.5 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {currentUserId && (
+              <button type="button" onClick={() => { setEditing(false); setValue(currentUserId); setError('') }} style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${border}`, background: 'none', color: text2, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>
+                {vi ? 'Huỷ' : 'Cancel'}
+              </button>
+            )}
+            <button type="button" onClick={handleSave} disabled={saving || checking} style={{ flex: 2, padding: '9px 12px', borderRadius: 10, border: 'none', background: accent, color: '#fff', fontWeight: 800, cursor: saving || checking ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, opacity: saving || checking ? 0.6 : 1 }}>
+              {saving ? '...' : (vi ? 'Lưu User ID' : 'Save User ID')}
+            </button>
+          </div>
+        </>
+      )}
+      {success && <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: '#00e676' }}>✓ {vi ? 'Đã cập nhật User ID' : 'User ID updated'}</div>}
+    </div>
+  )
+}
+
 export default function UserProfilePanel() {
-  const { user, updateProfile, loginWithGoogle, loginWithApple, linkProvider, unlinkProvider, logout, deleteAccount } = useAuth()
+  const { user, updateProfile, loginWithGoogle, loginWithApple, linkProvider, unlinkProvider, logout, deleteAccount, updateUserId } = useAuth()
   const { theme, lang, t } = useApp()
   const isDark = theme === 'dark'
   const vi = lang === 'vi'
 
   // If anonymous user, show anonymous profile view
   if (user?.isAnonymous) {
-    return <AnonymousProfilePanel user={user} isDark={isDark} vi={vi} lang={lang} t={t} loginWithGoogle={loginWithGoogle} loginWithApple={loginWithApple} updateProfile={updateProfile} deleteAccount={deleteAccount} />
+    return <AnonymousProfilePanel user={user} isDark={isDark} vi={vi} lang={lang} t={t} loginWithGoogle={loginWithGoogle} loginWithApple={loginWithApple} updateProfile={updateProfile} deleteAccount={deleteAccount} updateUserId={updateUserId} />
   }
 
   // ─── Real user profile ───────────────────────────────────────────────────
@@ -617,6 +760,13 @@ export default function UserProfilePanel() {
               </div>
             )}
 
+            {/* User ID card — public unique handle, separate from UUID */}
+            <UserIdSettingsCard
+              user={user} updateUserId={updateUserId} isDark={isDark} vi={vi}
+              border={border} surface2={surface2} text={text} text2={text2} text3={text3}
+              accent={providerMeta.color} accentBorder={providerMeta.border} accentSoft={providerMeta.soft}
+            />
+
             {/* Level progress bar — always shown, null defaults to 0 */}
             <div style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 14, background: surface2 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -770,7 +920,7 @@ export default function UserProfilePanel() {
 }
 
 // ─── Anonymous Profile Panel ────────────────────────────────────────────────────
-function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, loginWithApple, updateProfile, deleteAccount }) {
+function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, loginWithApple, updateProfile, deleteAccount, updateUserId }) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [upgradeProvider, setUpgradeProvider] = useState(null)
   const [upgradeStep, setUpgradeStep] = useState('confirm') // 'confirm' | 'success'
@@ -1041,6 +1191,15 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
                 {vi ? `Tạo lúc: ${createdDate} • ${createdTime}` : `Created: ${createdDate} • ${createdTime}`}
               </div>
             </div>
+
+            {/* User ID card — public unique handle, separate from UUID. Khách
+                cũng đặt được vì userId gắn theo uuid, giữ nguyên khi nâng cấp
+                lên tài khoản thật. */}
+            <UserIdSettingsCard
+              user={user} updateUserId={updateUserId} isDark={isDark} vi={vi}
+              border={border} surface2={surface2} text={text} text2={text2} text3={text3}
+              accent="#2d8a5e" accentBorder="rgba(45,138,94,0.35)" accentSoft={isDark ? 'rgba(45,138,94,0.08)' : 'rgba(45,138,94,0.05)'}
+            />
 
             {/* Level progress bar */}
             <div style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 14, background: surface2 }}>
