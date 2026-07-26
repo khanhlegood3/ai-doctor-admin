@@ -344,16 +344,22 @@ function ProfileActionButton({ active, children, onClick, disabled, accent = '#0
   )
 }
 
-// ─── User ID card — đặt/đổi handle công khai duy nhất toàn hệ thống ────────
+// ─── User ID card — đặt handle công khai duy nhất toàn hệ thống ────────────
 // Dùng chung cho cả tài khoản thật lẫn khách (anonymous) — vì userId gắn
 // theo uuid, không theo email, nên khách cũng có thể đặt trước khi nâng
 // cấp. Live-check trùng dùng lại đúng /api/user-profile?checkUserId= và
 // USER_ID_REGEX giống hệt LoginPage.jsx (trang Đăng ký) để trải nghiệm nhất
 // quán.
+//
+// QUAN TRỌNG: User ID chỉ được đặt 1 LẦN DUY NHẤT — không cho đổi lại sau
+// khi đã lưu (client chặn ở đây + server chặn lại ở api/user-profile.js).
+// UUID (không phải User ID) mới là khoá chính thật sự cho Affiliate và mọi
+// luồng nội bộ khác — User ID chỉ là bí danh công khai, không bắt buộc.
 const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/
 
 function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, text, text2, text3, accent = '#00b8cc', accentBorder = 'rgba(0,184,204,0.32)', accentSoft = 'rgba(0,184,204,0.08)' }) {
   const currentUserId = user?.userId || ''
+  // Đã có User ID rồi -> không bao giờ cho vào chế độ sửa nữa (chỉ đặt 1 lần).
   const [editing, setEditing] = useState(!currentUserId)
   const [value, setValue] = useState(currentUserId)
   const [checking, setChecking] = useState(false)
@@ -362,16 +368,20 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [confirmArmed, setConfirmArmed] = useState(false) // bước xác nhận trước khi lưu vĩnh viễn
   const cacheRef = useRef({})
 
-  // Nếu user.userId thay đổi từ bên ngoài (vd đồng bộ ngược từ server) trong
-  // lúc KHÔNG đang sửa, cập nhật lại ô nhập để không hiện giá trị cũ.
-  useEffect(() => { if (!editing) setValue(currentUserId) }, [currentUserId, editing])
+  // Nếu user.userId thay đổi từ bên ngoài (vd đồng bộ ngược từ server), cập
+  // nhật lại ô nhập và tự thoát chế độ sửa — vì từ giờ đã "chốt" 1 lần.
+  useEffect(() => {
+    setValue(currentUserId)
+    if (currentUserId) setEditing(false)
+  }, [currentUserId])
 
   const handleChange = (e) => {
     // Tự lọc bỏ ký tự không hợp lệ ngay lúc gõ, giống hệt LoginPage.jsx.
     const cleaned = e.target.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 24)
-    setValue(cleaned); setError(''); setSuccess(false)
+    setValue(cleaned); setError(''); setSuccess(false); setConfirmArmed(false)
   }
 
   useEffect(() => {
@@ -404,13 +414,17 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
     if (!USER_ID_REGEX.test(id)) { setError(vi ? 'User ID không hợp lệ — chỉ chữ không dấu, số, gạch dưới, 3-24 ký tự.' : 'Invalid User ID — letters/numbers/underscore only, 3-24 characters.'); return }
     if (checking) { setError(vi ? 'Đang kiểm tra User ID, vui lòng đợi một chút…' : 'Still checking User ID availability, please wait…'); return }
     if (available === false) { setError(vi ? `User ID "${id}" đã có người dùng — hãy chọn User ID khác.` : `User ID "${id}" is already taken — please pick another.`); return }
+    // Bước 1 bấm Lưu chỉ là "vũ trang" nút xác nhận — buộc người dùng đọc kỹ
+    // cảnh báo "không thể đổi lại" trước khi thật sự gửi lên server.
+    if (!confirmArmed) { setConfirmArmed(true); setError(''); return }
     setSaving(true); setError('')
     try {
       await updateUserId(id)
-      setSuccess(true); setEditing(false)
+      setSuccess(true); setEditing(false); setConfirmArmed(false)
       setTimeout(() => setSuccess(false), 2200)
     } catch (e) {
       setError(e?.message || (vi ? 'Không thể cập nhật User ID.' : 'Could not update User ID.'))
+      setConfirmArmed(false)
     } finally {
       setSaving(false)
     }
@@ -426,9 +440,11 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
         <div style={{ fontSize: 11, fontWeight: 700, color: accent, letterSpacing: '.1em', textTransform: 'uppercase' }}>
           {vi ? 'User ID (định danh công khai)' : 'User ID (public handle)'}
         </div>
-        {!editing && (
-          <button type="button" onClick={() => { setValue(currentUserId); setEditing(true); setError(''); setSuccess(false) }} style={{ background: 'none', border: `1px solid ${accentBorder}`, borderRadius: 8, padding: '4px 10px', color: accent, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-            {currentUserId ? (vi ? 'Đổi' : 'Change') : (vi ? 'Đặt User ID' : 'Set User ID')}
+        {/* Không có nút "Đổi" — User ID chỉ được đặt 1 lần duy nhất, nên sau
+            khi đã có currentUserId, thẻ này chỉ hiển thị, không cho sửa nữa. */}
+        {!editing && !currentUserId && (
+          <button type="button" onClick={() => { setValue(''); setEditing(true); setError(''); setSuccess(false); setConfirmArmed(false) }} style={{ background: 'none', border: `1px solid ${accentBorder}`, borderRadius: 8, padding: '4px 10px', color: accent, fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+            {vi ? 'Đặt User ID' : 'Set User ID'}
           </button>
         )}
       </div>
@@ -443,7 +459,7 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
           </div>
         ) : (
           <div style={{ fontSize: 12, color: text3, lineHeight: 1.5 }}>
-            {vi ? 'Bạn chưa đặt User ID — hãy đặt 1 handle ngắn, duy nhất để chia sẻ với người khác thay vì UUID dài.' : "You haven't set a User ID yet — pick a short, unique handle to share with others instead of the long UUID."}
+            {vi ? 'Bạn chưa đặt User ID — không bắt buộc. Nếu muốn, hãy đặt 1 handle ngắn, duy nhất để chia sẻ thay vì UUID dài. Lưu ý: chỉ đặt được đúng 1 lần, sau đó không thể đổi lại.' : "You haven't set a User ID yet — it's optional. If you'd like, pick a short, unique handle to share instead of the long UUID. Note: it can only be set once and can't be changed afterwards."}
           </div>
         )
       ) : (
@@ -464,25 +480,32 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
             ) : checking ? (
               <span style={{ color: text3 }}>{vi ? 'Đang kiểm tra…' : 'Checking…'}</span>
             ) : available === true ? (
-              <span style={{ color: '#2d8a5e' }}>✓ {value.trim().toLowerCase() === currentUserId.toLowerCase() && currentUserId ? (vi ? 'User ID hiện tại của bạn' : 'Your current User ID') : (vi ? `"${value}" có thể dùng` : `"${value}" is available`)}</span>
+              <span style={{ color: '#2d8a5e' }}>✓ {vi ? `"${value}" có thể dùng` : `"${value}" is available`}</span>
             ) : available === false ? (
               <span style={{ color: '#ff5252' }}>✗ {vi ? `"${value}" đã có người dùng` : `"${value}" is already taken`}</span>
             ) : null}
           </div>
+          {/* Cảnh báo "chỉ 1 lần duy nhất" — luôn hiển thị trong lúc đang đặt,
+              và nhấn mạnh thêm ở bước xác nhận sau khi bấm Lưu lần đầu. */}
+          <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 10, border: `1px solid ${confirmArmed ? 'rgba(255,152,0,0.4)' : accentBorder}`, background: confirmArmed ? 'rgba(255,152,0,0.1)' : 'transparent', color: confirmArmed ? '#ff9800' : text3, fontSize: 11, fontWeight: confirmArmed ? 800 : 400, lineHeight: 1.5 }}>
+            {confirmArmed
+              ? (vi ? `⚠️ Xác nhận đặt User ID "${value.trim()}"? Đây là hành động KHÔNG THỂ HOÀN TÁC — sau khi lưu sẽ không đổi lại được nữa. Bấm "Xác nhận lưu" lần nữa để tiếp tục.` : `⚠️ Confirm setting User ID "${value.trim()}"? This CANNOT be undone — once saved it can never be changed again. Press "Confirm save" again to continue.`)
+              : (vi ? '⚠️ User ID chỉ được đặt 1 lần duy nhất và không thể đổi lại sau đó — hãy chọn cẩn thận.' : '⚠️ User ID can only be set once and cannot be changed afterwards — please choose carefully.')}
+          </div>
           {error && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.28)', background: 'rgba(255,82,82,0.08)', color: '#ff5252', fontSize: 11, lineHeight: 1.5 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
-            {currentUserId && (
-              <button type="button" onClick={() => { setEditing(false); setValue(currentUserId); setError('') }} style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${border}`, background: 'none', color: text2, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>
+            {!currentUserId && (
+              <button type="button" onClick={() => { setEditing(false); setValue(''); setError(''); setConfirmArmed(false) }} style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${border}`, background: 'none', color: text2, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>
                 {vi ? 'Huỷ' : 'Cancel'}
               </button>
             )}
-            <button type="button" onClick={handleSave} disabled={saving || checking} style={{ flex: 2, padding: '9px 12px', borderRadius: 10, border: 'none', background: accent, color: '#fff', fontWeight: 800, cursor: saving || checking ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, opacity: saving || checking ? 0.6 : 1 }}>
-              {saving ? '...' : (vi ? 'Lưu User ID' : 'Save User ID')}
+            <button type="button" onClick={handleSave} disabled={saving || checking} style={{ flex: 2, padding: '9px 12px', borderRadius: 10, border: 'none', background: confirmArmed ? '#ff9800' : accent, color: '#fff', fontWeight: 800, cursor: saving || checking ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, opacity: saving || checking ? 0.6 : 1 }}>
+              {saving ? '...' : confirmArmed ? (vi ? 'Xác nhận lưu' : 'Confirm save') : (vi ? 'Lưu User ID' : 'Save User ID')}
             </button>
           </div>
         </>
       )}
-      {success && <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: '#00e676' }}>✓ {vi ? 'Đã cập nhật User ID' : 'User ID updated'}</div>}
+      {success && <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: '#00e676' }}>✓ {vi ? 'Đã lưu User ID — không thể đổi lại sau này.' : 'User ID saved — it can no longer be changed.'}</div>}
     </div>
   )
 }
