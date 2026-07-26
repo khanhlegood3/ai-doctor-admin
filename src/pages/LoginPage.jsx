@@ -247,15 +247,16 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
         {/* ── Start Now (Anonymous) ── */}
         <button
           style={{
-            width: '100%', padding: '14px 16px', borderRadius: 14, cursor: 'pointer', border: 'none',
+            width: '100%', padding: '14px 16px', borderRadius: 14, cursor: (loading || isSelfReferral) ? 'not-allowed' : 'pointer', border: 'none',
             background: 'linear-gradient(135deg, #1a6640, #2d8a5e, #00b8cc)',
             color: '#fff', fontSize: 15, fontWeight: 800, marginBottom: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             boxShadow: '0 4px 20px rgba(0,184,204,0.3)',
-            opacity: loading ? 0.7 : 1,
+            opacity: (loading || isSelfReferral) ? 0.5 : 1,
           }}
           onClick={() => handle(loginAnonymous)}
-          disabled={loading}
+          disabled={loading || isSelfReferral}
+          title={isSelfReferral ? (lang === 'vi' ? 'Đây là link giới thiệu của chính bạn — tiếp tục ẩn danh sẽ giữ nguyên danh tính hiện tại nên không thể tự giới thiệu chính mình. Dùng Google/Email của người khác nếu muốn đăng ký giúp họ.' : "This is your own referral link — continuing anonymously keeps your current identity, so you can't refer yourself. Use someone else's Google/Email if registering on their behalf.") : undefined}
         >
           🌿 {lang === 'vi' ? 'Bắt đầu với ẩn danh' : 'Start anonymously'}
         </button>
@@ -456,8 +457,8 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
                 {isSelfReferral && (
                   <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.35)', background: 'rgba(255,82,82,0.1)', color: '#ff5252', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
                     {lang === 'vi'
-                      ? '⚠️ Đây là UUID/User ID của chính bạn — bạn không thể tự giới thiệu chính mình. Nếu ai đó đã mời bạn, hãy dán UUID/User ID của người đó. Đăng nhập bằng Google chỉ là xác nhận danh tính, không phải tự đăng ký làm F1 của chính mình.'
-                      : "⚠️ This is your own UUID/User ID — you can't refer yourself. If someone invited you, paste their UUID/User ID instead. Logging in with Google here only confirms your identity, it doesn't register you as your own referral."}
+                      ? '⚠️ Đây là UUID/User ID của chính danh tính hiện tại trên máy này. Nút "Bắt đầu với ẩn danh" đã bị khoá vì sẽ là tự giới thiệu chính mình. Nếu bạn đang đăng ký GIÚP người khác, cứ dùng nút Google/Email bên dưới với tài khoản CỦA HỌ — hệ thống sẽ tạo tài khoản mới, tách biệt, và ghi nhận họ là F1 của bạn bình thường.'
+                      : "⚠️ This is the UUID/User ID of the identity currently active on this device. The \"Start anonymously\" button is locked because it would refer yourself. If you're registering on someone else's behalf, go ahead and use the Google/Email button below with THEIR account — a separate new account will be created and they'll be registered as your F1 normally."}
                   </div>
                 )}
                 <label style={s.label}>{lang === 'vi' ? 'Định danh người giới thiệu (User ID)' : "Referrer's identity (User ID)"}</label>
