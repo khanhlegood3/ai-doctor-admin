@@ -174,7 +174,7 @@ export default function App() {
     adminConcept: 'AI Doctor Admin Panel',
     chooseUserRole: 'Chọn Vai Trò Anh Hùng',
     donationHero: 'Anh Hùng Hiến Tặng',
-    affiliateUuidReferral: 'Đăng Ký Affiliate 3 Tầng',
+    affiliateUuidReferral: 'Đăng Ký Affiliate Marketing',
     bodyProtectionJourney: 'Hành Trình Bảo Vệ Cơ Thể',
     hero3DMap: '3D Map for Hero',
     myPainPathBody: 'My Pain Path Body',
