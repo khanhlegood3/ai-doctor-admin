@@ -163,6 +163,7 @@ export default function AffiliateUUIDReferralPanel() {
 
   const [myCode, setMyCode] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [upline, setUpline] = useState(null) // { referrerUuid, ... } nếu tôi đã có người giới thiệu
   const [downline, setDownline] = useState([]) // F1 trực tiếp của tôi
   const [downlineF2, setDownlineF2] = useState([]) // F2 — do các F1 của tôi giới thiệu
@@ -171,6 +172,21 @@ export default function AffiliateUUIDReferralPanel() {
   const [submitting, setSubmitting] = useState(false)
   const [chainStatus, setChainStatus] = useState(null) // 'pending' | 'synced' | 'failed' | 'skipped'
   const [message, setMessage] = useState(null) // { type: 'success'|'error', text }
+  // Tên người giới thiệu — CHỈ có khi User 2 đến từ link giới thiệu (?ref=&
+  // refName=), do chính User 1 tự khai lúc tạo link (xem myReferralLink bên
+  // dưới). App không có "danh bạ" tên theo UUID dùng chung nhiều thiết bị,
+  // nên đây là cách đơn giản nhất để hiện tên và tránh nhầm UUID.
+  const [pendingReferrerName, setPendingReferrerName] = useState('')
+
+  useEffect(() => {
+    try {
+      const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
+      if (pending?.uuid && pending.uuid !== myUuid) {
+        setInputUuid((current) => current || pending.uuid)
+        setPendingReferrerName(pending.name || '')
+      }
+    } catch { /* ignore */ }
+  }, [myUuid])
 
   // Ví ẩn danh on-chain tương ứng với UUID này — dùng để dựng link BscScan
   // Testnet, giống cách xem 1 địa chỉ trên Moralis / BscScan explorer.
@@ -243,6 +259,15 @@ export default function AffiliateUUIDReferralPanel() {
     } catch { /* ignore clipboard errors (unsupported/insecure context) */ }
   }
 
+  const handleCopyReferralLink = async () => {
+    if (!referralLink) return
+    try {
+      await navigator.clipboard.writeText(referralLink)
+      setCopiedLink(true)
+      window.setTimeout(() => setCopiedLink(false), 2000)
+    } catch { /* ignore */ }
+  }
+
   const handleRegister = async (e) => {
     e.preventDefault()
     setMessage(null)
@@ -304,6 +329,8 @@ export default function AffiliateUUIDReferralPanel() {
           : `Đăng ký thành công! Bạn là F1 của ${shortUuid(referrerUuid)}. Đồng bộ on-chain sẽ tự thử lại sau.`,
       })
       setInputUuid('')
+      setPendingReferrerName('')
+      try { sessionStorage.removeItem('cdoc_pending_referral') } catch { /* ignore */ }
       await refresh()
     } catch (err) {
       setMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra khi đăng ký.' })
@@ -385,9 +412,23 @@ export default function AffiliateUUIDReferralPanel() {
     }
   }
 
+  // Link giới thiệu dựa theo domain đang deploy thực tế (window.location.origin
+  // — tự đổi theo môi trường: localhost lúc dev, hienmaunhanvan.vercel.app lúc
+  // prod...), kèm sẵn UUID để User 2 KHÔNG cần tự dán tay nữa, và kèm tên của
+  // bạn (refName) để họ thấy ngay "đang đăng ký làm F1 của ai" thay vì chỉ
+  // thấy 1 chuỗi UUID vô nghĩa.
+  const referralLink = useMemo(() => {
+    if (typeof window === 'undefined' || !myUuid) return ''
+    const params = new URLSearchParams({ ref: myUuid })
+    if (user?.name) params.set('refName', user.name)
+    return `${window.location.origin}${window.location.pathname}?${params.toString()}`
+  }, [myUuid, user?.name])
+
   const referralShareText = useMemo(() => (
-    myUuid ? `UUID của tôi: ${myUuid}\nDán mã này vào mục "Đăng Ký Affiliate 3 Tầng" trong AI Doctor để trở thành F1 của tôi.` : ''
-  ), [myUuid])
+    myUuid
+      ? `Tham gia AI Doctor cùng tôi nhé! Bấm vào link này để tự động trở thành F1 của tôi:\n${referralLink}\n\n(Hoặc dán tay UUID của tôi: ${myUuid} vào mục "Đăng Ký Affiliate 3 Tầng")`
+      : ''
+  ), [myUuid, referralLink])
 
   const handleCopyShareText = async () => {
     if (!referralShareText) return
@@ -424,13 +465,26 @@ export default function AffiliateUUIDReferralPanel() {
         {/* User 1: lấy UUID của mình để gửi đi */}
         <div className={`rounded-2xl border p-5 ${card}`}>
           <div className="flex items-center gap-2 mb-3"><ShieldCheck size={18} className="text-cyan-400" /><span className="font-bold text-sm">UUID của bạn</span></div>
-          <p className={`mb-3 text-xs ${textDim}`}>Gửi UUID này cho người bạn muốn mời (User 2). Họ dán vào ô bên cạnh để tự động trở thành F1 của bạn.</p>
-          <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/30' : 'border-black/10 bg-black/[0.03]'}`}>
+          <p className={`mb-3 text-xs ${textDim}`}>Gửi link bên dưới cho người bạn muốn mời (User 2) — mở link là tự động điền sẵn UUID của bạn, chỉ cần bấm Đăng ký. Không cần dán tay UUID nữa.</p>
+
+          <button
+            type="button"
+            onClick={handleCopyReferralLink}
+            disabled={!referralLink}
+            className="w-full flex items-center justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-emerald-300 hover:bg-emerald-500/20 transition disabled:opacity-50"
+          >
+            <span className="flex items-center gap-2 text-xs font-bold"><Link2 size={14} /> {copiedLink ? 'Đã sao chép link!' : 'Sao chép link giới thiệu'}</span>
+            {copiedLink ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+          </button>
+          <p className={`mt-1 truncate text-[10px] font-mono ${textDim}`}>{referralLink || 'Đang tạo link…'}</p>
+
+          <div className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/30' : 'border-black/10 bg-black/[0.03]'}`}>
             <input readOnly value={myUuid || 'Đang tạo UUID…'} className="w-full truncate bg-transparent text-xs font-mono outline-none" />
             <button type="button" onClick={handleCopyUuid} disabled={!myUuid} className="shrink-0 rounded-lg bg-cyan-500/15 border border-cyan-500/30 p-1.5 text-cyan-400 hover:bg-cyan-500/25 disabled:opacity-50">
               {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
             </button>
           </div>
+          <p className={`mt-1 text-[10px] ${textDim}`}>Hoặc chỉ gửi riêng UUID này nếu người kia muốn tự dán tay.</p>
           <button
             type="button"
             onClick={handleCopyShareText}
@@ -473,9 +527,14 @@ export default function AffiliateUUIDReferralPanel() {
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
+              {pendingReferrerName && inputUuid && (
+                <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-violet-500/25 bg-violet-500/10 text-violet-300' : 'border-violet-500/30 bg-violet-50 text-violet-700'}`}>
+                  <span className="font-bold">Bạn đang đăng ký làm F1 của {pendingReferrerName}</span> (qua link giới thiệu). Kiểm tra đúng người rồi bấm Đăng ký bên dưới.
+                </div>
+              )}
               <input
                 value={inputUuid}
-                onChange={(e) => setInputUuid(e.target.value)}
+                onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName('') }}
                 placeholder="Dán UUID người giới thiệu bạn (vd: 8f2a1c9e-...)"
                 className={`w-full rounded-xl border px-3 py-2.5 text-xs font-mono bg-transparent outline-none ${isDark ? 'border-white/15' : 'border-black/15'}`}
               />
