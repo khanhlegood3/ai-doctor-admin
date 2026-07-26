@@ -288,9 +288,52 @@ export function AuthProvider({ children }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uuid, name, secret, verified, userId: pendingUserId || undefined }),
     })
-      .then((res) => { if (pendingUserId && res.ok) { try { sessionStorage.removeItem('cdoc_pending_user_id') } catch { /* ignore */ } } })
+      .then((res) => {
+        if (pendingUserId && res.ok) {
+          try { sessionStorage.removeItem('cdoc_pending_user_id') } catch { /* ignore */ }
+          // Lưu userId vào state + storage cục bộ ngay, để màn Profile hiện
+          // đúng User ID vừa đăng ký mà không cần load lại trang.
+          setUser(u => (u && u.uuid === uuid) ? { ...u, userId: pendingUserId } : u)
+          if (user?.isAnonymous) {
+            updateAnonSession({ userId: pendingUserId }).catch(() => {})
+          } else if (user?.email) {
+            try {
+              const users = getUsers()
+              if (users[user.email]) { users[user.email].userId = pendingUserId; saveUsers(users) }
+            } catch { /* ignore */ }
+          }
+        }
+      })
       .catch(() => { /* ignore — không có mạng cũng không sao, thử lại lần đổi tiếp theo (userId giữ nguyên trong sessionStorage để thử lại) */ })
   }, [user?.uuid, user?.name, user?.provider])
+
+  // ─── Đồng bộ NGƯỢC userId từ server nếu thiết bị này chưa có cục bộ ──────
+  // Trường hợp: tài khoản tạo trước khi có tính năng User ID, hoặc lưu cục bộ
+  // bị mất/thất bại ở lần trước — server (uuid -> userId) vẫn là nguồn sự
+  // thật cuối cùng, nên khi phát hiện thiếu, hỏi lại 1 lần rồi cache vào
+  // state + storage cục bộ. Best-effort, im lặng bỏ qua nếu lỗi mạng.
+  const userIdReconcileRef = useRef('')
+  useEffect(() => {
+    const uuid = user?.uuid
+    if (!uuid || user?.userId) return
+    if (userIdReconcileRef.current === uuid) return
+    userIdReconcileRef.current = uuid
+    fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data?.userId) return
+        setUser(u => (u && u.uuid === uuid && !u.userId) ? { ...u, userId: data.userId } : u)
+        if (user?.isAnonymous) {
+          updateAnonSession({ userId: data.userId }).catch(() => {})
+        } else if (user?.email) {
+          try {
+            const users = getUsers()
+            if (users[user.email]) { users[user.email].userId = data.userId; saveUsers(users) }
+          } catch { /* ignore */ }
+        }
+      })
+      .catch(() => { /* ignore */ })
+  }, [user?.uuid, user?.userId])
 
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
@@ -628,6 +671,39 @@ export function AuthProvider({ children }) {
     saveSession(null)
   }
 
+  // ── Đặt/đổi User ID từ màn Profile (sau khi tài khoản/uuid đã tồn tại) ───────
+  // Dùng lại đúng /api/user-profile POST (đã hỗ trợ userId) — không cần
+  // endpoint riêng. Validate định dạng ở client trước cho phản hồi nhanh,
+  // server (USER_ID_REGEX + unique index) vẫn là điểm chặn cuối cùng.
+  const updateUserId = async (newUserId) => {
+    if (!user?.uuid) throw new Error('Chưa có tài khoản/UUID để đặt User ID.')
+    const id = String(newUserId || '').trim()
+    if (!/^[A-Za-z0-9_]{3,24}$/.test(id)) {
+      throw new Error('User ID không hợp lệ — chỉ chữ không dấu, số, gạch dưới, 3-24 ký tự.')
+    }
+    const secret = getOrCreateProfileSecret(user.uuid)
+    if (!secret) throw new Error('Không tạo được khoá sở hữu trên thiết bị này (thử tắt chế độ duyệt web riêng tư).')
+    const verified = user.provider === 'google' || user.provider === 'apple'
+    const res = await fetch('/api/user-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uuid: user.uuid, name: user.name || 'User', secret, verified, userId: id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.error || 'Không thể cập nhật User ID.')
+
+    if (user.isAnonymous) {
+      updateAnonSession({ userId: id }).catch(() => {})
+    } else if (user.email) {
+      const users = getUsers()
+      const existing = users[user.email] || user
+      users[user.email] = { ...existing, userId: id }
+      saveUsers(users)
+    }
+    setUser(u => (u ? { ...u, userId: id } : u))
+    return id
+  }
+
   const getAllUsers = () => Object.values(getUsers()).map(u => ({ ...u, isAdmin: u.email === ADMIN_EMAIL }))
 
   return (
@@ -636,6 +712,7 @@ export function AuthProvider({ children }) {
       needsProfileSetup, dismissProfileSetup,
       loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous,
       logout, updateProfile, linkProvider, unlinkProvider, deleteAccount,
+      updateUserId,
       getAllUsers,
     }}>
       {children}
