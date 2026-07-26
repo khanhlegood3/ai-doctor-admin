@@ -211,6 +211,7 @@ export default function AffiliateUUIDReferralPanel() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [referralQrDataUrl, setReferralQrDataUrl] = useState('')
   const [upline, setUpline] = useState(null) // { referrerUuid, ... } nếu tôi đã có người giới thiệu
+  const [uplineChecked, setUplineChecked] = useState(false) // true sau khi đã hỏi server ít nhất 1 lần — phân biệt "chưa kiểm tra" với "xác nhận chưa có upline"
   const [downline, setDownline] = useState([]) // F1 trực tiếp của tôi
   const [downlineF2, setDownlineF2] = useState([]) // F2 — do các F1 của tôi giới thiệu
   const [downlineF3, setDownlineF3] = useState([]) // F3 — do các F2 của tôi giới thiệu
@@ -245,12 +246,20 @@ export default function AffiliateUUIDReferralPanel() {
   // dùng để đăng ký/ghi quan hệ referral (toàn bộ backend vẫn vận hành theo
   // UUID); inputUuid chỉ là giá trị thô người dùng gõ/dán.
   const [actualReferrerUuid, setActualReferrerUuid] = useState('')
+  // true nếu inputUuid đến từ link giới thiệu (?ref=...), false nếu người
+  // dùng tự gõ/dán tay — dùng để quyết định có tự động đăng ký F1 hay không
+  // (xem effect "Tự động đăng ký F1" bên dưới).
+  const [referralFromLink, setReferralFromLink] = useState(false)
 
   useEffect(() => {
     try {
       const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
       if (pending?.uuid && pending.uuid !== myUuid) {
-        setInputUuid((current) => current || pending.uuid)
+        setInputUuid((current) => {
+          if (current) return current
+          setReferralFromLink(true)
+          return pending.uuid
+        })
         setPendingReferrerName(pending.name || '')
         setPendingReferrerUserId(pending.userId || '')
       }
@@ -359,6 +368,7 @@ export default function AffiliateUUIDReferralPanel() {
     // F1 trực tiếp của tôi
     const serverDownline = dedupeByReferee(await fetchServerDownline(myUuid))
     setUpline(serverUpline)
+    setUplineChecked(true)
     setDownline(serverDownline)
 
     // F2: mỗi F1 của tôi cũng có downline riêng của họ — gộp lại thành tầng 2.
@@ -393,35 +403,7 @@ export default function AffiliateUUIDReferralPanel() {
     } catch { /* ignore */ }
   }
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
-    setMessage(null)
-    const referrerUuid = actualReferrerUuid
-    if (!myUuid) {
-      setMessage({ type: 'error', text: 'Bạn cần đăng nhập (kể cả ẩn danh) để có UUID trước khi đăng ký.' })
-      return
-    }
-    if (!inputUuid.trim()) {
-      setMessage({ type: 'error', text: 'Vui lòng dán UUID hoặc User ID của người giới thiệu bạn.' })
-      return
-    }
-    if (!referrerUuid) {
-      setMessage({ type: 'error', text: resolvingReferrer ? 'Đang xác minh, vui lòng đợi một chút…' : 'Chưa xác minh được UUID/User ID này — kiểm tra lại trước khi đăng ký.' })
-      return
-    }
-    if (referrerUuid === myUuid) {
-      setMessage({ type: 'error', text: 'Không thể tự giới thiệu chính mình.' })
-      return
-    }
-    if (upline) {
-      setMessage({ type: 'error', text: `Bạn đã có người giới thiệu (${identityText(upline.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
-      return
-    }
-    if (referrerNotFound) {
-      setMessage({ type: 'error', text: 'UUID/User ID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 định danh không tồn tại.' })
-      return
-    }
-
+  const registerAsF1 = async (referrerUuid) => {
     setSubmitting(true)
     setChainStatus('pending')
     try {
@@ -472,6 +454,66 @@ export default function AffiliateUUIDReferralPanel() {
       setSubmitting(false)
     }
   }
+
+  const handleRegister = async (e) => {
+    e.preventDefault()
+    setMessage(null)
+    const referrerUuid = actualReferrerUuid
+    if (!myUuid) {
+      setMessage({ type: 'error', text: 'Bạn cần đăng nhập (kể cả ẩn danh) để có UUID trước khi đăng ký.' })
+      return
+    }
+    if (!inputUuid.trim()) {
+      setMessage({ type: 'error', text: 'Vui lòng dán UUID hoặc User ID của người giới thiệu bạn.' })
+      return
+    }
+    if (!referrerUuid) {
+      setMessage({ type: 'error', text: resolvingReferrer ? 'Đang xác minh, vui lòng đợi một chút…' : 'Chưa xác minh được UUID/User ID này — kiểm tra lại trước khi đăng ký.' })
+      return
+    }
+    if (referrerUuid === myUuid) {
+      setMessage({ type: 'error', text: 'Không thể tự giới thiệu chính mình.' })
+      return
+    }
+    if (upline) {
+      setMessage({ type: 'error', text: `Bạn đã có người giới thiệu (${identityText(upline.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
+      return
+    }
+    if (referrerNotFound) {
+      setMessage({ type: 'error', text: 'UUID/User ID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 định danh không tồn tại.' })
+      return
+    }
+    await registerAsF1(referrerUuid)
+  }
+
+  // ─── Tự động đăng ký F1 khi đến từ link giới thiệu ─────────────────────
+  // Trước đây User 2 LUÔN phải tự bấm nút "Đăng ký" ở đây sau khi đã tạo
+  // tài khoản (kể cả khi đến từ link Affiliate) — nếu họ tạo tài khoản bằng
+  // "Tiếp tục với Google" rồi rời trang mà quên bấm nút này, quan hệ F1
+  // không bao giờ được ghi nhận dù đã bấm đúng link giới thiệu. Effect này
+  // tự làm thay bước bấm "Đăng ký" đó ngay khi đủ điều kiện an toàn: UUID
+  // người giới thiệu đến từ link (referralFromLink), đã xác minh xong và có
+  // hồ sơ thật (actualReferrerUuid, !referrerNotFound, !resolvingReferrer),
+  // chưa từng có upline (đã kiểm tra xong với server: uplineChecked && !upline),
+  // và chưa tự đăng ký lần nào trong phiên này (autoRegisterAttemptedRef).
+  const autoRegisterAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (
+      referralFromLink
+      && myUuid
+      && actualReferrerUuid
+      && actualReferrerUuid !== myUuid
+      && !resolvingReferrer
+      && !referrerNotFound
+      && uplineChecked
+      && !upline
+      && !submitting
+      && !autoRegisterAttemptedRef.current
+    ) {
+      autoRegisterAttemptedRef.current = true
+      registerAsF1(actualReferrerUuid)
+    }
+  }, [referralFromLink, myUuid, actualReferrerUuid, resolvingReferrer, referrerNotFound, uplineChecked, upline, submitting])
 
   const [retrying, setRetrying] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
@@ -740,7 +782,7 @@ export default function AffiliateUUIDReferralPanel() {
               )}
               <input
                 value={inputUuid}
-                onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName(''); setPendingReferrerUserId('') }}
+                onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName(''); setPendingReferrerUserId(''); setReferralFromLink(false) }}
                 placeholder="Dán UUID hoặc User ID người giới thiệu bạn (vd: 8f2a1c9e-... hoặc KhanhLX1)"
                 className={`w-full rounded-xl border px-3 py-2.5 text-xs font-mono bg-transparent outline-none ${isDark ? 'border-white/15' : 'border-black/15'}`}
               />
