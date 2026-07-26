@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Copy, CheckCircle2, Users, UserPlus, Link2, ShieldCheck,
   Loader2, AlertTriangle, Network, Gift, ArrowRight, RefreshCw,
