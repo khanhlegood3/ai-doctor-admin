@@ -43,8 +43,9 @@
 //       thực (Google/Apple) — xem Mức 2 ở LoginPage.jsx. Một khi đã verified
 //       thì không bị hạ cấp lại xuống false bởi lần ghi sau.
 //     - userId (tuỳ chọn): nếu gửi, phải khớp USER_ID_REGEX và CHƯA thuộc về
-//       1 uuid khác -> trả 409 nếu trùng. 1 uuid chỉ giữ 1 userId; gửi lại
-//       cùng userId của chính mình thì không sao (idempotent).
+//       1 uuid khác -> trả 409 nếu trùng. CHỈ ĐƯỢC ĐẶT 1 LẦN DUY NHẤT cho mỗi
+//       uuid: nếu uuid đã có userId khác giá trị đang gửi -> trả 409 (không
+//       cho đổi lại); gửi lại đúng userId hiện tại thì không sao (idempotent).
 
 import { createHash } from 'crypto';
 import { connectToDatabase } from './_lib/mongodb.js';
@@ -133,6 +134,13 @@ export default async function handler(req, res) {
       }
 
       if (userId) {
+        // CHỈ ĐƯỢC ĐẶT USER ID 1 LẦN DUY NHẤT: nếu uuid này đã có userId từ
+        // trước (khác giá trị đang gửi lên) -> từ chối, kể cả khi secret khớp
+        // đúng chủ sở hữu. Gửi lại đúng userId hiện tại thì vẫn cho qua
+        // (idempotent, vd lần đồng bộ lại profile không cố tình đổi).
+        if (existing?.userId && existing.userId.toLowerCase() !== userId.toLowerCase()) {
+          return res.status(409).json({ error: `UUID này đã đặt User ID "${existing.userId}" trước đó — mỗi tài khoản chỉ được đặt User ID 1 lần duy nhất, không thể đổi lại.` });
+        }
         const userIdLower = userId.toLowerCase();
         const ownerOfUserId = await col.findOne({ userIdLower });
         if (ownerOfUserId && ownerOfUserId.uuid !== uuid) {
