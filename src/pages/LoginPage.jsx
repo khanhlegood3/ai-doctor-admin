@@ -8,7 +8,7 @@ import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 const SHOW_APPLE_LOGIN_BUTTON = false
 
 export default function LoginPage({ onSuccess, onBack, initialMode = 'login', onShowProjectInfo }) {
-  const { loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous } = useAuth()
+  const { loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous, user } = useAuth()
   const { t, theme, toggleTheme, lang, setLang } = useApp()
   // initialMode='register' -> App.jsx truyền vào khi User 2 đến từ link
   // Affiliate (?ref=...) hoặc bấm nút "Tạo tài khoản"/"Đăng ký tạo Tài Khoản",
@@ -38,6 +38,14 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
   // phát hiện SAI LỆCH với dữ liệu thật (xem cảnh báo bên dưới), không bao
   // giờ hiển thị như đã xác minh.
   const [linkHintUserId, setLinkHintUserId] = useState('')
+  // true nếu UUID người giới thiệu trùng với chính người đang ở trang này —
+  // vd 1 phiên "khách" (anonymous) đã có sẵn (từ nút mic/"Tiếp tục với tư
+  // cách khách") lỡ mở đúng link giới thiệu do CHÍNH mình tạo ra. Phải cảnh
+  // báo + chặn NGAY trên trang này, không chờ sang trang Affiliate mới biết.
+  const isSelfReferral = !!referrerUuid.trim() && (
+    (!!user?.uuid && referrerUuid.trim() === user.uuid)
+    || (!!user?.userId && !!referrerUserId && user.userId.toLowerCase() === referrerUserId.toLowerCase())
+  )
 
   useEffect(() => {
     const applyPending = (pending) => {
@@ -445,32 +453,41 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
 
             {referrerUuid.trim() && (
               <>
+                {isSelfReferral && (
+                  <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.35)', background: 'rgba(255,82,82,0.1)', color: '#ff5252', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
+                    {lang === 'vi'
+                      ? '⚠️ Đây là UUID/User ID của chính bạn — bạn không thể tự giới thiệu chính mình. Nếu ai đó đã mời bạn, hãy dán UUID/User ID của người đó. Đăng nhập bằng Google chỉ là xác nhận danh tính, không phải tự đăng ký làm F1 của chính mình.'
+                      : "⚠️ This is your own UUID/User ID — you can't refer yourself. If someone invited you, paste their UUID/User ID instead. Logging in with Google here only confirms your identity, it doesn't register you as your own referral."}
+                  </div>
+                )}
                 <label style={s.label}>{lang === 'vi' ? 'Định danh người giới thiệu (User ID)' : "Referrer's identity (User ID)"}</label>
                 <input
                   style={{ ...s.input, marginBottom: 4, opacity: 0.85, cursor: 'not-allowed', fontFamily: referrerUserId ? 'monospace' : 'inherit' }}
                   readOnly
                   value={
-                    resolvingReferrerName
+                    isSelfReferral
+                      ? (lang === 'vi' ? 'Đây là chính bạn' : 'This is you')
+                      : resolvingReferrerName
                       ? (lang === 'vi' ? 'Đang tra cứu từ máy chủ…' : 'Looking up from server…')
-                      : referrerNotFound
+                        : referrerNotFound
                         ? (lang === 'vi' ? 'Không tìm thấy hồ sơ — kiểm tra lại UUID' : 'No profile found — double-check the UUID')
-                        : referrerUserId
-                          ? `@${referrerUserId}`
-                          : (referrerName || (lang === 'vi' ? 'Không tìm thấy tên — kiểm tra lại UUID' : 'Name not found — double-check the UUID'))
+                          : referrerUserId
+                            ? `@${referrerUserId}`
+                            : (referrerName || (lang === 'vi' ? 'Không tìm thấy tên — kiểm tra lại UUID' : 'Name not found — double-check the UUID'))
                   }
                 />
                 {/* User ID (nếu có) là bằng chứng mạnh nhất — duy nhất toàn hệ
                     thống, được server xác nhận theo đúng UUID. Tên hiển thị chỉ
                     là thông tin phụ, KHÔNG duy nhất nên không đủ để khẳng định
                     "đúng người". */}
-                {!resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
+                {!isSelfReferral && !resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
                   <div style={{ fontSize: 11, color: isDark ? 'rgba(232,240,248,0.55)' : '#777', marginBottom: 4 }}>
                     {referrerUserId
                       ? (referrerName ? `${lang === 'vi' ? 'Tên hiển thị' : 'Display name'}: ${referrerName}` : (lang === 'vi' ? 'Chưa đặt tên hiển thị' : 'No display name set'))
                       : (lang === 'vi' ? '⚠ Người này chưa đặt User ID — chỉ có tên hiển thị (không duy nhất), hãy đối chiếu kỹ UUID.' : "⚠ This person hasn't set a User ID yet — only a display name (not unique), double-check the UUID.")}
                   </div>
                 )}
-                {!resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
+                {!isSelfReferral && !resolvingReferrerName && !referrerNotFound && (referrerName || referrerUserId) && (
                   <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 12,
                     fontSize: 11, fontWeight: 700,
@@ -483,7 +500,7 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
                         : `⚠ ${lang === 'vi' ? 'Tự khai, chưa xác minh' : 'Self-declared, unverified'}`}
                   </div>
                 )}
-                {referrerNotFound && (
+                {!isSelfReferral && referrerNotFound && (
                   <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,152,0,0.35)', background: 'rgba(255,152,0,0.1)', color: '#ff9800', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
                     {lang === 'vi' ? 'UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.' : "This UUID has no profile in the system — double-check before registering, or commissions may go to a non-existent account."}
                   </div>
@@ -492,7 +509,7 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
                     tra được từ server theo đúng UUID — dấu hiệu ai đó đã sửa
                     tay tham số ?refId=/?refName= trên URL để giả danh người
                     khác trong khi UUID thật (nơi hoa hồng chảy vào) là của họ. */}
-                {!resolvingReferrerName && linkHintUserId && referrerUserId && linkHintUserId.toLowerCase() !== referrerUserId.toLowerCase() && (
+                {!isSelfReferral && !resolvingReferrerName && linkHintUserId && referrerUserId && linkHintUserId.toLowerCase() !== referrerUserId.toLowerCase() && (
                   <div style={{ marginBottom: 12, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.35)', background: 'rgba(255,82,82,0.1)', color: '#ff5252', fontSize: 11, fontWeight: 700, lineHeight: 1.5 }}>
                     {lang === 'vi'
                       ? `⚠️ Link ghi User ID "${linkHintUserId}" nhưng hồ sơ thật của UUID này là "${referrerUserId}" — có thể ai đó đang cố giả mạo. Chỉ tin phần đã xác minh ở trên.`
