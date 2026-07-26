@@ -2,7 +2,12 @@
 import fetch from 'node-fetch';
 
 const MORALIS_API_KEY = "vM7xza5AGzWH4ugv4vDQsXrPAYuP9gred2lNE7BJnKwB4D2QNuNs2Eso6Zk5pUMT"; 
-const WEBHOOK_URL = "https://hien-mau-nhan-van.vercel.app/api/moralis"; // Thay bằng domain Vercel thật của bồ
+// Domain production thật — đọc từ biến môi trường SITE_URL khi chạy script
+// (vd: `SITE_URL=https://hienmaunhanvan.com node scripts/setup-moralis-stream.js`).
+// Không dùng import.meta.env ở đây vì script này chạy trực tiếp bằng Node,
+// ngoài Vite, nên không có sẵn biến VITE_*.
+const SITE_URL = (process.env.SITE_URL || "https://hienmaunhanvan.com").replace(/\/+$/, "");
+const WEBHOOK_URL = `${SITE_URL}/api/moralis`;
 const CONTRACT_ADDRESS = "0x44f787D670Ff4Ef65334D6637960bb7Fe5E1231c";
 
 // Cấu hình ABI sự kiện để Moralis tự động giải mã hex sang dữ liệu chữ và số
