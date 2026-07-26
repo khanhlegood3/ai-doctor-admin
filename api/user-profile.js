@@ -28,6 +28,11 @@
 //
 // Methods:
 //   GET  ?uuid=<uuid>            -> { name: string|null, verified: boolean, userId: string|null }
+//   GET  ?userId=<id>            -> { uuid: string|null }  (tra ngược UUID theo User ID — dùng
+//                                     để link giới thiệu ?ref=<userId> phân giải được đúng người,
+//                                     vì mọi luồng nội bộ (referral, on-chain, cây F1/F2/F3) vẫn
+//                                     vận hành theo UUID, User ID chỉ là bí danh công khai để chia
+//                                     sẻ an toàn/dễ đọc hơn.)
 //   GET  ?checkUserId=<id>       -> { available: boolean, reason?: 'invalid_format'|'taken' }
 //   POST { uuid, name, secret, verified, userId? } -> { ok: true }
 //     - uuid CHƯA có trong kho: tạo mới, lưu hash(secret) làm "khoá sở hữu".
@@ -84,11 +89,21 @@ export default async function handler(req, res) {
       }
 
       const uuid = String(req.query?.uuid || '').trim();
-      if (!uuid) {
-        return res.status(400).json({ error: 'Thiếu uuid.' });
+      if (uuid) {
+        const doc = await col.findOne({ uuid });
+        return res.status(200).json({ name: doc?.name || null, verified: !!doc?.verified, userId: doc?.userId || null });
       }
-      const doc = await col.findOne({ uuid });
-      return res.status(200).json({ name: doc?.name || null, verified: !!doc?.verified, userId: doc?.userId || null });
+
+      if (req.query?.userId !== undefined) {
+        const userId = String(req.query.userId || '').trim();
+        if (!USER_ID_REGEX.test(userId)) {
+          return res.status(200).json({ uuid: null });
+        }
+        const doc = await col.findOne({ userIdLower: userId.toLowerCase() });
+        return res.status(200).json({ uuid: doc?.uuid || null });
+      }
+
+      return res.status(400).json({ error: 'Thiếu uuid, userId hoặc checkUserId.' });
     }
 
     if (req.method === 'POST') {
