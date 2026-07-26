@@ -10,6 +10,27 @@ const saveUsers = (u) => localStorage.setItem('cdoc_users', JSON.stringify(u))
 const getSavedSession = () => { try { return JSON.parse(localStorage.getItem('cdoc_session') || 'null') } catch { return null } }
 const saveSession = (s) => s ? localStorage.setItem('cdoc_session', JSON.stringify(s)) : localStorage.removeItem('cdoc_session')
 
+// ─── "Khoá sở hữu" cho /api/user-profile (Mức 1) ──────────────────────────
+// Sinh 1 LẦN DUY NHẤT cho mỗi uuid, lưu cục bộ, KHÔNG rời khỏi thiết bị trừ
+// lúc gửi kèm request cập nhật tên — server dùng nó để xác nhận đúng "chủ"
+// UUID đang cập nhật, chặn thiết bị khác tự đặt tên giả cho UUID không phải
+// của họ (xem chú thích chi tiết trong api/user-profile.js).
+const PROFILE_SECRET_PREFIX = 'cdoc_profile_secret:'
+function getOrCreateProfileSecret(uuid) {
+  if (!uuid) return null
+  const key = `${PROFILE_SECRET_PREFIX}${uuid}`
+  try {
+    let secret = localStorage.getItem(key)
+    if (!secret) {
+      secret = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`)
+      localStorage.setItem(key, secret)
+    }
+    return secret
+  } catch {
+    return null
+  }
+}
+
 const syncPrimaryPatientNameInFamilyTree = (ownerId, name, avatar = '') => {
   const patientName = String(name || '').trim()
   const patientAvatar = String(avatar || '').trim()
@@ -249,12 +270,27 @@ export function AuthProvider({ children }) {
     const key = `${uuid}:${name}`
     if (lastSyncedProfileRef.current === key) return
     lastSyncedProfileRef.current = key
+    const secret = getOrCreateProfileSecret(uuid)
+    if (!secret) return // localStorage không dùng được (vd Safari Private) -> bỏ qua, không có cách chứng minh sở hữu
+    // Chỉ đánh dấu verified khi tên đến từ 1 provider OAuth đã xác thực danh
+    // tính (Google/Apple) — tên tự gõ tay lúc đăng ký email/ẩn danh KHÔNG
+    // được coi là verified (xem Mức 2).
+    const verified = user?.provider === 'google' || user?.provider === 'apple'
+    // User ID (vd "KhanhLX1") — do LoginPage.jsx cho chọn NGAY LÚC ĐĂNG KÝ,
+    // trước khi uuid thật sự tồn tại, nên tạm gửi qua sessionStorage rồi gắn
+    // vào lần đồng bộ profile ĐẦU TIÊN sau khi có uuid. Chỉ dùng 1 LẦN rồi
+    // xoá — tránh việc lần đăng nhập tiếp theo (uuid khác, vd sau khi đăng
+    // xuất rồi vào ẩn danh) vô tình bị gán nhầm cùng 1 User ID cũ.
+    let pendingUserId = null
+    try { pendingUserId = sessionStorage.getItem('cdoc_pending_user_id') || null } catch { /* ignore */ }
     fetch('/api/user-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid, name }),
-    }).catch(() => { /* ignore — không có mạng cũng không sao, thử lại lần đổi tiếp theo */ })
-  }, [user?.uuid, user?.name])
+      body: JSON.stringify({ uuid, name, secret, verified, userId: pendingUserId || undefined }),
+    })
+      .then((res) => { if (pendingUserId && res.ok) { try { sessionStorage.removeItem('cdoc_pending_user_id') } catch { /* ignore */ } } })
+      .catch(() => { /* ignore — không có mạng cũng không sao, thử lại lần đổi tiếp theo (userId giữ nguyên trong sessionStorage để thử lại) */ })
+  }, [user?.uuid, user?.name, user?.provider])
 
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
