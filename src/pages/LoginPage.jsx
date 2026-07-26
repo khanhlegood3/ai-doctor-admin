@@ -40,14 +40,26 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
   const [linkHintUserId, setLinkHintUserId] = useState('')
 
   useEffect(() => {
+    const applyPending = (pending) => {
+      if (!pending?.uuid) return
+      setReferrerUuid((current) => current.trim() ? current : pending.uuid)
+      if (pending.name) setReferrerName((current) => current.trim() ? current : pending.name) // hiện tạm ngay (optimistic) trong lúc chờ tra lại từ server — CHƯA coi là verified
+      if (pending.userId) setLinkHintUserId((current) => current.trim() ? current : pending.userId)
+    }
+
     try {
-      const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
-      if (pending?.uuid) {
-        setReferrerUuid(pending.uuid)
-        if (pending.name) setReferrerName(pending.name) // hiện tạm ngay (optimistic) trong lúc chờ tra lại từ server — CHƯA coi là verified
-        if (pending.userId) setLinkHintUserId(pending.userId)
-      }
+      applyPending(JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null'))
     } catch { /* ignore */ }
+
+    // Link giới thiệu dạng ?ref=<User ID> (xem App.jsx) cần 1 lượt fetch bất
+    // đồng bộ để dò ra UUID thật trước khi ghi vào sessionStorage — có thể
+    // hoàn tất SAU KHI effect này đã chạy xong (do LoginPage mount cùng lượt
+    // render đầu tiên với App.jsx, và effect của component con luôn chạy
+    // trước effect của component cha). Lắng nghe thêm sự kiện
+    // 'cdoc-pending-referral-updated' để không bỏ lỡ giá trị đến muộn đó.
+    const onPendingReferralUpdated = (e) => applyPending(e.detail)
+    window.addEventListener('cdoc-pending-referral-updated', onPendingReferralUpdated)
+    return () => window.removeEventListener('cdoc-pending-referral-updated', onPendingReferralUpdated)
   }, [])
 
   // Ghi lại sessionStorage mỗi khi UUID đổi, để App.jsx (tự điều hướng sau
