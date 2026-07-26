@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   ShieldCheck, Copy, ExternalLink, Activity, Check, Terminal, Settings, Layers,
   Play, RefreshCw, Cpu, Wifi, Code, Filter, Clock, X, ChevronDown, RotateCcw,
   ChevronLeft, ChevronRight, ArrowRightLeft, Database, ArrowRight, Wallet,
   AlertTriangle, FileCode
 } from 'lucide-react';
+import { CONFIGURED_SITE_URL } from '../../lib/siteUrl.js';
 
 // =========================================================================
 // INDEXEDDB ENGINE FOR ALCHEMY LOGS
@@ -125,12 +126,11 @@ export default function AffiliateWebhookAdmin() {
   const dropdownRef = useRef(null);
   const ALCHEMY_RPC_URL = "https://bnb-testnet.g.alchemy.com/v2/3P6Sj-7RXbrD7znG4t8f8";
   // Trước đây hard-code SAI domain "hien-mau-nhan-van.vercel.app" (thừa dấu
-  // gạch ngang) — không khớp domain deploy thật "hienmaunhanvan.vercel.app",
-  // nên URL copy ra dán vào Alchemy dashboard sẽ trỏ vào endpoint không tồn
-  // tại. Giữ dạng chuỗi tĩnh (không dùng window.location.origin) vì endpoint
-  // này PHẢI là domain public thật để Alchemy gọi vào được, kể cả khi admin
-  // đang mở panel này từ localhost lúc dev.
-  const targetEndpoint = "https://hienmaunhanvan.vercel.app/api/alchemy-webhook";
+  // gạch ngang) — không khớp domain deploy thật. Giờ lấy từ CONFIGURED_SITE_URL
+  // (src/lib/siteUrl.js), nguồn duy nhất đọc biến môi trường
+  // VITE_PUBLIC_SITE_URL — đổi domain production chỉ cần sửa 1 biến môi
+  // trường, không cần sửa code ở đây.
+  const targetEndpoint = `${CONFIGURED_SITE_URL}/api/alchemy-webhook`;
 
   const webhookData = {
     affiliate: { contract: '0x44f787D670Ff4Ef65334D6637960bb7Fe5E1231c', dashboardUrl: 'https://dashboard.alchemy.com/apps/xo4ut1zr4j2ut5qk/webhooks/wh_pqra43npyunzk8w7' },
