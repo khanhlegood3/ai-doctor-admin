@@ -20,6 +20,7 @@
 //   GET    ?referrer=<uuid>  -> { items: [...] }  (F1 trực tiếp của uuid này)
 //   GET    ?referee=<uuid>   -> { item: {...} | null } (tuyến trên của uuid này)
 //   POST   { referrerUuid, refereeUuid, code, source } -> { item, alreadyExisted }
+//     -> 404 nếu referrerUuid chưa có hồ sơ nào trong user_profiles (Mức 4).
 //   PATCH  { refereeUuid, chainStatus, txHash } -> { item }
 //     Cập nhật lại trạng thái on-chain SAU KHI registerReferralOnChain() gọi
 //     thành công (hoặc thất bại) — nếu thiếu bước này, doc trên Mongo (nguồn
@@ -33,9 +34,26 @@
 //     (registerReferral) thì contract tự chặn đăng ký lại ("Already
 //     registered"), nên xoá ở Mongo lúc đó sẽ làm lệch dữ liệu so với chain.
 
+// ─── Chống giả mạo affiliate — 4 mức (tổng hợp cùng api/user-profile.js) ───
+//   Mức 1 (user-profile.js): "khoá sở hữu" (secretHash) — chỉ đúng thiết bị
+//     đã claim 1 UUID mới sửa được tên/User ID của UUID đó.
+//   Mức 2 (user-profile.js + LoginPage.jsx): "verified" — tên chỉ được đánh
+//     dấu đã xác thực khi đến từ 1 provider OAuth thật (Google/Apple).
+//   Mức 3 (LoginPage.jsx + AffiliateUUIDReferralPanel.jsx): hiển thị User ID
+//     (duy nhất toàn hệ thống, được bảo vệ bởi Mức 1) thay vì Tên hiển thị
+//     (name — KHÔNG duy nhất, ai cũng tự đặt trùng ai đó) làm định danh
+//     chính để đối chiếu trước khi đăng ký affiliate; và LUÔN tra lại từ
+//     server theo đúng UUID thay vì tin trực tiếp ?refName=/?refId= trên URL
+//     (chỉ do chính người tạo link tự khai, dễ bị sửa tay để giả danh).
+//   Mức 4 (endpoint này): server-side chặn tạo quan hệ referral nếu
+//     referrerUuid KHÔNG tồn tại trong user_profiles — tránh xây cây
+//     affiliate dưới 1 UUID rác/gõ nhầm/tự bịa (không ai claim, không ai
+//     nhận được hoa hồng, chỉ gây nhầm lẫn hoặc là dấu hiệu tấn công dò UUID
+//     hàng loạt).
 import { connectToDatabase } from './_lib/mongodb.js';
 
 const COLLECTION = 'affiliate_referrals';
+const PROFILE_COLLECTION = 'user_profiles';
 
 export default async function handler(req, res) {
   try {
@@ -81,6 +99,14 @@ export default async function handler(req, res) {
         // Đã có tuyến trên từ trước — không cho đổi, trả về quan hệ hiện có
         // để client hiển thị đúng (idempotent, tránh lỗi khi bấm đăng ký 2 lần).
         return res.status(200).json({ item: existing, alreadyExisted: true });
+      }
+
+      // Mức 4 — referrerUuid phải là 1 UUID CÓ THẬT trong hệ thống (đã từng
+      // đồng bộ tên/User ID qua api/user-profile.js), không cho tạo quan hệ
+      // với UUID rác/gõ nhầm/tự bịa ra.
+      const referrerProfile = await db.collection(PROFILE_COLLECTION).findOne({ uuid: referrerUuid });
+      if (!referrerProfile) {
+        return res.status(404).json({ error: `UUID người giới thiệu "${referrerUuid}" chưa có hồ sơ nào trong hệ thống — kiểm tra lại UUID trước khi đăng ký.` });
       }
 
       const doc = {
