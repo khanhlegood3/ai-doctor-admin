@@ -6,10 +6,6 @@ import BackButton from '../components/common/BackButton.jsx'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 
 const SHOW_APPLE_LOGIN_BUTTON = false
-// User ID (vd "KhanhLX1") — handle NGẮN, DUY NHẤT TOÀN HỆ THỐNG, khác "Họ
-// tên" (name) vốn có thể trùng/có dấu/có khoảng trắng. Chỉ chữ không dấu,
-// số, gạch dưới — không khoảng trắng, không dấu tiếng Việt.
-const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/
 
 export default function LoginPage({ onSuccess, onBack }) {
   const { loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous } = useAuth()
@@ -118,46 +114,6 @@ export default function LoginPage({ onSuccess, onBack }) {
     }
   }
 
-  // ─── User ID (không được trùng trên toàn hệ thống) ───────────────────────
-  // Khác "Họ tên" (name): đây là 1 handle ngắn, cố định, DUY NHẤT toàn hệ
-  // thống — dùng Mongo unique index phía server (api/user-profile.js) làm
-  // nguồn sự thật cuối cùng; ở đây chỉ tự lọc ký tự không hợp lệ lúc gõ +
-  // kiểm tra trùng "sống" (debounce) để người dùng thấy ngay trước khi bấm
-  // Đăng ký, tránh việc gửi lên rồi mới biết bị từ chối.
-  const [userId, setUserId] = useState('')
-  const [checkingUserId, setCheckingUserId] = useState(false)
-  const [userIdAvailable, setUserIdAvailable] = useState(null) // null = chưa biết, true/false = kết quả
-  const userIdCacheRef = useRef({}) // { [lowerId]: boolean }
-
-  const handleUserIdChange = (e) => {
-    // Tự lọc bỏ khoảng trắng, dấu tiếng Việt, ký tự đặc biệt ngay lúc gõ —
-    // đỡ phải báo lỗi rồi bắt sửa lại, người dùng gõ gì cũng ra chuỗi hợp lệ.
-    const cleaned = e.target.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 24)
-    setUserId(cleaned)
-  }
-
-  useEffect(() => {
-    const id = userId.trim()
-    if (!id || id.length < 3) { setUserIdAvailable(null); setCheckingUserId(false); return }
-    const key = id.toLowerCase()
-    if (key in userIdCacheRef.current) { setUserIdAvailable(userIdCacheRef.current[key]); return }
-    setCheckingUserId(true)
-    const timer = window.setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/user-profile?checkUserId=${encodeURIComponent(id)}`)
-        const data = await res.json().catch(() => ({}))
-        const available = res.ok ? !!data?.available : null
-        userIdCacheRef.current[key] = available
-        setUserIdAvailable(available)
-      } catch {
-        setUserIdAvailable(null) // không kiểm tra được do lỗi mạng — để server tự chặn lúc submit nếu thật sự trùng
-      } finally {
-        setCheckingUserId(false)
-      }
-    }, 400)
-    return () => window.clearTimeout(timer)
-  }, [userId])
-
   const isDark = theme === 'dark'
 
   const handle = async (fn) => {
@@ -168,31 +124,12 @@ export default function LoginPage({ onSuccess, onBack }) {
     finally { setLoading(false) }
   }
 
-  // Nút Đăng ký/Đăng nhập bằng email — riêng nhánh 'register' cần validate
-  // User ID TRƯỚC khi thật sự tạo tài khoản (uuid chỉ sinh ra SAU khi
-  // loginWithEmail chạy xong, nên userId được gửi tạm qua sessionStorage rồi
-  // AuthContext.jsx đính vào lần đồng bộ profile đầu tiên — xem ở đó).
+  // Nút Đăng ký/Đăng nhập bằng email.
   const handleEmailSubmit = () => {
-    if (mode === 'register') {
-      const id = userId.trim()
-      if (!id) {
-        setError(lang === 'vi' ? 'Vui lòng nhập User ID (vd: KhanhLX1).' : 'Please enter a User ID (e.g. KhanhLX1).')
-        return
-      }
-      if (!USER_ID_REGEX.test(id)) {
-        setError(lang === 'vi' ? 'User ID không hợp lệ — chỉ chữ không dấu/số/gạch dưới, 3-24 ký tự.' : 'Invalid User ID — letters/numbers/underscore only, 3-24 characters.')
-        return
-      }
-      if (checkingUserId) {
-        setError(lang === 'vi' ? 'Đang kiểm tra User ID, vui lòng đợi một chút…' : 'Still checking User ID availability, please wait…')
-        return
-      }
-      if (userIdAvailable === false) {
-        setError(lang === 'vi' ? `User ID "${id}" đã có người dùng — hãy chọn User ID khác.` : `User ID "${id}" is already taken — please pick another.`)
-        return
-      }
-      try { sessionStorage.setItem('cdoc_pending_user_id', id) } catch { /* ignore */ }
-    }
+    // User ID không còn được hỏi ở màn Đăng ký nữa (gây phiền cho User mới) —
+    // giờ chỉ có thể đặt SAU khi đã có tài khoản, từ màn Profile
+    // (xem UserIdSettingsCard trong UserProfilePanel.jsx), và chỉ được lưu
+    // đúng 1 lần duy nhất.
     handle(() => loginWithEmail(email, password, mode === 'register' ? name : null))
   }
 
@@ -467,33 +404,6 @@ export default function LoginPage({ onSuccess, onBack }) {
           <>
             <label style={s.label}>{t('name')}</label>
             <input style={s.input} placeholder="Nguyễn Văn A" value={name} onChange={e => setName(e.target.value)} />
-
-            <label style={s.label}>User ID *</label>
-            <input
-              style={{ ...s.input, marginBottom: 4, fontFamily: 'monospace' }}
-              placeholder="KhanhLX1"
-              value={userId}
-              onChange={handleUserIdChange}
-              maxLength={24}
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
-            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 12 }}>
-              {userId.trim().length === 0 ? (
-                <span style={{ color: isDark ? 'rgba(232,240,248,0.4)' : '#999', fontWeight: 400 }}>
-                  {lang === 'vi' ? 'Không dấu, không khoảng trắng, 3-24 ký tự (chữ/số/gạch dưới).' : 'No spaces, no accents, 3-24 characters (letters/numbers/underscore).'}
-                </span>
-              ) : userId.trim().length < 3 ? (
-                <span style={{ color: '#ff9800' }}>{lang === 'vi' ? 'Cần ít nhất 3 ký tự.' : 'Needs at least 3 characters.'}</span>
-              ) : checkingUserId ? (
-                <span style={{ color: isDark ? 'rgba(232,240,248,0.5)' : '#888' }}>{lang === 'vi' ? 'Đang kiểm tra…' : 'Checking…'}</span>
-              ) : userIdAvailable === true ? (
-                <span style={{ color: '#2d8a5e' }}>✓ {lang === 'vi' ? `"${userId}" có thể dùng` : `"${userId}" is available`}</span>
-              ) : userIdAvailable === false ? (
-                <span style={{ color: '#ff5252' }}>✗ {lang === 'vi' ? `"${userId}" đã có người dùng` : `"${userId}" is already taken`}</span>
-              ) : null}
-            </div>
 
             <label style={s.label}>{lang === 'vi' ? 'UUID người giới thiệu (nếu có)' : 'Referrer UUID (optional)'}</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
