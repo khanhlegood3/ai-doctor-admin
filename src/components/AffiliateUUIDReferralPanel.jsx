@@ -237,6 +237,12 @@ export default function AffiliateUUIDReferralPanel() {
   const [resolvingReferrer, setResolvingReferrer] = useState(false)
   const [referrerNotFound, setReferrerNotFound] = useState(false) // UUID này CHƯA có hồ sơ nào trong hệ thống
   const referrerCacheRef = useRef({}) // { [uuid]: { name, verified, userId } | 'not_found' }
+  // Ô nhập giờ nhận CẢ UUID lẫn User ID (2 dạng phân biệt bằng dấu "-" —
+  // UUID định dạng HEALTH-... luôn có "-", User ID theo USER_ID_REGEX thì
+  // không bao giờ có) — actualReferrerUuid là UUID THẬT sau khi phân giải,
+  // dùng để đăng ký/ghi quan hệ referral (toàn bộ backend vẫn vận hành theo
+  // UUID); inputUuid chỉ là giá trị thô người dùng gõ/dán.
+  const [actualReferrerUuid, setActualReferrerUuid] = useState('')
 
   useEffect(() => {
     try {
@@ -249,43 +255,61 @@ export default function AffiliateUUIDReferralPanel() {
     } catch { /* ignore */ }
   }, [myUuid])
 
-  // Tra lại danh tính người giới thiệu NGAY TỪ SERVER mỗi khi UUID (gõ tay
-  // hoặc điền sẵn từ link) đổi — đây là bước xác nhận thật, refName/refId từ
-  // URL chỉ là gợi ý optimistic ở trên. Debounce 400ms giống các chỗ tra
-  // UUID khác trong app (LoginPage.jsx).
+  // Tra lại danh tính người giới thiệu NGAY TỪ SERVER mỗi khi giá trị ô nhập
+  // (gõ tay hoặc điền sẵn từ link) đổi — đây là bước xác nhận thật, refName/
+  // refId từ URL chỉ là gợi ý optimistic ở trên. Debounce 400ms giống các chỗ
+  // tra UUID khác trong app (LoginPage.jsx). Chấp nhận CẢ UUID lẫn User ID:
+  // nếu giá trị không chứa "-" (không phải định dạng UUID HEALTH-...), coi là
+  // User ID và phân giải ngược ra UUID thật trước, rồi mới tra hồ sơ theo
+  // đúng UUID đó như bình thường.
   useEffect(() => {
-    const uuid = inputUuid.trim()
-    if (!uuid || uuid === myUuid) { setResolvedReferrer(null); setReferrerNotFound(false); setResolvingReferrer(false); return }
-    if (uuid in referrerCacheRef.current) {
-      const cached = referrerCacheRef.current[uuid]
-      if (cached === 'not_found') { setResolvedReferrer(null); setReferrerNotFound(true) }
-      else { setResolvedReferrer(cached); setReferrerNotFound(false) }
+    const raw = inputUuid.trim()
+    if (!raw || raw === myUuid || (user?.userId && raw.toLowerCase() === user.userId.toLowerCase())) {
+      setResolvedReferrer(null); setReferrerNotFound(false); setResolvingReferrer(false); setActualReferrerUuid('')
+      return
+    }
+    if (raw in referrerCacheRef.current) {
+      const cached = referrerCacheRef.current[raw]
+      if (cached === 'not_found') { setResolvedReferrer(null); setReferrerNotFound(true); setActualReferrerUuid('') }
+      else { setResolvedReferrer(cached.profile); setReferrerNotFound(false); setActualReferrerUuid(cached.uuid) }
       return
     }
     setResolvingReferrer(true)
     const timer = window.setTimeout(async () => {
       try {
+        let uuid = raw
+        if (!raw.includes('-')) {
+          // Dạng User ID — phân giải ngược ra UUID thật trước.
+          const idRes = await fetch(`/api/user-profile?userId=${encodeURIComponent(raw)}`)
+          const idData = await idRes.json().catch(() => ({}))
+          if (!idData?.uuid) {
+            referrerCacheRef.current[raw] = 'not_found'
+            setResolvedReferrer(null); setReferrerNotFound(true); setActualReferrerUuid('')
+            return
+          }
+          uuid = idData.uuid
+        }
         const res = await fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
         const data = await res.json().catch(() => ({}))
         const hasProfile = res.ok && (data?.name || data?.userId)
         if (!hasProfile) {
-          referrerCacheRef.current[uuid] = 'not_found'
-          setResolvedReferrer(null); setReferrerNotFound(true)
+          referrerCacheRef.current[raw] = 'not_found'
+          setResolvedReferrer(null); setReferrerNotFound(true); setActualReferrerUuid('')
         } else {
           const resolved = { name: data?.name || '', verified: !!data?.verified, userId: data?.userId || '' }
-          referrerCacheRef.current[uuid] = resolved
-          setResolvedReferrer(resolved); setReferrerNotFound(false)
+          referrerCacheRef.current[raw] = { profile: resolved, uuid }
+          setResolvedReferrer(resolved); setReferrerNotFound(false); setActualReferrerUuid(uuid)
         }
       } catch {
         // Lỗi mạng — không kết luận "không tồn tại" oan; server (Mức 4) vẫn
         // tự chặn ở bước submit nếu UUID thật sự không có hồ sơ.
-        setResolvedReferrer(null); setReferrerNotFound(false)
+        setResolvedReferrer(null); setReferrerNotFound(false); setActualReferrerUuid('')
       } finally {
         setResolvingReferrer(false)
       }
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [inputUuid, myUuid])
+  }, [inputUuid, myUuid, user?.userId])
 
   // Ví ẩn danh on-chain tương ứng với UUID này — dùng để dựng link BscScan
   // Testnet, giống cách xem 1 địa chỉ trên Moralis / BscScan explorer.
@@ -370,13 +394,17 @@ export default function AffiliateUUIDReferralPanel() {
   const handleRegister = async (e) => {
     e.preventDefault()
     setMessage(null)
-    const referrerUuid = inputUuid.trim()
+    const referrerUuid = actualReferrerUuid
     if (!myUuid) {
       setMessage({ type: 'error', text: 'Bạn cần đăng nhập (kể cả ẩn danh) để có UUID trước khi đăng ký.' })
       return
     }
+    if (!inputUuid.trim()) {
+      setMessage({ type: 'error', text: 'Vui lòng dán UUID hoặc User ID của người giới thiệu bạn.' })
+      return
+    }
     if (!referrerUuid) {
-      setMessage({ type: 'error', text: 'Vui lòng dán UUID của người giới thiệu bạn.' })
+      setMessage({ type: 'error', text: resolvingReferrer ? 'Đang xác minh, vui lòng đợi một chút…' : 'Chưa xác minh được UUID/User ID này — kiểm tra lại trước khi đăng ký.' })
       return
     }
     if (referrerUuid === myUuid) {
@@ -388,7 +416,7 @@ export default function AffiliateUUIDReferralPanel() {
       return
     }
     if (referrerNotFound) {
-      setMessage({ type: 'error', text: 'UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.' })
+      setMessage({ type: 'error', text: 'UUID/User ID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 định danh không tồn tại.' })
       return
     }
 
@@ -506,7 +534,7 @@ export default function AffiliateUUIDReferralPanel() {
     try {
       await deleteServerReferral(myUuid)
       await deleteReferralFor(myUuid)
-      setMessage({ type: 'success', text: 'Đã gỡ liên kết. Bạn có thể dán UUID người giới thiệu đúng để đăng ký lại.' })
+      setMessage({ type: 'success', text: 'Đã gỡ liên kết. Bạn có thể dán UUID/User ID người giới thiệu đúng để đăng ký lại.' })
       await refresh()
     } catch (err) {
       setMessage({ type: 'error', text: err?.message || 'Không gỡ được liên kết.' })
@@ -517,26 +545,29 @@ export default function AffiliateUUIDReferralPanel() {
 
   // Link giới thiệu dựa theo domain đang deploy thực tế (window.location.origin
   // — tự đổi theo môi trường: localhost lúc dev, hienmaunhanvan.vercel.app lúc
-  // prod...), kèm sẵn UUID để User 2 KHÔNG cần tự dán tay nữa. refId (User ID
-  // — duy nhất) và refName (tên) chỉ là GỢI Ý HIỂN THỊ TẠM (optimistic) lúc
-  // trang vừa mở, giúp họ thấy ngay "có vẻ đang đăng ký làm F1 của ai" trong
-  // lúc chờ — phía nhận LUÔN tra lại từ server theo đúng UUID (Mức 3, xem
-  // effect resolve referrer ở trên) trước khi cho bấm Đăng ký, nên dù ai đó
-  // sửa tay 2 tham số này trên URL cũng không đánh lừa được xác nhận cuối
-  // cùng (sẽ bị gắn cờ "sai lệch" thay vì được tin).
+  // prod...). ?ref= ưu tiên dùng User ID (nếu đã đặt) thay vì UUID thô — User
+  // ID an toàn hơn để chia sẻ: DUY NHẤT toàn hệ thống, không dấu, không
+  // khoảng trắng, không cần encode, ngắn/dễ đọc/dễ gõ tay hơn UUID rất nhiều.
+  // App.jsx phân giải ngược ?ref=<userId> ra đúng UUID trước khi lưu pending
+  // referral (xem effect ?ref= trong App.jsx). Nếu CHƯA đặt User ID thì vẫn
+  // dùng UUID như cũ để link luôn hoạt động được. refName chỉ là GỢI Ý HIỂN
+  // THỊ TẠM (optimistic) lúc trang vừa mở, giúp người nhận thấy ngay "có vẻ
+  // đang đăng ký làm F1 của ai" trong lúc chờ — phía nhận LUÔN tra lại từ
+  // server theo đúng UUID (Mức 3, xem effect resolve referrer ở trên) trước
+  // khi cho bấm Đăng ký, nên dù ai đó sửa tay tham số này trên URL cũng không
+  // đánh lừa được xác nhận cuối cùng (sẽ bị gắn cờ "sai lệch" thay vì được tin).
   const referralLink = useMemo(() => {
     if (typeof window === 'undefined' || !myUuid) return ''
-    const params = new URLSearchParams({ ref: myUuid })
-    if (user?.userId) params.set('refId', user.userId)
+    const params = new URLSearchParams({ ref: user?.userId || myUuid })
     if (user?.name) params.set('refName', user.name)
     return `${window.location.origin}${window.location.pathname}?${params.toString()}`
   }, [myUuid, user?.userId, user?.name])
 
   const referralShareText = useMemo(() => (
     myUuid
-      ? `Tham gia AI Doctor cùng tôi nhé! Bấm vào link này để tự động trở thành F1 của tôi:\n${referralLink}\n\n(Hoặc dán tay UUID của tôi: ${myUuid} vào mục "Đăng Ký Affiliate 3 Tầng")`
+      ? `Tham gia AI Doctor cùng tôi nhé! Bấm vào link này để tự động trở thành F1 của tôi:\n${referralLink}\n\n(Hoặc dán tay ${user?.userId ? `User ID của tôi: ${user.userId}` : `UUID của tôi: ${myUuid}`} vào mục "Đăng Ký Affiliate 3 Tầng")`
       : ''
-  ), [myUuid, referralLink])
+  ), [myUuid, referralLink, user?.userId])
 
   const handleCopyShareText = async () => {
     if (!referralShareText) return
@@ -573,7 +604,7 @@ export default function AffiliateUUIDReferralPanel() {
         {/* User 1: lấy UUID của mình để gửi đi */}
         <div className={`rounded-2xl border p-5 ${card}`}>
           <div className="flex items-center gap-2 mb-3"><ShieldCheck size={18} className="text-cyan-400" /><span className="font-bold text-sm">UUID của bạn</span></div>
-          <p className={`mb-3 text-xs ${textDim}`}>Gửi link bên dưới cho người bạn muốn mời (User 2) — mở link là tự động điền sẵn UUID của bạn, chỉ cần bấm Đăng ký. Không cần dán tay UUID nữa.</p>
+          <p className={`mb-3 text-xs ${textDim}`}>Gửi link bên dưới cho người bạn muốn mời (User 2) — mở link là tự động điền sẵn danh tính của bạn (ưu tiên User ID nếu đã đặt, an toàn hơn UUID để chia sẻ), chỉ cần bấm Đăng ký. Không cần dán tay nữa.</p>
 
           <button
             type="button"
@@ -645,9 +676,9 @@ export default function AffiliateUUIDReferralPanel() {
                     : (isDark ? 'border-violet-500/25 bg-violet-500/10 text-violet-300' : 'border-violet-500/30 bg-violet-50 text-violet-700')
                 }`}>
                   {resolvingReferrer ? (
-                    <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Đang xác minh UUID người giới thiệu với máy chủ…</span>
+                    <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Đang xác minh UUID/User ID người giới thiệu với máy chủ…</span>
                   ) : referrerNotFound ? (
-                    <span className="flex items-center gap-1.5 font-bold"><AlertTriangle size={12} /> UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.</span>
+                    <span className="flex items-center gap-1.5 font-bold"><AlertTriangle size={12} /> UUID/User ID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 định danh không tồn tại.</span>
                   ) : resolvedReferrer ? (
                     <>
                       <div className="font-bold flex items-center gap-1.5">
@@ -673,12 +704,12 @@ export default function AffiliateUUIDReferralPanel() {
               <input
                 value={inputUuid}
                 onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName(''); setPendingReferrerUserId('') }}
-                placeholder="Dán UUID người giới thiệu bạn (vd: 8f2a1c9e-...)"
+                placeholder="Dán UUID hoặc User ID người giới thiệu bạn (vd: 8f2a1c9e-... hoặc KhanhLX1)"
                 className={`w-full rounded-xl border px-3 py-2.5 text-xs font-mono bg-transparent outline-none ${isDark ? 'border-white/15' : 'border-black/15'}`}
               />
               <button
                 type="submit"
-                disabled={submitting || !myUuid || resolvingReferrer || referrerNotFound}
+                disabled={submitting || !myUuid || resolvingReferrer || referrerNotFound || !actualReferrerUuid}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-bold py-2.5 hover:bg-violet-500/25 transition disabled:opacity-60"
               >
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
