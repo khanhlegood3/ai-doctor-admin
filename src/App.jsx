@@ -272,9 +272,22 @@ export default function App() {
       const refId = params.get('refId') || ''
       window.history.replaceState({}, '', window.location.pathname)
 
+      // Ghi + bắn kèm 1 sự kiện 'cdoc-pending-referral-updated': LoginPage.jsx
+      // chỉ đọc sessionStorage 1 LẦN lúc mount, nhưng LoginPage lại có thể đã
+      // mount TRƯỚC KHI effect này ghi xong (đặc biệt ở nhánh User ID bên
+      // dưới, phải chờ 1 lượt fetch bất đồng bộ) — do React luôn chạy effect
+      // của component CON trước component CHA trong cùng 1 lượt render. Nếu
+      // không bắn sự kiện, LoginPage sẽ đọc phải sessionStorage rỗng và ô
+      // "UUID người giới thiệu" mãi mãi không được điền sẵn (bug: link giới
+      // thiệu dạng ?ref=<User ID> không tự điền UUID).
+      const setPendingReferral = (payload) => {
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify(payload))
+        window.dispatchEvent(new CustomEvent('cdoc-pending-referral-updated', { detail: payload }))
+      }
+
       if (ref.includes('-')) {
         // Dạng UUID thô (link cũ, hoặc chưa đặt User ID lúc tạo link).
-        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: refName, userId: refId }))
+        setPendingReferral({ uuid: ref, name: refName, userId: refId })
         return
       }
 
@@ -288,12 +301,13 @@ export default function App() {
           const res = await fetch(`/api/user-profile?userId=${encodeURIComponent(ref)}`)
           const data = await res.json().catch(() => ({}))
           if (data?.uuid) {
-            sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: data.uuid, name: refName, userId: ref }))
+            setPendingReferral({ uuid: data.uuid, name: refName, userId: ref })
           }
         } catch { /* ignore lỗi mạng — người dùng vẫn tự dán tay được */ }
       })()
     } catch { /* ignore (URL không hợp lệ) */ }
   }, [])
+
 
   // Ngay khi User 2 CÓ uuid (kể cả ẩn danh) và đang có 1 link giới thiệu chờ
   // xử lý (khác chính uuid của họ) -> tự điều hướng thẳng tới panel Affiliate
