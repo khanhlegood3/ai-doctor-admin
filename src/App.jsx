@@ -103,7 +103,26 @@ export default function App() {
   //    khi bấm chọn 1 vai trò hoặc "Tiếp tục tìm hiểu" ở bước 1.
   // 3) 'login'        -> LoginPage thật — vào khi bấm "Tạo tài khoản" ở bước
   //    1 hoặc 2, hoặc bấm nút hành động ở bước 2.
-  const [preLoginView, setPreLoginView] = useState('chooseRole')
+  //
+  // NGOẠI LỆ: nếu URL có sẵn ?ref=... (User 2 mở link Affiliate do User 1
+  // chia sẻ), bỏ qua thẳng 2 màn 'chooseRole'/'hero' và vào LoginPage NGAY
+  // (ở tab Đăng ký — xem loginInitialMode bên dưới), để User 2 đăng ký nhanh
+  // thay vì phải lướt qua các màn giới thiệu trước. Đọc trực tiếp từ URL
+  // ngay lúc khởi tạo state (không phải trong useEffect) để tránh nháy màn
+  // 'chooseRole' rồi mới nhảy sang 'login'.
+  const [preLoginView, setPreLoginView] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('ref') ? 'login' : 'chooseRole'
+    } catch { return 'chooseRole' }
+  })
+  // Tab mặc định khi vào LoginPage: 'register' nếu đến từ link Affiliate
+  // (?ref=...) hoặc bấm nút "Tạo tài khoản"/"Đăng ký tạo Tài Khoản"; 'login'
+  // nếu bấm nút "Đăng nhập" thông thường.
+  const [loginInitialMode, setLoginInitialMode] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('ref') ? 'register' : 'login'
+    } catch { return 'login' }
+  })
   // Cờ riêng: chỉ true khi user THỰC SỰ hoàn tất 1 hành động ngay TRÊN trang
   // Login (Google/Apple/Email hoặc "Bắt đầu ẩn danh"). Trước đây app dùng
   // `preLoginView !== 'login'` để suy luận điều này, nhưng nếu người dùng đã
@@ -124,6 +143,7 @@ export default function App() {
     // bắt đầu từ màn hình "Chọn Vai Trò Anh Hùng" thay vì thẳng vào Login.
     if (prevUserRef.current && !user) {
       setPreLoginView('chooseRole')
+      setLoginInitialMode('login')
       setHasCompletedLogin(false)
     }
     prevUserRef.current = user
@@ -460,9 +480,9 @@ export default function App() {
         <div style={{ minHeight: '100vh', background: '#eef7f1' }}>
           <DonationHeroPanel
             mode="guest"
-            onEnterAction={() => setPreLoginView('login')}
+            onEnterAction={() => { setLoginInitialMode('register'); setPreLoginView('login') }}
             onBack={() => setPreLoginView('chooseRole')}
-            onLogin={() => setPreLoginView('login')}
+            onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
           />
           <GlobalPageReader readRootRef={mainRef} activeKey={preLoginView} />
           {/* Mount GlobalAIChatbot NGAY TẠI ĐÂY — lý do xem chú thích tương
@@ -471,7 +491,14 @@ export default function App() {
         </div>
       )
     }
-    return <LoginPage onSuccess={() => setHasCompletedLogin(true)} onBack={() => setPreLoginView('hero')} />
+    return (
+      <LoginPage
+        initialMode={loginInitialMode}
+        onSuccess={() => setHasCompletedLogin(true)}
+        onBack={() => setPreLoginView('hero')}
+        onShowProjectInfo={() => setPreLoginView('chooseRole')}
+      />
+    )
   }
 
   const isDark = theme === 'dark'

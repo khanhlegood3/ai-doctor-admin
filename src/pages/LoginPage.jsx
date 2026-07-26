@@ -7,10 +7,13 @@ import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 
 const SHOW_APPLE_LOGIN_BUTTON = false
 
-export default function LoginPage({ onSuccess, onBack }) {
+export default function LoginPage({ onSuccess, onBack, initialMode = 'login', onShowProjectInfo }) {
   const { loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous } = useAuth()
   const { t, theme, toggleTheme, lang, setLang } = useApp()
-  const [mode, setMode] = useState('login') // 'login' | 'register'
+  // initialMode='register' -> App.jsx truyền vào khi User 2 đến từ link
+  // Affiliate (?ref=...) hoặc bấm nút "Tạo tài khoản"/"Đăng ký tạo Tài Khoản",
+  // để mở thẳng tab Đăng ký thay vì tab Đăng nhập mặc định.
+  const [mode, setMode] = useState(initialMode === 'register' ? 'register' : 'login') // 'login' | 'register'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -520,11 +523,28 @@ export default function LoginPage({ onSuccess, onBack }) {
           </button>
         </div>
 
-        {/* Quay lại — đồng bộ vị trí/hình dạng với các nút điều hướng khác
-        trong toàn dự án, luôn đặt ở dưới cùng màn hình. */}
-        {onBack && (
-          <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
-            <BackButton isDark={isDark} label={lang === 'vi' ? 'Quay lại' : 'Back'} onClick={onBack} />
+        {/* Quay lại (trái) — đồng bộ vị trí/hình dạng với các nút điều hướng
+        khác trong toàn dự án, luôn đặt ở dưới cùng màn hình. "Thông tin dự
+        án" (phải) — đưa user quay lại màn "Chọn Vai Trò Anh Hùng"
+        (ChooseUserRolePanel) để tìm hiểu thêm về dự án trước khi đăng ký. */}
+        {(onBack || onShowProjectInfo) && (
+          <div style={{ marginTop: 20, display: 'flex', flexWrap: 'wrap', justifyContent: onBack && onShowProjectInfo ? 'space-between' : 'center', alignItems: 'center', gap: 12 }}>
+            {onBack && <BackButton isDark={isDark} label={lang === 'vi' ? 'Quay lại' : 'Back'} onClick={onBack} />}
+            {onShowProjectInfo && (
+              <button
+                type="button"
+                onClick={onShowProjectInfo}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999, cursor: 'pointer',
+                  border: `1px solid ${isDark ? 'rgba(0,229,255,0.35)' : 'rgba(0,184,204,0.35)'}`,
+                  background: isDark ? 'rgba(0,229,255,0.08)' : 'rgba(0,184,204,0.06)',
+                  color: isDark ? '#00e5ff' : '#00b8cc', fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                }}
+              >
+                ℹ️ {lang === 'vi' ? 'Thông tin dự án' : 'Project info'}
+              </button>
+            )}
           </div>
         )}
       </div>
