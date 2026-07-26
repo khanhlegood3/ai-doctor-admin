@@ -123,6 +123,19 @@ function UuidIdentityLabel({ uuid, textDim }) {
   )
 }
 
+// Nhãn ngắn gọn "@UserId (uuid rút gọn)" dùng cho các dòng THÔNG BÁO DẠNG
+// TEXT (message/confirm) — nơi không thể render component <UuidIdentityLabel/>
+// (JSX). Tra theo thứ tự: userId truyền tay nếu đã biết chắc (vd
+// resolvedReferrer khi vừa xác minh xong) → cache module-scope (đã từng tra
+// qua UuidIdentityLabel/effect resolveReferrer trong phiên này) → cuối cùng
+// mới rơi về UUID rút gọn nếu chưa tra được User ID.
+function identityText(uuid, knownUserId) {
+  if (knownUserId) return `@${knownUserId} (${shortUuid(uuid)})`
+  const cached = uuidIdentityCache.get(uuid)
+  if (cached?.userId) return `@${cached.userId} (${shortUuid(uuid)})`
+  return shortUuid(uuid)
+}
+
 // ─── Backend dùng chung (MongoDB qua /api/affiliate-referral) ─────────────
 // IndexedDB/localStorage chỉ tồn tại TRÊN TỪNG THIẾT BỊ — nếu User 2 đăng ký
 // trên máy của họ, User 1 mở app trên máy khác sẽ không có dữ liệu đó trong
@@ -371,7 +384,7 @@ export default function AffiliateUUIDReferralPanel() {
       return
     }
     if (upline) {
-      setMessage({ type: 'error', text: `Bạn đã có người giới thiệu (${shortUuid(upline.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
+      setMessage({ type: 'error', text: `Bạn đã có người giới thiệu (${identityText(upline.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
       return
     }
     if (referrerNotFound) {
@@ -386,7 +399,7 @@ export default function AffiliateUUIDReferralPanel() {
       // (referrer & referee) sẽ đọc để hiển thị, bất kể đang ở thiết bị nào.
       const serverResult = await postServerReferral({ referrerUuid, refereeUuid: myUuid, code: myCode, source: 'uuid_manual' })
       if (serverResult.alreadyExisted && serverResult.item?.referrerUuid !== referrerUuid) {
-        setMessage({ type: 'error', text: `Bạn đã có người giới thiệu khác (${shortUuid(serverResult.item.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
+        setMessage({ type: 'error', text: `Bạn đã có người giới thiệu khác (${identityText(serverResult.item.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
         setChainStatus(null)
         await refresh()
         return
@@ -415,8 +428,8 @@ export default function AffiliateUUIDReferralPanel() {
       setMessage({
         type: 'success',
         text: chainResult.ok
-          ? `Đăng ký thành công! Bạn là F1 của ${shortUuid(referrerUuid)}. Hoa hồng 3 tầng (F1 10% · F2 5% · F3 2%) đã được kích hoạt trên chain.`
-          : `Đăng ký thành công! Bạn là F1 của ${shortUuid(referrerUuid)}. Đồng bộ on-chain sẽ tự thử lại sau.`,
+          ? `Đăng ký thành công! Bạn là F1 của ${identityText(referrerUuid, resolvedReferrer?.userId)}. Hoa hồng 3 tầng (F1 10% · F2 5% · F3 2%) đã được kích hoạt trên chain.`
+          : `Đăng ký thành công! Bạn là F1 của ${identityText(referrerUuid, resolvedReferrer?.userId)}. Đồng bộ on-chain sẽ tự thử lại sau.`,
       })
       setInputUuid('')
       setPendingReferrerName('')
@@ -487,7 +500,7 @@ export default function AffiliateUUIDReferralPanel() {
       setMessage({ type: 'error', text: 'Quan hệ này đã đồng bộ on-chain — không thể tự gỡ nữa.' })
       return
     }
-    if (!window.confirm(`Gỡ liên kết "Bạn là F1 của ${shortUuid(upline.referrerUuid)}"? Chỉ dùng khi đây là dữ liệu sai/dữ liệu test cũ.`)) return
+    if (!window.confirm(`Gỡ liên kết "Bạn là F1 của ${identityText(upline.referrerUuid)}"? Chỉ dùng khi đây là dữ liệu sai/dữ liệu test cũ.`)) return
     setUnlinking(true)
     setMessage(null)
     try {
@@ -579,6 +592,9 @@ export default function AffiliateUUIDReferralPanel() {
               {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
             </button>
           </div>
+          {user?.userId && (
+            <p className={`mt-1 text-[10px] font-mono ${textDim}`}>User ID của bạn: <span className="font-bold text-cyan-400">@{user.userId}</span></p>
+          )}
           <p className={`mt-1 text-[10px] ${textDim}`}>Hoặc chỉ gửi riêng UUID này nếu người kia muốn tự dán tay.</p>
           <button
             type="button"
