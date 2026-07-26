@@ -231,17 +231,20 @@ export default function App() {
     return () => window.removeEventListener('navigate-to-chat-history', navigateToChatHistory)
   }, [navigateToChatHistory])
 
-  // ─── Link giới thiệu Affiliate (?ref=<uuid>&refName=<tên>) ────────────────
+  // ─── Link giới thiệu Affiliate (?ref=<uuid>&refName=<tên>&refId=<userId>) ──
   // User 1 chia sẻ link kèm UUID của họ (xem AffiliateUUIDReferralPanel.jsx).
-  // Khi User 2 mở link, lưu tạm vào sessionStorage (sống qua suốt luồng
-  // guest chooseRole -> hero -> login, vì đây là SPA không reload trang),
-  // rồi dọn query string khỏi thanh địa chỉ để tránh lặp lại khi share nhầm.
+  // refName/refId ở đây CHỈ là gợi ý hiển thị tạm (optimistic) do chính
+  // người tạo link tự khai — KHÔNG được dùng làm căn cứ xác nhận cuối cùng,
+  // vì ai cũng có thể sửa tay trên URL. LoginPage.jsx và
+  // AffiliateUUIDReferralPanel.jsx luôn tra lại từ server theo đúng UUID
+  // (nguồn sự thật duy nhất) trước khi cho đăng ký — xem "Mức 3/4 chống giả
+  // mạo" trong 2 file đó.
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search)
       const ref = params.get('ref')
       if (ref) {
-        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: params.get('refName') || '' }))
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: params.get('refName') || '', userId: params.get('refId') || '' }))
         window.history.replaceState({}, '', window.location.pathname)
       }
     } catch { /* ignore (URL không hợp lệ) */ }
