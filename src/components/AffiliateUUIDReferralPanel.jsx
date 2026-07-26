@@ -250,19 +250,25 @@ export default function AffiliateUUIDReferralPanel() {
   // dùng tự gõ/dán tay — dùng để quyết định có tự động đăng ký F1 hay không
   // (xem effect "Tự động đăng ký F1" bên dưới).
   const [referralFromLink, setReferralFromLink] = useState(false)
+  // true nếu UUID/User ID người giới thiệu (dù gõ tay hay điền sẵn từ link)
+  // TRÙNG với chính người đang đăng ký (myUuid/user.userId) — vd User 2 lỡ
+  // mở đúng link giới thiệu do CHÍNH mình tạo ra. Phải cảnh báo + chặn NGAY
+  // (không chờ bấm nút), và effect "Tự động đăng ký F1" cũng phải bỏ qua
+  // trường hợp này — bấm "Tiếp tục với Google" lúc này chỉ là ĐĂNG NHẬP xác
+  // nhận danh tính, không phải hành động "tự đăng ký làm F1 của chính mình".
+  const [isSelfReferral, setIsSelfReferral] = useState(false)
 
   useEffect(() => {
     try {
       const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
-      if (pending?.uuid && pending.uuid !== myUuid) {
-        setInputUuid((current) => {
-          if (current) return current
-          setReferralFromLink(true)
-          return pending.uuid
-        })
-        setPendingReferrerName(pending.name || '')
-        setPendingReferrerUserId(pending.userId || '')
-      }
+      if (!pending?.uuid) return
+      setInputUuid((current) => {
+        if (current) return current
+        if (pending.uuid !== myUuid) setReferralFromLink(true) // KHÔNG bật cờ này khi là link của chính mình — effect tự động đăng ký F1 phải bỏ qua
+        return pending.uuid
+      })
+      setPendingReferrerName(pending.name || '')
+      setPendingReferrerUserId(pending.userId || '')
     } catch { /* ignore */ }
   }, [myUuid])
 
@@ -275,7 +281,11 @@ export default function AffiliateUUIDReferralPanel() {
   // đúng UUID đó như bình thường.
   useEffect(() => {
     const raw = inputUuid.trim()
-    if (!raw || raw === myUuid || (user?.userId && raw.toLowerCase() === user.userId.toLowerCase())) {
+    // Tự giới thiệu chính mình — cảnh báo NGAY, không tra cứu/không cho đăng
+    // ký, dù raw là UUID thô hay User ID của chính người đang đăng ký.
+    const selfMatch = !!raw && (raw === myUuid || (user?.userId && raw.toLowerCase() === user.userId.toLowerCase()))
+    setIsSelfReferral(selfMatch)
+    if (!raw || selfMatch) {
       setResolvedReferrer(null); setReferrerNotFound(false); setResolvingReferrer(false); setActualReferrerUuid('')
       return
     }
@@ -467,12 +477,12 @@ export default function AffiliateUUIDReferralPanel() {
       setMessage({ type: 'error', text: 'Vui lòng dán UUID hoặc User ID của người giới thiệu bạn.' })
       return
     }
-    if (!referrerUuid) {
-      setMessage({ type: 'error', text: resolvingReferrer ? 'Đang xác minh, vui lòng đợi một chút…' : 'Chưa xác minh được UUID/User ID này — kiểm tra lại trước khi đăng ký.' })
+    if (isSelfReferral) {
+      setMessage({ type: 'error', text: 'Đây là UUID/User ID của chính bạn — không thể tự giới thiệu chính mình. Hãy dán UUID/User ID của người ĐÃ mời bạn.' })
       return
     }
-    if (referrerUuid === myUuid) {
-      setMessage({ type: 'error', text: 'Không thể tự giới thiệu chính mình.' })
+    if (!referrerUuid) {
+      setMessage({ type: 'error', text: resolvingReferrer ? 'Đang xác minh, vui lòng đợi một chút…' : 'Chưa xác minh được UUID/User ID này — kiểm tra lại trước khi đăng ký.' })
       return
     }
     if (upline) {
@@ -492,10 +502,14 @@ export default function AffiliateUUIDReferralPanel() {
   // "Tiếp tục với Google" rồi rời trang mà quên bấm nút này, quan hệ F1
   // không bao giờ được ghi nhận dù đã bấm đúng link giới thiệu. Effect này
   // tự làm thay bước bấm "Đăng ký" đó ngay khi đủ điều kiện an toàn: UUID
-  // người giới thiệu đến từ link (referralFromLink), đã xác minh xong và có
-  // hồ sơ thật (actualReferrerUuid, !referrerNotFound, !resolvingReferrer),
-  // chưa từng có upline (đã kiểm tra xong với server: uplineChecked && !upline),
-  // và chưa tự đăng ký lần nào trong phiên này (autoRegisterAttemptedRef).
+  // người giới thiệu đến từ link (referralFromLink — vốn KHÔNG bao giờ được
+  // bật cho link của chính mình, xem effect điền sẵn ở trên), đã xác minh
+  // xong và có hồ sơ thật (actualReferrerUuid, !referrerNotFound,
+  // !resolvingReferrer), KHÔNG phải tự giới thiệu chính mình (!isSelfReferral
+  // — bấm "Tiếp tục với Google" bằng CHÍNH tài khoản đã tạo link chỉ là đăng
+  // nhập xác nhận danh tính, không phải hành động tự đăng ký F1 của chính
+  // mình), chưa từng có upline (uplineChecked && !upline), và chưa tự đăng ký
+  // lần nào trong phiên này (autoRegisterAttemptedRef).
   const autoRegisterAttemptedRef = useRef(false)
   useEffect(() => {
     if (
@@ -503,6 +517,7 @@ export default function AffiliateUUIDReferralPanel() {
       && myUuid
       && actualReferrerUuid
       && actualReferrerUuid !== myUuid
+      && !isSelfReferral
       && !resolvingReferrer
       && !referrerNotFound
       && uplineChecked
@@ -513,7 +528,7 @@ export default function AffiliateUUIDReferralPanel() {
       autoRegisterAttemptedRef.current = true
       registerAsF1(actualReferrerUuid)
     }
-  }, [referralFromLink, myUuid, actualReferrerUuid, resolvingReferrer, referrerNotFound, uplineChecked, upline, submitting])
+  }, [referralFromLink, myUuid, actualReferrerUuid, isSelfReferral, resolvingReferrer, referrerNotFound, uplineChecked, upline, submitting])
 
   const [retrying, setRetrying] = useState(false)
   const [unlinking, setUnlinking] = useState(false)
@@ -750,11 +765,15 @@ export default function AffiliateUUIDReferralPanel() {
             <form onSubmit={handleRegister} className="space-y-3">
               {inputUuid.trim() && (
                 <div className={`rounded-xl border p-3 text-xs leading-relaxed ${
-                  referrerNotFound
+                  isSelfReferral
+                    ? (isDark ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-red-500/30 bg-red-50 text-red-700')
+                    : referrerNotFound
                     ? (isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-amber-500/30 bg-amber-50 text-amber-700')
                     : (isDark ? 'border-violet-500/25 bg-violet-500/10 text-violet-300' : 'border-violet-500/30 bg-violet-50 text-violet-700')
                 }`}>
-                  {resolvingReferrer ? (
+                  {isSelfReferral ? (
+                    <span className="flex items-center gap-1.5 font-bold text-red-400"><AlertTriangle size={12} /> Đây là UUID/User ID của chính bạn — bạn không thể tự giới thiệu chính mình. Nếu ai đó đã mời bạn, hãy dán UUID/User ID của người đó.</span>
+                  ) : resolvingReferrer ? (
                     <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Đang xác minh UUID/User ID người giới thiệu với máy chủ…</span>
                   ) : referrerNotFound ? (
                     <span className="flex items-center gap-1.5 font-bold"><AlertTriangle size={12} /> UUID/User ID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 định danh không tồn tại.</span>
@@ -788,7 +807,7 @@ export default function AffiliateUUIDReferralPanel() {
               />
               <button
                 type="submit"
-                disabled={submitting || !myUuid || resolvingReferrer || referrerNotFound || !actualReferrerUuid}
+                disabled={submitting || !myUuid || resolvingReferrer || referrerNotFound || isSelfReferral || !actualReferrerUuid}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-bold py-2.5 hover:bg-violet-500/25 transition disabled:opacity-60"
               >
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
