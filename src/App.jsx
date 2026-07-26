@@ -231,8 +231,13 @@ export default function App() {
     return () => window.removeEventListener('navigate-to-chat-history', navigateToChatHistory)
   }, [navigateToChatHistory])
 
-  // ─── Link giới thiệu Affiliate (?ref=<uuid>&refName=<tên>&refId=<userId>) ──
-  // User 1 chia sẻ link kèm UUID của họ (xem AffiliateUUIDReferralPanel.jsx).
+  // ─── Link giới thiệu Affiliate (?ref=<userId hoặc uuid>&refName=<tên>&refId=<userId>) ──
+  // User 1 chia sẻ link kèm User ID của họ (an toàn hơn UUID thô để chia sẻ:
+  // không dấu, không khoảng trắng, không cần encode — xem
+  // AffiliateUUIDReferralPanel.jsx). Link CŨ đã chia sẻ trước khi có thay đổi
+  // này vẫn dùng UUID thô làm ?ref= — 2 dạng phân biệt được vì UUID (định
+  // dạng HEALTH-...) LUÔN chứa dấu "-", còn User ID (USER_ID_REGEX) không bao
+  // giờ có "-", nên link cũ vẫn hoạt động bình thường, không bị phá.
   // refName/refId ở đây CHỈ là gợi ý hiển thị tạm (optimistic) do chính
   // người tạo link tự khai — KHÔNG được dùng làm căn cứ xác nhận cuối cùng,
   // vì ai cũng có thể sửa tay trên URL. LoginPage.jsx và
@@ -243,10 +248,31 @@ export default function App() {
     try {
       const params = new URLSearchParams(window.location.search)
       const ref = params.get('ref')
-      if (ref) {
-        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: params.get('refName') || '', userId: params.get('refId') || '' }))
-        window.history.replaceState({}, '', window.location.pathname)
+      if (!ref) return
+      const refName = params.get('refName') || ''
+      const refId = params.get('refId') || ''
+      window.history.replaceState({}, '', window.location.pathname)
+
+      if (ref.includes('-')) {
+        // Dạng UUID thô (link cũ, hoặc chưa đặt User ID lúc tạo link).
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: refName, userId: refId }))
+        return
       }
+
+      // Dạng User ID — phân giải ngược ra UUID thật từ server trước khi lưu,
+      // vì toàn bộ luồng nội bộ (referral, on-chain, cây F1/F2/F3) vẫn vận
+      // hành theo UUID. Nếu User ID này không tồn tại (vd gõ sai/đã đổi), KHÔNG
+      // lưu pending referral rác — người dùng vẫn có thể tự dán tay UUID/User
+      // ID đúng sau đó.
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/user-profile?userId=${encodeURIComponent(ref)}`)
+          const data = await res.json().catch(() => ({}))
+          if (data?.uuid) {
+            sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: data.uuid, name: refName, userId: ref }))
+          }
+        } catch { /* ignore lỗi mạng — người dùng vẫn tự dán tay được */ }
+      })()
     } catch { /* ignore (URL không hợp lệ) */ }
   }, [])
 
