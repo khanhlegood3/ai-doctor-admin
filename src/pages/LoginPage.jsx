@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
@@ -17,6 +17,76 @@ export default function LoginPage({ onSuccess, onBack }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+
+  // ─── UUID / tên người giới thiệu (Referrer) — trang này là nơi HỨNG link
+  // giới thiệu (?ref=<uuid>&refName=<tên>, xem App.jsx) trước khi tài khoản
+  // mới thực sự tồn tại. UUID lấy từ sessionStorage nếu có sẵn (đến từ link)
+  // hoặc người dùng tự dán tay bằng nút "Paste UUID". Tên KHÔNG cho gõ tay —
+  // luôn tự tra lại qua /api/user-profile mỗi khi UUID đổi, để tránh trường
+  // hợp gõ nhầm/gõ bừa tên khác với UUID thật.
+  const [referrerUuid, setReferrerUuid] = useState('')
+  const [referrerName, setReferrerName] = useState('')
+  const [resolvingReferrerName, setResolvingReferrerName] = useState(false)
+  const referrerNameCacheRef = useRef({}) // { [uuid]: name|null } — tránh tra lại uuid vừa mới tra xong
+
+  useEffect(() => {
+    try {
+      const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
+      if (pending?.uuid) {
+        setReferrerUuid(pending.uuid)
+        if (pending.name) setReferrerName(pending.name) // hiện tạm ngay (optimistic) trong lúc chờ tra lại từ server
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Ghi lại sessionStorage mỗi khi UUID đổi, để App.jsx (tự điều hướng sau
+  // khi có tài khoản) và AffiliateUUIDReferralPanel.jsx (điền sẵn ô UUID)
+  // luôn thấy đúng giá trị mới nhất — kể cả khi người dùng tự dán 1 UUID
+  // khác với UUID có sẵn từ link.
+  useEffect(() => {
+    try {
+      if (referrerUuid.trim()) {
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: referrerUuid.trim(), name: referrerName }))
+      } else {
+        sessionStorage.removeItem('cdoc_pending_referral')
+      }
+    } catch { /* ignore */ }
+  }, [referrerUuid, referrerName])
+
+  // Tự tra tên theo UUID mỗi khi UUID đổi (debounce 400ms để không gọi API
+  // liên tục lúc đang gõ/dán).
+  useEffect(() => {
+    const uuid = referrerUuid.trim()
+    if (!uuid) { setReferrerName(''); setResolvingReferrerName(false); return }
+    if (uuid in referrerNameCacheRef.current) {
+      setReferrerName(referrerNameCacheRef.current[uuid] || '')
+      return
+    }
+    setResolvingReferrerName(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
+        const data = await res.json().catch(() => ({}))
+        const resolved = res.ok ? (data?.name || '') : ''
+        referrerNameCacheRef.current[uuid] = resolved
+        setReferrerName(resolved)
+      } catch {
+        // Giữ nguyên tên optimistic (nếu có từ link) khi không tra được do lỗi mạng
+      } finally {
+        setResolvingReferrerName(false)
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [referrerUuid])
+
+  const handlePasteReferrerUuid = async () => {
+    try {
+      const text = (await navigator.clipboard.readText())?.trim()
+      if (text) setReferrerUuid(text)
+    } catch {
+      setError(lang === 'vi' ? 'Không đọc được clipboard — hãy dán tay (Cmd/Ctrl+V) vào ô UUID.' : 'Could not read clipboard — please paste manually (Cmd/Ctrl+V).')
+    }
+  }
 
   const isDark = theme === 'dark'
 
@@ -299,6 +369,40 @@ export default function LoginPage({ onSuccess, onBack }) {
           <>
             <label style={s.label}>{t('name')}</label>
             <input style={s.input} placeholder="Nguyễn Văn A" value={name} onChange={e => setName(e.target.value)} />
+
+            <label style={s.label}>{lang === 'vi' ? 'UUID người giới thiệu (nếu có)' : 'Referrer UUID (optional)'}</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              <input
+                style={{ ...s.input, marginBottom: 0, fontFamily: 'monospace', fontSize: 12 }}
+                placeholder={lang === 'vi' ? 'Dán UUID người mời bạn...' : 'Paste inviter UUID...'}
+                value={referrerUuid}
+                onChange={e => setReferrerUuid(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={handlePasteReferrerUuid}
+                title={lang === 'vi' ? 'Dán UUID từ clipboard' : 'Paste UUID from clipboard'}
+                style={{
+                  flexShrink: 0, padding: '0 14px', borderRadius: 10, cursor: 'pointer',
+                  border: `1px solid ${isDark ? 'rgba(0,229,255,0.4)' : 'rgba(0,184,204,0.4)'}`,
+                  background: isDark ? 'rgba(0,229,255,0.10)' : 'rgba(0,184,204,0.08)',
+                  color: isDark ? '#00e5ff' : '#00b8cc', fontSize: 12, fontWeight: 700,
+                }}
+              >
+                📋 Paste UUID
+              </button>
+            </div>
+
+            {referrerUuid.trim() && (
+              <>
+                <label style={s.label}>{lang === 'vi' ? 'Tên người giới thiệu' : 'Referrer name'}</label>
+                <input
+                  style={{ ...s.input, opacity: 0.85, cursor: 'not-allowed' }}
+                  readOnly
+                  value={resolvingReferrerName ? (lang === 'vi' ? 'Đang tra cứu…' : 'Looking up…') : (referrerName || (lang === 'vi' ? 'Không tìm thấy tên — kiểm tra lại UUID' : 'Name not found — double-check the UUID'))}
+                />
+              </>
+            )}
           </>
         )}
         <label style={s.label}>{t('email')}</label>
