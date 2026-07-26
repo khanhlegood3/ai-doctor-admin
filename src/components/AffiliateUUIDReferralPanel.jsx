@@ -92,6 +92,37 @@ function dedupeByReferee(rows) {
   return Array.from(map.values())
 }
 
+// ─── Hiện User ID (duy nhất toàn hệ thống) thay vì chỉ 1 chuỗi UUID vô
+// nghĩa, ở MỌI nơi cây affiliate hiển thị 1 UUID (tuyến trên, F1/F2/F3) —
+// Mức 3 chống giả mạo áp dụng xuyên suốt màn hình, không chỉ ở lúc đăng ký.
+// Cache ở module-scope (không phải state) vì rất nhiều dòng có thể cùng
+// tra 1 UUID trong 1 lần render (vd F2 xuất hiện nhiều lần qua các F1 khác
+// nhau) — tránh gọi API lặp lại không cần thiết.
+const uuidIdentityCache = new Map() // uuid -> { userId } | null
+function UuidIdentityLabel({ uuid, textDim }) {
+  const [info, setInfo] = useState(() => (uuidIdentityCache.has(uuid) ? uuidIdentityCache.get(uuid) : undefined))
+  useEffect(() => {
+    if (!uuid) return
+    if (uuidIdentityCache.has(uuid)) { setInfo(uuidIdentityCache.get(uuid)); return }
+    let cancelled = false
+    fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const resolved = data?.userId ? { userId: data.userId } : null
+        uuidIdentityCache.set(uuid, resolved)
+        if (!cancelled) setInfo(resolved)
+      })
+      .catch(() => { if (!cancelled) setInfo(null) })
+    return () => { cancelled = true }
+  }, [uuid])
+  return (
+    <span className="font-mono">
+      {info?.userId ? `@${info.userId}` : shortUuid(uuid)}
+      {info?.userId && <span className={textDim}> · {shortUuid(uuid)}</span>}
+    </span>
+  )
+}
+
 // ─── Backend dùng chung (MongoDB qua /api/affiliate-referral) ─────────────
 // IndexedDB/localStorage chỉ tồn tại TRÊN TỪNG THIẾT BỊ — nếu User 2 đăng ký
 // trên máy của họ, User 1 mở app trên máy khác sẽ không có dữ liệu đó trong
@@ -177,6 +208,22 @@ export default function AffiliateUUIDReferralPanel() {
   // dưới). App không có "danh bạ" tên theo UUID dùng chung nhiều thiết bị,
   // nên đây là cách đơn giản nhất để hiện tên và tránh nhầm UUID.
   const [pendingReferrerName, setPendingReferrerName] = useState('')
+  const [pendingReferrerUserId, setPendingReferrerUserId] = useState('')
+
+  // ─── Chống giả mạo Mức 3 + 4 ────────────────────────────────────────────
+  // KHÔNG BAO GIỜ tin trực tiếp refName/refId lấy từ query string để hiển
+  // thị xác nhận "đang đăng ký làm F1 của ai" — 2 tham số đó chỉ do chính
+  // người tạo link tự khai, ai cũng có thể sửa tay trên URL để giả danh 1
+  // người nổi tiếng/đáng tin trong khi UUID thật (nơi hoa hồng thực sự chảy
+  // vào) lại là của kẻ tấn công. Mỗi khi UUID người giới thiệu đổi (gõ tay
+  // hoặc từ link), LUÔN tra lại NGAY TỪ SERVER theo đúng UUID, và ưu tiên
+  // hiển thị User ID (duy nhất toàn hệ thống, được bảo vệ bởi "khoá sở hữu"
+  // ở api/user-profile.js — xem AuthContext.jsx) thay vì Tên hiển thị (name,
+  // KHÔNG duy nhất, ai cũng tự đặt trùng ai đó).
+  const [resolvedReferrer, setResolvedReferrer] = useState(null) // { name, userId, verified } | null
+  const [resolvingReferrer, setResolvingReferrer] = useState(false)
+  const [referrerNotFound, setReferrerNotFound] = useState(false) // UUID này CHƯA có hồ sơ nào trong hệ thống
+  const referrerCacheRef = useRef({}) // { [uuid]: { name, verified, userId } | 'not_found' }
 
   useEffect(() => {
     try {
@@ -184,9 +231,48 @@ export default function AffiliateUUIDReferralPanel() {
       if (pending?.uuid && pending.uuid !== myUuid) {
         setInputUuid((current) => current || pending.uuid)
         setPendingReferrerName(pending.name || '')
+        setPendingReferrerUserId(pending.userId || '')
       }
     } catch { /* ignore */ }
   }, [myUuid])
+
+  // Tra lại danh tính người giới thiệu NGAY TỪ SERVER mỗi khi UUID (gõ tay
+  // hoặc điền sẵn từ link) đổi — đây là bước xác nhận thật, refName/refId từ
+  // URL chỉ là gợi ý optimistic ở trên. Debounce 400ms giống các chỗ tra
+  // UUID khác trong app (LoginPage.jsx).
+  useEffect(() => {
+    const uuid = inputUuid.trim()
+    if (!uuid || uuid === myUuid) { setResolvedReferrer(null); setReferrerNotFound(false); setResolvingReferrer(false); return }
+    if (uuid in referrerCacheRef.current) {
+      const cached = referrerCacheRef.current[uuid]
+      if (cached === 'not_found') { setResolvedReferrer(null); setReferrerNotFound(true) }
+      else { setResolvedReferrer(cached); setReferrerNotFound(false) }
+      return
+    }
+    setResolvingReferrer(true)
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
+        const data = await res.json().catch(() => ({}))
+        const hasProfile = res.ok && (data?.name || data?.userId)
+        if (!hasProfile) {
+          referrerCacheRef.current[uuid] = 'not_found'
+          setResolvedReferrer(null); setReferrerNotFound(true)
+        } else {
+          const resolved = { name: data?.name || '', verified: !!data?.verified, userId: data?.userId || '' }
+          referrerCacheRef.current[uuid] = resolved
+          setResolvedReferrer(resolved); setReferrerNotFound(false)
+        }
+      } catch {
+        // Lỗi mạng — không kết luận "không tồn tại" oan; server (Mức 4) vẫn
+        // tự chặn ở bước submit nếu UUID thật sự không có hồ sơ.
+        setResolvedReferrer(null); setReferrerNotFound(false)
+      } finally {
+        setResolvingReferrer(false)
+      }
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [inputUuid, myUuid])
 
   // Ví ẩn danh on-chain tương ứng với UUID này — dùng để dựng link BscScan
   // Testnet, giống cách xem 1 địa chỉ trên Moralis / BscScan explorer.
@@ -286,6 +372,10 @@ export default function AffiliateUUIDReferralPanel() {
     }
     if (upline) {
       setMessage({ type: 'error', text: `Bạn đã có người giới thiệu (${shortUuid(upline.referrerUuid)}) từ trước — không thể đổi tuyến trên.` })
+      return
+    }
+    if (referrerNotFound) {
+      setMessage({ type: 'error', text: 'UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.' })
       return
     }
 
@@ -414,15 +504,20 @@ export default function AffiliateUUIDReferralPanel() {
 
   // Link giới thiệu dựa theo domain đang deploy thực tế (window.location.origin
   // — tự đổi theo môi trường: localhost lúc dev, hienmaunhanvan.vercel.app lúc
-  // prod...), kèm sẵn UUID để User 2 KHÔNG cần tự dán tay nữa, và kèm tên của
-  // bạn (refName) để họ thấy ngay "đang đăng ký làm F1 của ai" thay vì chỉ
-  // thấy 1 chuỗi UUID vô nghĩa.
+  // prod...), kèm sẵn UUID để User 2 KHÔNG cần tự dán tay nữa. refId (User ID
+  // — duy nhất) và refName (tên) chỉ là GỢI Ý HIỂN THỊ TẠM (optimistic) lúc
+  // trang vừa mở, giúp họ thấy ngay "có vẻ đang đăng ký làm F1 của ai" trong
+  // lúc chờ — phía nhận LUÔN tra lại từ server theo đúng UUID (Mức 3, xem
+  // effect resolve referrer ở trên) trước khi cho bấm Đăng ký, nên dù ai đó
+  // sửa tay 2 tham số này trên URL cũng không đánh lừa được xác nhận cuối
+  // cùng (sẽ bị gắn cờ "sai lệch" thay vì được tin).
   const referralLink = useMemo(() => {
     if (typeof window === 'undefined' || !myUuid) return ''
     const params = new URLSearchParams({ ref: myUuid })
+    if (user?.userId) params.set('refId', user.userId)
     if (user?.name) params.set('refName', user.name)
     return `${window.location.origin}${window.location.pathname}?${params.toString()}`
-  }, [myUuid, user?.name])
+  }, [myUuid, user?.userId, user?.name])
 
   const referralShareText = useMemo(() => (
     myUuid
@@ -507,7 +602,7 @@ export default function AffiliateUUIDReferralPanel() {
           {upline ? (
             <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-emerald-500/30 bg-emerald-50 text-emerald-700'}`}>
               <div className="flex items-center gap-1.5 font-bold mb-1"><CheckCircle2 size={13} /> Bạn đã là F1 của:</div>
-              <div className="font-mono">{shortUuid(upline.referrerUuid)}</div>
+              <div><UuidIdentityLabel uuid={upline.referrerUuid} textDim={textDim} /></div>
               <div className={`mt-1 ${textDim}`}>{upline.chainStatus === 'synced' ? 'Đã đồng bộ on-chain ✓' : upline.chainStatus === 'failed' ? 'Chưa đồng bộ on-chain — sẽ tự thử lại' : 'Đang chờ đồng bộ on-chain…'}</div>
               {upline.txHash && (
                 <a href={getBscScanTxUrl(upline.txHash)} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 font-bold text-cyan-400 hover:underline">
@@ -527,20 +622,47 @@ export default function AffiliateUUIDReferralPanel() {
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
-              {pendingReferrerName && inputUuid && (
-                <div className={`rounded-xl border p-3 text-xs ${isDark ? 'border-violet-500/25 bg-violet-500/10 text-violet-300' : 'border-violet-500/30 bg-violet-50 text-violet-700'}`}>
-                  <span className="font-bold">Bạn đang đăng ký làm F1 của {pendingReferrerName}</span> (qua link giới thiệu). Kiểm tra đúng người rồi bấm Đăng ký bên dưới.
+              {inputUuid.trim() && (
+                <div className={`rounded-xl border p-3 text-xs leading-relaxed ${
+                  referrerNotFound
+                    ? (isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-amber-500/30 bg-amber-50 text-amber-700')
+                    : (isDark ? 'border-violet-500/25 bg-violet-500/10 text-violet-300' : 'border-violet-500/30 bg-violet-50 text-violet-700')
+                }`}>
+                  {resolvingReferrer ? (
+                    <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Đang xác minh UUID người giới thiệu với máy chủ…</span>
+                  ) : referrerNotFound ? (
+                    <span className="flex items-center gap-1.5 font-bold"><AlertTriangle size={12} /> UUID này chưa có hồ sơ nào trong hệ thống — kiểm tra lại trước khi đăng ký, kẻo hoa hồng bị mất vào 1 UUID không tồn tại.</span>
+                  ) : resolvedReferrer ? (
+                    <>
+                      <div className="font-bold flex items-center gap-1.5">
+                        <ShieldCheck size={12} />
+                        Bạn sắp đăng ký làm F1 của {resolvedReferrer.userId ? `@${resolvedReferrer.userId}` : (resolvedReferrer.name || shortUuid(inputUuid.trim()))}
+                      </div>
+                      <div className="mt-1 opacity-80">
+                        {resolvedReferrer.userId
+                          ? 'Đã xác minh từ máy chủ theo đúng UUID — User ID là định danh duy nhất toàn hệ thống, không thể trùng/giả mạo.'
+                          : `Người này chưa đặt User ID — chỉ có tên hiển thị${resolvedReferrer.name ? ` ("${resolvedReferrer.name}")` : ''}, tên KHÔNG duy nhất nên hãy đối chiếu kỹ UUID trước khi đăng ký.`}
+                        {resolvedReferrer.verified && ' Tên đã xác thực qua Google/Apple.'}
+                      </div>
+                      {resolvedReferrer.userId && pendingReferrerUserId && pendingReferrerUserId.toLowerCase() !== resolvedReferrer.userId.toLowerCase() && (
+                        <div className="mt-1.5 font-bold text-red-400 flex items-center gap-1.5"><AlertTriangle size={12} /> ⚠️ Link ghi User ID "{pendingReferrerUserId}" nhưng hồ sơ thật của UUID này là "{resolvedReferrer.userId}" — có thể ai đó đang cố giả mạo. Chỉ tin phần đã xác minh ở trên.</div>
+                      )}
+                      {!resolvedReferrer.userId && pendingReferrerName && resolvedReferrer.name && pendingReferrerName.trim() !== resolvedReferrer.name.trim() && (
+                        <div className="mt-1.5 font-bold text-red-400 flex items-center gap-1.5"><AlertTriangle size={12} /> ⚠️ Link ghi tên khác với hồ sơ thật của UUID này — chỉ tin phần đã xác minh ở trên.</div>
+                      )}
+                    </>
+                  ) : null}
                 </div>
               )}
               <input
                 value={inputUuid}
-                onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName('') }}
+                onChange={(e) => { setInputUuid(e.target.value); setPendingReferrerName(''); setPendingReferrerUserId('') }}
                 placeholder="Dán UUID người giới thiệu bạn (vd: 8f2a1c9e-...)"
                 className={`w-full rounded-xl border px-3 py-2.5 text-xs font-mono bg-transparent outline-none ${isDark ? 'border-white/15' : 'border-black/15'}`}
               />
               <button
                 type="submit"
-                disabled={submitting || !myUuid}
+                disabled={submitting || !myUuid || resolvingReferrer || referrerNotFound}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-bold py-2.5 hover:bg-violet-500/25 transition disabled:opacity-60"
               >
                 {submitting ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
@@ -659,7 +781,7 @@ export default function AffiliateUUIDReferralPanel() {
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {tier.rows.map((r) => (
                   <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
-                    <span className="font-mono">{shortUuid(r.refereeUuid)}</span>
+                    <UuidIdentityLabel uuid={r.refereeUuid} textDim={textDim} />
                     <span className="flex items-center gap-1.5">
                       {r.txHash && (
                         <a href={getBscScanTxUrl(r.txHash)} target="_blank" rel="noreferrer" title="Xem giao dịch trên BscScan Testnet" className="text-cyan-400 hover:text-cyan-300">
