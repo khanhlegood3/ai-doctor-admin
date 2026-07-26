@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { FAMILY_MEMBERS_CHANGED_EVENT, FAMILY_USER_STORAGE_KEY, LXK_PATIENT_PROFILE, getFamilyOwnerKey } from '../components/family/familyData.js'
 import { getAnonSession, saveAnonSession, updateAnonSession, deleteAnonSession, clearAllGuestData, migrateGuestDataToUuid } from '../lib/anonDB.js'
 
@@ -234,6 +234,27 @@ export function AuthProvider({ children }) {
     }
     init()
   }, [])
+
+  // ─── Đồng bộ TÊN của chính mình lên server theo UUID (best-effort) ───────
+  // Không có bước này, LoginPage (trang Đăng ký) sẽ KHÔNG thể tự tra ra tên
+  // của người giới thiệu (referrer) khi họ ở 1 thiết bị/trình duyệt khác —
+  // vì trước giờ tên chỉ nằm trong localStorage/IndexedDB CỤC BỘ của chính
+  // họ. Chạy lại mỗi khi uuid/tên đổi (debounce nhẹ qua ref để tránh spam
+  // API lúc re-render liên tục); lỗi mạng bỏ qua, không chặn luồng chính.
+  const lastSyncedProfileRef = useRef('')
+  useEffect(() => {
+    const uuid = user?.uuid
+    const name = (user?.name || '').trim()
+    if (!uuid || !name) return
+    const key = `${uuid}:${name}`
+    if (lastSyncedProfileRef.current === key) return
+    lastSyncedProfileRef.current = key
+    fetch('/api/user-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uuid, name }),
+    }).catch(() => { /* ignore — không có mạng cũng không sao, thử lại lần đổi tiếp theo */ })
+  }, [user?.uuid, user?.name])
 
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
