@@ -124,7 +124,13 @@ export default function AffiliateWebhookAdmin() {
   
   const dropdownRef = useRef(null);
   const ALCHEMY_RPC_URL = "https://bnb-testnet.g.alchemy.com/v2/3P6Sj-7RXbrD7znG4t8f8";
-  const targetEndpoint = "https://hien-mau-nhan-van.vercel.app/api/alchemy-webhook";
+  // Trước đây hard-code SAI domain "hien-mau-nhan-van.vercel.app" (thừa dấu
+  // gạch ngang) — không khớp domain deploy thật "hienmaunhanvan.vercel.app",
+  // nên URL copy ra dán vào Alchemy dashboard sẽ trỏ vào endpoint không tồn
+  // tại. Giữ dạng chuỗi tĩnh (không dùng window.location.origin) vì endpoint
+  // này PHẢI là domain public thật để Alchemy gọi vào được, kể cả khi admin
+  // đang mở panel này từ localhost lúc dev.
+  const targetEndpoint = "https://hienmaunhanvan.vercel.app/api/alchemy-webhook";
 
   const webhookData = {
     affiliate: { contract: '0x44f787D670Ff4Ef65334D6637960bb7Fe5E1231c', dashboardUrl: 'https://dashboard.alchemy.com/apps/xo4ut1zr4j2ut5qk/webhooks/wh_pqra43npyunzk8w7' },
