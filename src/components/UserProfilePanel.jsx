@@ -679,12 +679,16 @@ export default function UserProfilePanel() {
           {/* Avatar column */}
           <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
             <div style={{ textAlign: 'center' }}>
-              {/* Hàng 1: Khung Avatar 2D + Khung Avatar 3D UUID — mỗi khung có nút
+              {/* Hàng 1: Khung Avatar 3D UUID + Khung Avatar 2D — mỗi khung có nút
                   riêng ngay bên dưới hình đó. Avatar 2D có nút "Lưu" riêng để lưu
                   tức thì vào user context, tránh bug: chụp camera/upload xong
                   nhưng avatar nhỏ ở Topbar (trên-phải)/Sidebar (trên-trái) chưa
                   cập nhật vì trước đây phải đợi bấm nút "Lưu hồ sơ" ở cuối form. */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
+                  <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} />
+                  <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
+                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 154, flex: '0 0 154px' }}>
                   <div style={{ position: 'relative', width: 154, height: 154 }}>
                     <img src={avatarPreview || initialsAvatar(name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 154, height: 154, borderRadius: '50%', objectFit: 'cover', border: `4px solid ${providerMeta.border}`, boxShadow: `0 16px 45px ${providerMeta.border}` }} />
@@ -712,22 +716,18 @@ export default function UserProfilePanel() {
                         : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
-                  <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} />
-                  <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent={providerMeta.color} label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
-                </div>
               </div>
 
-              {/* Hàng 2: Khung Textures + Khung Avatar 3D — chỉ hiện khi user đã
+              {/* Hàng 2: Khung Avatar 3D + Khung Textures — chỉ hiện khi user đã
                   chọn một avatar 3D (avatarModelSource); nếu chưa có thì ẩn luôn
                   cả hàng này. */}
               {avatarModelSource && (
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-                  <ProfileAvatarTextureBox source={avatarModelSource} size={154} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 154, flex: '0 0 154px' }}>
                     <ProfileAvatar3D source={avatarModelSource} size={154} isDark={isDark} />
                     <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
                   </div>
+                  <ProfileAvatarTextureBox source={avatarModelSource} size={154} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
                 </div>
               )}
               <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>{name || user?.name}</div>
@@ -1114,11 +1114,15 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
               <div style={{ textAlign: 'center' }}>
-                {/* Hàng 1: Khung Avatar 2D + Khung Avatar 3D UUID — mỗi khung có nút
+                {/* Hàng 1: Khung Avatar 3D UUID + Khung Avatar 2D — mỗi khung có nút
                     riêng ngay bên dưới hình đó. Avatar 2D có nút "Lưu" riêng để lưu
                     tức thì, tránh bug avatar nhỏ ở Topbar/Sidebar chưa đồng bộ sau
                     khi chụp camera/upload. */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
+                    <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" />
+                    <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 140, flex: '0 0 140px' }}>
                     <div style={{ position: 'relative', width: 140, height: 140 }}>
                       <img src={avatarPreview || initialsAvatar(name || user.name)} alt={vi ? 'Ảnh đại diện' : 'Avatar'} style={{ width: 140, height: 140, borderRadius: '50%', objectFit: 'cover', border: '4px solid rgba(45,138,94,0.5)', boxShadow: '0 16px 45px rgba(45,138,94,0.35)' }} />
@@ -1146,22 +1150,18 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
                           : (vi ? '💾 Lưu avatar 2D' : '💾 Save 2D avatar')}
                     </button>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: `1 1 138px`, minWidth: 138 }}>
-                    <UserUuid3DAvatar uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" />
-                    <UuidAvatar3DDownloadButton uuid={user?.uuid} isDark={isDark} vi={vi} accent="#2d8a5e" label={vi ? 'Avatar 3D UUID' : 'UUID 3D Avatar'} />
-                  </div>
                 </div>
 
-                {/* Hàng 2: Khung Textures + Khung Avatar 3D — chỉ hiện khi user đã
+                {/* Hàng 2: Khung Avatar 3D + Khung Textures — chỉ hiện khi user đã
                     chọn một avatar 3D (avatarModelSource); nếu chưa có thì ẩn luôn
                     cả hàng này. */}
                 {avatarModelSource && (
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-                    <ProfileAvatarTextureBox source={avatarModelSource} size={140} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 140, flex: '0 0 140px' }}>
                       <ProfileAvatar3D source={avatarModelSource} size={140} isDark={isDark} />
                       <AvatarDownload3DButton source={avatarModelSource} vi={vi} />
                     </div>
+                    <ProfileAvatarTextureBox source={avatarModelSource} size={140} isDark={isDark} vi={vi} border={border} surface2={surface2} text3={text3} />
                   </div>
                 )}
                 <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 4 }}>{name || user.name}</div>
