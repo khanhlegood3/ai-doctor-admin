@@ -47,7 +47,6 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'medicalVisualPlayground', label: 'Medical 3D Lab (Touchless)', step: '04' },
     { id: 'medicalVisualCameraAngle3D', label: 'Medical Camera Angle 3D', step: '04b' },
     { id: 'myRewardHealth', label: 'My Reward Health', step: '05' },
-    { id: 'affiliateControl', label: 'Affiliate Control Panel', step: '05a' },
     { id: 'affiliate', label: 'Affiliate & Earn Đa Tầng', step: '05b' },
     { id: 'rssPortal', label: 'Healthy RSS Portal', step: '06' },
     { id: 'waterDrinkChatBot', label: t('waterDrinkChatBot'), step: '07' },
@@ -95,6 +94,14 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'affiliateWebhookAdmin', label: 'Affiliate Webhook Admin', step: 'WEBHOOK', icon: '🔗' },
     { id: 'create3DVideoFrom2D', label: 'Create 3D Video From 2D', step: '3D2D', icon: '🎥' },
     { id: 'adminConcept', label: 'AI Doctor Admin Panel', step: '00', icon: '🧭' },
+  ] : []
+
+  // Nhóm menu MÔ PHỎNG/NỘI BỘ — tách riêng khỏi nhóm Admin thật ở trên. Đây là
+  // các màn demo/sandbox dùng dữ liệu giả (không liên kết UUID/user_profiles
+  // thật), chỉ dành cho Admin xem/test, KHÔNG phải dữ liệu affiliate thật của
+  // người dùng (xem chú thích trong App.jsx — ADMIN_ONLY_PANELS).
+  const SIMULATION_STEPS = user?.isAdmin ? [
+    { id: 'affiliateControl', label: 'Affiliate Control Panel (Mô phỏng)', step: 'SIM', icon: '🧪' },
   ] : []
 
   useEffect(() => {
@@ -170,6 +177,19 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
           {ADMIN_STEPS.map(s => (
             <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
               <span style={{ fontSize: 12 }}>{s.icon || '🛡️'}</span>
+              <span style={{ flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#ff5252' }}>{s.step}</span>
+            </NavItem>
+          ))}
+        </>
+      )}
+
+      {SIMULATION_STEPS.length > 0 && (
+        <>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>Mô Phỏng (Nội Bộ)</SectionLabel>
+          {SIMULATION_STEPS.map(s => (
+            <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
+              <span style={{ fontSize: 12 }}>{s.icon || '🧪'}</span>
               <span style={{ flex: 1 }}>{s.label}</span>
               <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#ff5252' }}>{s.step}</span>
             </NavItem>

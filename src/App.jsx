@@ -272,7 +272,13 @@ export default function App() {
     window.setTimeout(() => setSidebarOpenSignal(signal => signal + 1), 0)
   }, [])
 
-  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+  // affiliateControl = "Affiliate Control Panel" chỉ là màn MÔ PHỎNG/DEMO nội
+  // bộ (6 user giả u1-u6, dropdown "Đóng vai đại lý", state cục bộ không liên
+  // kết gì với UUID/user_profiles thật) — KHÔNG phải dữ liệu affiliate thật
+  // của người dùng. Đưa vào ADMIN_ONLY_PANELS để tránh user thật nhầm lẫn đây
+  // là hoa hồng/tuyến dưới thật của họ (xem thêm Sidebar.jsx — đã tách sang
+  // nhóm menu riêng "Mô Phỏng (Nội Bộ)" ngay sau nhóm Admin).
+  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
   const visiblePanels = user?.isAdmin ? PANELS : PANELS.filter(id => !ADMIN_ONLY_PANELS.includes(id))
 
   useEffect(() => {
@@ -476,7 +482,10 @@ export default function App() {
             {active === 'medicalVisualPlayground' && <MedicalVisualPlayground onFullscreenChange={setHideSidebarForFocus} />}
             {active === 'medicalVisualCameraAngle3D' && <MedicalVisualCameraAngle3D onFullscreenChange={setHideSidebarForFocus} />}
             {active === 'myRewardHealth' && <MyRewardHealthPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onOpenFoodToday={() => setActive('organConnection')} />}
-            {active === 'affiliateControl' && <AffiliateSystemControlPanel />}
+            {active === 'affiliateControl' && user?.isAdmin && <AffiliateSystemControlPanel />}
+            {active === 'affiliateControl' && !user?.isAdmin && (
+              <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
+            )}
             {active === 'affiliate' && <AffiliateSystemPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'affiliateAdmin' && user?.isAdmin && <AffiliateSystemAdminPanel />}
             {active === 'affiliateAdmin' && !user?.isAdmin && (
