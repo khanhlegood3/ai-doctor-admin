@@ -544,7 +544,7 @@ export default function AffiliateUUIDReferralPanel() {
   }
 
   // Link giới thiệu dựa theo domain đang deploy thực tế (window.location.origin
-  // — tự đổi theo môi trường: localhost lúc dev, hienmaunhanvan.vercel.app lúc
+  // — tự đổi theo môi trường: localhost lúc dev, hienmaunhanvan.com lúc
   // prod...). ?ref= ưu tiên dùng User ID (nếu đã đặt) thay vì UUID thô — User
   // ID an toàn hơn để chia sẻ: DUY NHẤT toàn hệ thống, không dấu, không
   // khoảng trắng, không cần encode, ngắn/dễ đọc/dễ gõ tay hơn UUID rất nhiều.
