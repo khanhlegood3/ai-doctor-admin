@@ -147,7 +147,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
       </NavItem>
       <NavItem active={active === 'affiliateUuidReferral'} onClick={() => handleNavigate('affiliateUuidReferral')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🔗</span>
-        <span style={{ flex: 1 }}>Đăng Ký Affiliate 3 Tầng</span>
+        <span style={{ flex: 1 }}>Đăng Ký Affiliate Marketing</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>UUID</span>
       </NavItem>
       <SectionLabel color={text3}>{t('profile')}</SectionLabel>

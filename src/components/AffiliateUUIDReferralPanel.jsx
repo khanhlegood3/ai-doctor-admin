@@ -22,6 +22,7 @@ import {
   getBscScanTxUrl,
 } from '../lib/gameAffiliateChain'
 import { fetchUnifiedHistory } from '../services/moralisService'
+import QRCode from 'qrcode'
 
 // =====================================================================================
 // ĐĂNG KÝ AFFILIATE 3 TẦNG (UUID) — tham khảo mô hình dashboard Affiliate của
@@ -208,6 +209,7 @@ export default function AffiliateUUIDReferralPanel() {
   const [myCode, setMyCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [referralQrDataUrl, setReferralQrDataUrl] = useState('')
   const [upline, setUpline] = useState(null) // { referrerUuid, ... } nếu tôi đã có người giới thiệu
   const [downline, setDownline] = useState([]) // F1 trực tiếp của tôi
   const [downlineF2, setDownlineF2] = useState([]) // F2 — do các F1 của tôi giới thiệu
@@ -565,9 +567,27 @@ export default function AffiliateUUIDReferralPanel() {
 
   const referralShareText = useMemo(() => (
     myUuid
-      ? `Tham gia AI Doctor cùng tôi nhé! Bấm vào link này để tự động trở thành F1 của tôi:\n${referralLink}\n\n(Hoặc dán tay ${user?.userId ? `User ID của tôi: ${user.userId}` : `UUID của tôi: ${myUuid}`} vào mục "Đăng Ký Affiliate 3 Tầng")`
+      ? `Tham gia AI Doctor cùng tôi nhé! Bấm vào link này để tự động trở thành F1 của tôi:\n${referralLink}\n\n(Hoặc dán tay ${user?.userId ? `User ID của tôi: ${user.userId}` : `UUID của tôi: ${myUuid}`} vào mục "Đăng Ký Affiliate Marketing")`
       : ''
   ), [myUuid, referralLink, user?.userId])
+
+  // Sinh QR code từ link giới thiệu — cho phép User 1 đưa điện thoại cho
+  // User 2 quét trực tiếp (ngoài đời/offline) thay vì phải gõ tay link dài.
+  useEffect(() => {
+    let cancelled = false
+    if (!referralLink) {
+      setReferralQrDataUrl('')
+      return
+    }
+    QRCode.toDataURL(referralLink, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+      .then((url) => { if (!cancelled) setReferralQrDataUrl(url) })
+      .catch(() => { if (!cancelled) setReferralQrDataUrl('') })
+    return () => { cancelled = true }
+  }, [referralLink])
 
   const handleCopyShareText = async () => {
     if (!referralShareText) return
@@ -581,7 +601,7 @@ export default function AffiliateUUIDReferralPanel() {
     <div className={`mx-auto max-w-4xl px-4 py-6 pb-28 md:px-8 md:py-10 ${textMain}`}>
       <div className="mb-6">
         <div className={`mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${isDark ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300' : 'border-cyan-500/30 bg-cyan-50 text-cyan-700'}`}>
-          <Link2 size={13} /> Đăng Ký Affiliate 3 Tầng
+          <Link2 size={13} /> Đăng Ký Affiliate Marketing
         </div>
         <h1 className="text-2xl font-black md:text-3xl">Chia sẻ UUID — Đăng ký giới thiệu</h1>
         <p className={`mt-1 text-sm ${textDim}`}>Lấy UUID của bạn gửi cho người khác (User 2), hoặc dán UUID người đã giới thiệu bạn để tham gia hệ thống affiliate đa tầng.</p>
@@ -616,6 +636,23 @@ export default function AffiliateUUIDReferralPanel() {
             {copiedLink ? <CheckCircle2 size={14} /> : <Copy size={14} />}
           </button>
           <p className={`mt-1 truncate text-[10px] font-mono ${textDim}`}>{referralLink || 'Đang tạo link…'}</p>
+
+          <div className={`mt-3 flex flex-col items-center gap-2 rounded-xl border p-3 ${isDark ? 'border-white/10 bg-black/30' : 'border-black/10 bg-black/[0.03]'}`}>
+            {referralQrDataUrl ? (
+              <img
+                src={referralQrDataUrl}
+                alt="QR code link giới thiệu Affiliate"
+                width={160}
+                height={160}
+                className="rounded-lg bg-white p-1.5"
+              />
+            ) : (
+              <div className="flex h-[160px] w-[160px] items-center justify-center rounded-lg bg-white/5 text-[10px] text-center px-2">
+                Đang tạo QR code…
+              </div>
+            )}
+            <p className={`text-[10px] text-center ${textDim}`}>Đưa mã QR này cho người bạn muốn mời quét bằng camera điện thoại</p>
+          </div>
 
           <div className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/30' : 'border-black/10 bg-black/[0.03]'}`}>
             <input readOnly value={myUuid || 'Đang tạo UUID…'} className="w-full truncate bg-transparent text-xs font-mono outline-none" />
