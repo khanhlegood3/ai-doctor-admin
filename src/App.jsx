@@ -67,6 +67,7 @@ import AffiliateWebhookAdmin from './components/admin/AffiliateWebhookAdmin.jsx'
 import MoralisPlaygroundAdmin from './components/admin/MoralisPlaygroundAdmin.jsx'
 import AffiliateSystemAdminPanel from './components/admin/AffiliateSystemAdminPanel.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import LandingPageZeroToForever from './pages/landingPageZeroToForever.jsx'
 import { addNotification } from './lib/notifications.js'
 import { useTTS } from './lib/groqAiClient.js'
 
@@ -111,8 +112,8 @@ export default function App() {
   // 'chooseRole' rồi mới nhảy sang 'login'.
   const [preLoginView, setPreLoginView] = useState(() => {
     try {
-      return new URLSearchParams(window.location.search).get('ref') ? 'login' : 'chooseRole'
-    } catch { return 'chooseRole' }
+      return new URLSearchParams(window.location.search).get('ref') ? 'login' : 'landing'
+    } catch { return 'landing' }
   })
   // Tab mặc định khi vào LoginPage: 'register' nếu đến từ link Affiliate
   // (?ref=...) hoặc bấm nút "Tạo tài khoản"/"Đăng ký tạo Tài Khoản"; 'login'
@@ -476,6 +477,16 @@ export default function App() {
   const showGuestPreLoginScreens = !user || (user.isAnonymous && !hasCompletedLogin)
 
   if (showGuestPreLoginScreens) {
+    if (preLoginView === 'landing') {
+      return (
+        <LandingPageZeroToForever
+          onGetStarted={() => setPreLoginView('chooseRole')}
+          onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
+          onWatchVideo={() => setPreLoginView('chooseRole')}
+          onDownloadApp={() => setPreLoginView('chooseRole')}
+        />
+      )
+    }
     if (preLoginView === 'chooseRole') {
       return (
         <div style={{ minHeight: '100vh', background: '#eef7f1' }}>
