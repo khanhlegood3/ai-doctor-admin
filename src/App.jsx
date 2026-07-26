@@ -230,6 +230,40 @@ export default function App() {
     window.addEventListener('navigate-to-chat-history', navigateToChatHistory)
     return () => window.removeEventListener('navigate-to-chat-history', navigateToChatHistory)
   }, [navigateToChatHistory])
+
+  // ─── Link giới thiệu Affiliate (?ref=<uuid>&refName=<tên>) ────────────────
+  // User 1 chia sẻ link kèm UUID của họ (xem AffiliateUUIDReferralPanel.jsx).
+  // Khi User 2 mở link, lưu tạm vào sessionStorage (sống qua suốt luồng
+  // guest chooseRole -> hero -> login, vì đây là SPA không reload trang),
+  // rồi dọn query string khỏi thanh địa chỉ để tránh lặp lại khi share nhầm.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const ref = params.get('ref')
+      if (ref) {
+        sessionStorage.setItem('cdoc_pending_referral', JSON.stringify({ uuid: ref, name: params.get('refName') || '' }))
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    } catch { /* ignore (URL không hợp lệ) */ }
+  }, [])
+
+  // Ngay khi User 2 CÓ uuid (kể cả ẩn danh) và đang có 1 link giới thiệu chờ
+  // xử lý (khác chính uuid của họ) -> tự điều hướng thẳng tới panel Affiliate
+  // để họ thấy UUID người giới thiệu đã điền sẵn, không phải tự tìm menu.
+  // Chỉ tự điều hướng đúng 1 lần/phiên để không kéo người dùng quay lại nếu
+  // họ đã rời trang đó để làm việc khác.
+  const autoNavigatedForReferralRef = useRef(false)
+  useEffect(() => {
+    if (autoNavigatedForReferralRef.current || !user?.uuid) return
+    try {
+      const pending = JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')
+      if (pending?.uuid && pending.uuid !== user.uuid) {
+        autoNavigatedForReferralRef.current = true
+        setActive('affiliateUuidReferral')
+      }
+    } catch { /* ignore */ }
+  }, [user?.uuid])
+
   const openMainMenu = useCallback(() => {
     setActive('bodyProtectionJourney')
     window.setTimeout(() => setSidebarOpenSignal(signal => signal + 1), 0)
