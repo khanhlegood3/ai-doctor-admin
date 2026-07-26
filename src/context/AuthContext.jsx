@@ -332,9 +332,26 @@ export function AuthProvider({ children }) {
   // thành 2 danh tính khác nhau. Chỉ khi thiết bị CHƯA từng có phiên nào
   // (guest lẫn tài khoản) mới sinh uuid mới hoàn toàn.
   const resolveUUIDForNewAccount = async () => {
+    // Nếu đang có 1 link giới thiệu (?ref=...) chờ xử lý TRÙNG với chính uuid
+    // ẩn danh sắp được tái sử dụng bên dưới -> đây rất có thể là ca "User 1
+    // dùng máy này (đang có sẵn phiên ẩn danh của User 1) để đăng ký tài
+    // khoản THẬT (email/Google) CHO User 2, bằng đúng link giới thiệu của
+    // chính User 1" — vd ngồi cạnh nhau, User 1 đưa máy cho User 2 gõ email/
+    // chọn tài khoản Google của User 2. Nếu cứ tái sử dụng uuid ẩn danh như
+    // bình thường, tài khoản MỚI (của User 2) sẽ vô tình trùng UUID với
+    // chính người giới thiệu (User 1) -> biến 1 lượt giới thiệu hợp lệ thành
+    // "tự giới thiệu chính mình" (bị chặn) một cách oan uổng. Trường hợp này
+    // KHÔNG tái sử dụng uuid ẩn danh — sinh uuid mới hoàn toàn cho tài khoản
+    // thật, để quan hệ F1 giữa 2 người tách biệt được ghi nhận đúng.
+    const pendingReferralUuid = (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')?.uuid || null
+      } catch { return null }
+    })()
+
     // 1. Phiên anonymous đang có sẵn trong state (đã gọi loginAnonymous() ở
     // tab này, vd qua nút mic) -> dùng luôn, khỏi cần đọc IndexedDB.
-    if (user?.isAnonymous && user?.uuid) {
+    if (user?.isAnonymous && user?.uuid && user.uuid !== pendingReferralUuid) {
       // Khoá lại toàn bộ dữ liệu journey/inventory/records đang ở "bucket
       // khách chung" của thiết bị vào ĐÚNG uuid vừa nâng cấp — nếu không làm
       // bước này, dữ liệu đó vẫn nằm ở dạng "chưa có chủ" và một vị khách
@@ -354,7 +371,7 @@ export function AuthProvider({ children }) {
     try {
       const anon = await getAnonSession()
       const existingUUID = anon?.uuid || anon?.anonUUID
-      if (existingUUID) {
+      if (existingUUID && existingUUID !== pendingReferralUuid) {
         migrateGuestDataToUuid(existingUUID).catch(() => {}) // tương tự lý do ở nhánh (1)
         deleteAnonSession().catch(() => {}) // tương tự lý do ở nhánh (1)
         return existingUUID
@@ -362,8 +379,8 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.warn('Không đọc được phiên anonymous khi tạo tài khoản mới:', e)
     }
-    // 3. Thật sự chưa từng có phiên nào trước đó -> đây là lần đầu tiên,
-    // sinh uuid mới duy nhất 1 lần.
+    // 3. Thật sự chưa từng có phiên nào trước đó (hoặc bị bỏ qua ở trên vì
+    // trùng chính người giới thiệu) -> sinh uuid mới duy nhất 1 lần.
     return generateAnonUUID()
   }
 
