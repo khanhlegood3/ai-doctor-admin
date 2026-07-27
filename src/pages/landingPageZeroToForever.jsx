@@ -505,6 +505,10 @@ export default function LandingPageZeroToForever({
   const [page, setPage] = useState('home')
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
+  // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Game hóa / Zero to Hero" trong
+  // Feature Pillars — cùng 1 trò chơi (/games/bao-ve-co-the-auto.html) mở khi
+  // bấm Cấp 1 "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel).
+  const [showGamePopup, setShowGamePopup] = useState(false)
   // Domain hiện tại quyết định 1 lần khi mount — không đổi trong lúc dùng app.
   const [zofoQRCode] = useState(resolveZofoQRCodeByDomain)
 
@@ -722,12 +726,28 @@ export default function LandingPageZeroToForever({
               {[
                 { icon: Droplet, bg: 'bg-red-50 dark:bg-red-500/10', color: 'text-[#FF543C]' },
                 { icon: HeartPulse, bg: 'bg-green-50 dark:bg-green-500/10', color: 'text-green-500' },
-                { icon: Brain, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', hot: true },
+                { icon: Brain, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', hot: true, onClick: () => setShowGamePopup(true) },
                 { icon: Trophy, bg: 'bg-orange-50 dark:bg-orange-500/10', color: 'text-yellow-500' },
                 { icon: Award, bg: 'bg-purple-50 dark:bg-purple-500/10', color: 'text-[#8B4DFF]' },
                 { icon: Users, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]' },
               ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center text-center group relative">
+                <div
+                  key={i}
+                  className={`flex flex-col items-center text-center group relative ${item.onClick ? 'cursor-pointer' : ''}`}
+                  {...(item.onClick
+                    ? {
+                        onClick: item.onClick,
+                        role: 'button',
+                        tabIndex: 0,
+                        onKeyDown: (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            item.onClick()
+                          }
+                        },
+                      }
+                    : {})}
+                >
                   {item.hot && (
                     <div className="absolute -top-4 text-xs font-bold bg-[#00C2FF] text-white px-3 py-1 rounded-full shadow-md">HOT</div>
                   )}
@@ -1493,6 +1513,80 @@ export default function LandingPageZeroToForever({
       )}
 
       <LandingFooter t={t} setPage={setPage} />
+
+      {/* ── Popup: Game bảo vệ cơ thể — mở khi bấm ô "Game hóa / Zero to Hero"
+          trong Feature Pillars. Cùng trò chơi + kiểu popup với thẻ Cấp 1
+          "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel.jsx). ── */}
+      {showGamePopup && (
+        <div
+          onClick={() => setShowGamePopup(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 720,
+              background: '#0f172a',
+              borderRadius: 20,
+              border: '1px solid rgba(0,229,255,0.2)',
+              boxShadow: '0 32px 100px rgba(0,0,0,0.6)',
+              overflow: 'hidden',
+              maxHeight: '90vh',
+              display: 'flex', flexDirection: 'column',
+            }}
+          >
+            {/* Modal header */}
+            <div style={{
+              padding: '18px 22px',
+              background: 'linear-gradient(135deg, #1a6640, #2d8a5e, #00b8cc)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>
+                  {language === 'en' ? 'Body protection game' : 'Game bảo vệ cơ thể'}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
+                  {t.home.pillars[2].title} · {t.home.pillars[2].sub}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGamePopup(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 8,
+                  width: 32, height: 32, cursor: 'pointer', color: '#fff',
+                  fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >×</button>
+            </div>
+
+            {/* Body: iframe trò chơi */}
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              <div style={{
+                overflow: 'hidden', borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.1)', background: '#000',
+              }}>
+                <iframe
+                  src="/games/bao-ve-co-the-auto.html"
+                  title={language === 'en' ? 'Body protection game' : 'Game bảo vệ cơ thể'}
+                  className="h-[min(62vh,520px)] w-full"
+                  style={{ display: 'block', border: 'none' }}
+                  loading="lazy"
+                />
+              </div>
+              <p style={{ marginTop: 10, padding: '0 2px', fontSize: 11, color: 'rgba(200,210,225,0.6)' }}>
+                {language === 'en'
+                  ? 'Preview of the "Zero to Hero" gamification — quests, XP, and levels.'
+                  : 'Xem trước trò chơi hóa "Zero to Hero" — nhiệm vụ, EXP và lên cấp.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Popup: Xem video giới thiệu (giống Help Popup của trang Login) ── */}
       {showVideoHelp && (
