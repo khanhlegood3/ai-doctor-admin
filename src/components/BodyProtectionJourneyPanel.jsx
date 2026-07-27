@@ -38,6 +38,11 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
   const [gestureOn, setGestureOn] = useState(false)
   const [activeGestureKey, setActiveGestureKey] = useState(null)
   const [lastGameResult, setLastGameResult] = useState(null)
+  // true khi user đang mở 1 trong các game "camera" bên trong portal-index.html
+  // (game đó đã tự chạy MediaPipe Camera riêng) — dùng để ẩn/khoá nút
+  // "Bật Camera AI (Portal)" của chính React app, tránh 2 luồng getUserMedia()
+  // chạy song song gây xung đột camera / double input lên cùng 1 game.
+  const [subGameHasLocalCamera, setSubGameHasLocalCamera] = useState(false)
 
   const iframeRef = useRef(null)
   const touchlessCameraRef = useRef(null)
@@ -208,7 +213,14 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
   useEffect(() => {
     const handleGameMessage = (event) => {
       const data = event.data
-      if (!data || typeof data !== 'object' || data.type !== 'PORTAL_GAME_RESULT') return
+      if (!data || typeof data !== 'object') return
+
+      if (data.type === 'PORTAL_ACTIVE_GAME') {
+        setSubGameHasLocalCamera(!!data.hasLocalCamera)
+        return
+      }
+
+      if (data.type !== 'PORTAL_GAME_RESULT') return
       if (user?.uuid) {
         recordGameProgress({
           uuid: user.uuid,
@@ -225,6 +237,17 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
     window.addEventListener('message', handleGameMessage)
     return () => window.removeEventListener('message', handleGameMessage)
   }, [user?.uuid])
+
+  // Game bên trong portal vừa bật camera riêng của nó → tự tắt ngay camera
+  // của Portal (TouchlessHandCam) nếu đang mở, tránh 2 camera cùng chạy.
+  useEffect(() => {
+    if (subGameHasLocalCamera && gestureOn) setGestureOn(false)
+  }, [subGameHasLocalCamera, gestureOn])
+
+  // Chỉ cho phép bật nút "Camera AI (Portal)" khi KHÔNG có camera nào khác
+  // (của chính game cố định GAME.hasLocalCamera, hoặc của sub-game user vừa
+  // chọn bên trong portal) đang tự quản lý camera rồi.
+  const cameraToggleAllowed = !activeGame.hasLocalCamera && !subGameHasLocalCamera
 
   return (
     <div className={`animate-fade min-h-full w-full ${fullscreen ? 'px-0 py-0' : 'px-4 py-6 sm:px-8'} ${pageBg}`}>
@@ -247,8 +270,9 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* CHỈ hiển thị nút bật Camera Portal nếu game KHÔNG tự quản lý camera */}
-              {!activeGame.hasLocalCamera && (
+              {/* CHỈ hiển thị nút bật Camera Portal nếu KHÔNG game nào (cố định
+                  hoặc sub-game vừa chọn trong portal) đang tự quản lý camera */}
+              {cameraToggleAllowed && (
                 <button
                   type="button"
                   onClick={() => setGestureOn((v) => !v)}
@@ -264,6 +288,11 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
                   <Hand size={16} />
                   {gestureOn ? '🔴 Tắt Camera Cử Chỉ' : '🖐️ Bật Camera AI (Portal)'}
                 </button>
+              )}
+              {!cameraToggleAllowed && subGameHasLocalCamera && (
+                <span className={`inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-medium ${isDark ? 'border-white/10 text-gray-400' : 'border-gray-200 text-gray-500'}`}>
+                  <Hand size={14} /> Game đang tự dùng camera riêng
+                </span>
               )}
 
               <button
@@ -297,7 +326,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
             onLoad={syncPlayerIdentityToGame}
           />
 
-          {fullscreen && !activeGame.hasLocalCamera && (
+          {fullscreen && cameraToggleAllowed && (
             <div className="absolute right-2 top-2 z-40 flex flex-wrap items-center justify-end gap-2 sm:right-3 sm:top-3">
               <button
                 type="button"
@@ -323,7 +352,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
           )}
 
           {/* CHỈ render Camera Portal nếu game yêu cầu điều khiển từ bên ngoài */}
-          {gestureOn && !activeGame.hasLocalCamera && (
+          {gestureOn && cameraToggleAllowed && (
             <div className="fixed bottom-6 left-6 z-50 w-56 overflow-hidden rounded-xl border border-white/20 bg-black shadow-2xl sm:w-64">
               <div className="aspect-video">
                 <TouchlessHandCam

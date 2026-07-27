@@ -999,6 +999,22 @@
     document.body.style.overflow = 'hidden';
     clearTimeout(readyTimeout);
 
+    // Báo cho app cha (BodyProtectionJourneyPanel.jsx) biết game vừa mở có
+    // TỰ quản lý camera hay không (category === "camera" nghĩa là game đó
+    // đã tự chạy MediaPipe Camera bên trong nó rồi) — để app cha tự ẩn/khoá
+    // nút "Bật Camera AI (Portal)" của chính nó, tránh mở 2 luồng
+    // getUserMedia() cùng lúc (1 của game + 1 của TouchlessHandCam bên
+    // React) gây xung đột camera / double input lên cùng 1 game.
+    if(window.parent && window.parent !== window){
+      try {
+        window.parent.postMessage({
+          type: 'PORTAL_ACTIVE_GAME',
+          gameId: game.id,
+          hasLocalCamera: game.category === 'camera',
+        }, '*');
+      } catch(e) {}
+    }
+
     if(game.external){
       vctrlBar.classList.add('show');
       setVctrlCollapsed(false);
@@ -1025,6 +1041,14 @@
     currentGame = null;
     renderGameGrid();
     renderStats();
+
+    // Đóng game xong = không còn camera nội bộ nào của game đang chạy nữa
+    // → báo lại cho app cha để mở lại nút camera của Portal nếu cần.
+    if(window.parent && window.parent !== window){
+      try {
+        window.parent.postMessage({ type: 'PORTAL_ACTIVE_GAME', gameId: null, hasLocalCamera: false }, '*');
+      } catch(e) {}
+    }
   }
 
   document.getElementById('ovExit').addEventListener('click', closeOverlay);
