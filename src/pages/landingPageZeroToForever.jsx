@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 import zofoQRCode from '../assets/landing/KLX12-QR-Code.png'
+import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 
@@ -571,6 +572,28 @@ export default function LandingPageZeroToForever({
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Brand Assets — bộ nhận diện thương hiệu Zero to Forever */}
+      <section className="container mx-auto max-w-7xl px-4 lg:px-8 pb-20">
+        <div className="text-center mb-8">
+          <div className="inline-block border border-[#8B4DFF] text-[#8B4DFF] font-semibold text-xs rounded-full px-4 py-1 tracking-wide mb-4">
+            BRAND ASSETS
+          </div>
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-3">
+            Bộ nhận diện thương hiệu
+          </h2>
+          <p className="text-gray-500 max-w-xl mx-auto text-sm md:text-base">
+            Logo, màu sắc, typography và các quy chuẩn sử dụng chính thức của Zero to Forever.
+          </p>
+        </div>
+        <div className="bg-white rounded-3xl zofo-shadow-soft p-3 md:p-6 overflow-hidden">
+          <img
+            src={zofoLogoKit}
+            alt="Zero to Forever - Brand Assets / Logo Kit"
+            className="w-full h-auto rounded-2xl"
+          />
         </div>
       </section>
 
