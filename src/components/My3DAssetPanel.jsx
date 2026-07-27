@@ -246,16 +246,10 @@ export default function My3DAssetPanel() {
         </div>
 
         <section style={{ ...cardStyle(palette), marginTop: 18 }}>
-          <h2 style={{ margin: '0 0 10px', fontSize: 20 }}>🖥️ Official Hugging Face Space nhúng</h2>
+          <h2 style={{ margin: '0 0 10px', fontSize: 20 }}>🖥️ Không hiển thị Space ngoài</h2>
           <p style={{ marginTop: 0, color: palette.text2, fontSize: 13, lineHeight: 1.6 }}>
-            Nếu browser/API token bị giới hạn CORS hoặc Space đổi endpoint, bạn vẫn có thể dùng app chính thức ngay trong panel này.
+            Các link/iframe GitHub và Hugging Face Space đã được ẩn theo cấu hình nội bộ.
           </p>
-          <iframe
-            title="Microsoft TRELLIS.2 Hugging Face Space"
-            src="https://microsoft-trellis-2.hf.space"
-            style={{ width: '100%', height: 760, border: `1px solid ${palette.border}`, borderRadius: 18, background: palette.card2 }}
-            allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"
-          />
           {apiSchema && (
             <details open style={{ marginTop: 14 }}>
               <summary style={{ cursor: 'pointer', fontWeight: 900 }}>Schema API từ Gradio Space</summary>
