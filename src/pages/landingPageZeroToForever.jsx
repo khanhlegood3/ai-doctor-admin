@@ -1,12 +1,14 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   ArrowRight, Play, CheckCircle2, Users, Heart, Droplet, HeartPulse,
   Brain, Trophy, Award, ShoppingBag, Gamepad2, Handshake, CalendarDays,
   Mountain, Sprout, Compass, ShieldCheck, Zap, Crown, Infinity as InfinityIcon,
-  Quote, Fingerprint, QrCode, Smartphone, Menu, Home, User,
+  Quote, Fingerprint, QrCode, Smartphone, Menu, Home, User, X,
 } from 'lucide-react'
 import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 import zofoQRCode from '../assets/landing/KLX12-QR-Code.png'
+import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
+import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 
 /**
  * landingPageZeroToForever.jsx
@@ -32,6 +34,12 @@ export default function LandingPageZeroToForever({
   onWatchVideo = () => {},
   onDownloadApp = () => {},
 }) {
+  const [showVideoHelp, setShowVideoHelp] = useState(false)
+  const [showQRModal, setShowQRModal] = useState(false)
+
+  const openVideoHelp = () => setShowVideoHelp(true)
+  const openQRModal = () => setShowQRModal(true)
+
   return (
     <div className="antialiased bg-[#F2F4F8] text-[#333] overflow-x-hidden font-sans">
       <style>{`
@@ -143,7 +151,7 @@ export default function LandingPageZeroToForever({
                 Bắt đầu hành trình <ArrowRight className="w-4 h-4" />
               </button>
               <button
-                onClick={onWatchVideo}
+                onClick={openVideoHelp}
                 className="flex items-center gap-3 text-white hover:text-[#00C2FF] transition px-4 py-2"
               >
                 <div className="w-12 h-12 rounded-full border border-gray-400 flex items-center justify-center bg-white/5 backdrop-blur-sm">
@@ -524,7 +532,7 @@ export default function LandingPageZeroToForever({
                   Tham gia ngay
                 </button>
                 <button
-                  onClick={onDownloadApp}
+                  onClick={openQRModal}
                   className="bg-white/50 backdrop-blur border-2 border-[#0B132B] text-[#0B132B] px-8 py-4 rounded-full font-bold hover:bg-white transition flex items-center justify-center gap-2 w-full sm:w-auto"
                 >
                   <Smartphone className="w-4 h-4" /> Tải ứng dụng
@@ -553,6 +561,166 @@ export default function LandingPageZeroToForever({
           </div>
         </div>
       </section>
+
+      {/* ── Popup: Xem video giới thiệu (giống Help Popup của trang Login) ── */}
+      {showVideoHelp && (
+        <div
+          onClick={() => setShowVideoHelp(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 640,
+              background: '#0b1120',
+              borderRadius: 20,
+              border: '1px solid rgba(0,229,255,0.2)',
+              boxShadow: '0 32px 100px rgba(0,0,0,0.6)',
+              overflow: 'hidden',
+              maxHeight: '90vh',
+              display: 'flex', flexDirection: 'column',
+            }}
+          >
+            {/* Modal header */}
+            <div style={{
+              padding: '18px 22px',
+              background: 'linear-gradient(135deg, #1a6640, #2d8a5e, #00b8cc)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>
+                  🌿 Hồ sơ ẩn danh (UUID) là gì?
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
+                  Bắt đầu ngay — không cần đăng ký tài khoản
+                </div>
+              </div>
+              <button
+                onClick={() => setShowVideoHelp(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 8,
+                  width: 32, height: 32, cursor: 'pointer', color: '#fff',
+                  fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >×</button>
+            </div>
+
+            {/* Scrollable body */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <img
+                src={anonymousProfileImg}
+                alt="Anonymous Profile UUID"
+                style={{ display: 'block', width: '100%', height: 'auto' }}
+              />
+
+              <div style={{ padding: '20px 22px 24px' }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 800, color: '#00e5ff',
+                  marginBottom: 12, letterSpacing: '.05em', textTransform: 'uppercase',
+                }}>
+                  🎬 Video hướng dẫn
+                </div>
+                <div className="zofo-help-video-avatar-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 0.85fr) minmax(180px, 1fr)', gap: 14, alignItems: 'stretch' }}>
+                  <div style={{
+                    borderRadius: 14, overflow: 'hidden',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: '#000', aspectRatio: '9/16', maxHeight: 500,
+                  }}>
+                    <iframe
+                      src="https://www.youtube.com/embed/dw_8mIuH9DY?autoplay=0&rel=0&modestbranding=1"
+                      title="Zero to Forever - Video giới thiệu"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      style={{ width: '100%', height: '100%', display: 'block', border: 'none' }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 320 }}>
+                    <UserUuid3DAvatar uuid="anonymous-profile-demo-uuid" isDark accent="#2d8a5e" label="Guest UUID" height="100%" minWidth={160} />
+                    <UserUuid3DAvatar uuid="real-account-profile-demo-uuid" isDark accent="#00b8cc" label="User UUID" height="100%" minWidth={160} />
+                  </div>
+                </div>
+
+                <style>{`@media (max-width: 720px) { .zofo-help-video-avatar-grid { grid-template-columns: 1fr !important; } }`}</style>
+
+                <div style={{
+                  marginTop: 16, padding: '14px 16px', borderRadius: 12,
+                  background: 'rgba(45,138,94,0.1)',
+                  border: '1px solid rgba(45,138,94,0.3)',
+                  fontSize: 13, color: 'rgba(232,240,248,0.8)', lineHeight: 1.7,
+                }}>
+                  🔑 Mỗi thiết bị được cấp một UUID duy nhất. Hồ sơ, cấp độ và tiến trình của bạn được lưu ngay trên thiết bị — không cần email hay mật khẩu. Bạn có thể nâng cấp lên tài khoản thật bất cứ lúc nào để đồng bộ đa thiết bị.
+                </div>
+
+                <button
+                  onClick={() => { setShowVideoHelp(false); onGetStarted() }}
+                  className="mt-5 w-full zofo-gradient-brand text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] transition transform flex items-center justify-center gap-2"
+                >
+                  Bắt đầu hành trình ngay <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Popup: Tải ứng dụng — hiện QR code thật (KLX12-QR-Code.png) ── */}
+      {showQRModal && (
+        <div
+          onClick={() => setShowQRModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.72)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative"
+            style={{
+              width: '100%', maxWidth: 380,
+              background: '#0B132B',
+              borderRadius: 24,
+              border: '1px solid rgba(0,194,255,0.25)',
+              boxShadow: '0 32px 100px rgba(0,0,0,0.6)',
+              padding: '28px 24px 24px',
+              textAlign: 'center',
+              color: '#fff',
+            }}
+          >
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="absolute top-3 right-3"
+              style={{
+                background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8,
+                width: 30, height: 30, cursor: 'pointer', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <img src={zofoLogo} alt="Zero to Forever" className="h-8 w-auto object-contain" />
+            </div>
+            <h3 className="text-lg font-bold mt-3">Tải ứng dụng Zero to Forever</h3>
+            <p className="text-sm text-gray-400 mt-1 mb-5">Quét mã QR bên dưới bằng camera điện thoại để tải app.</p>
+
+            <div className="bg-white p-4 rounded-2xl shadow-lg inline-flex flex-col items-center">
+              <img alt="QR Code tải app Zero to Forever" className="w-48 h-48 object-contain" src={zofoQRCode} />
+            </div>
+
+            <p className="text-[11px] text-gray-400 mt-4 flex items-center justify-center gap-1">
+              <QrCode className="w-3.5 h-3.5" /> quét để tải app
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
