@@ -135,6 +135,11 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
         </button>
       )}
 
+      <NavItem active={active === 'landingZeroToForever'} onClick={() => handleNavigate('landingZeroToForever')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>♾️</span>
+        <span style={{ flex: 1 }}>Zero to Forever - Trang chủ</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>ZOFO</span>
+      </NavItem>
       <NavItem active={active === 'chooseUserRole'} onClick={() => handleNavigate('chooseUserRole')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🎭</span>
         <span style={{ flex: 1 }}>Chọn Vai Trò Anh Hùng</span>
