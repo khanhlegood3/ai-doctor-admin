@@ -45,7 +45,7 @@ function DashboardView() {
   return <>
     <h1 style={styles.h1}>Tổng quan hệ thống</h1>
     <div style={styles.cardGrid3}>
-      <Metric title="Bệnh nhân khám hôm nay" value="142" trend="↑ 12% so với hôm qua" color="#10b981" />
+      <Metric title="Siêu anh hùng khám hôm nay" value="142" trend="↑ 12% so với hôm qua" color="#10b981" />
       <Metric title="Tổng lượt gọi AI (24h)" value="15,420" trend="↓ 2% so với hôm qua" color="#4f46e5" warn />
       <Metric title="Nhiệm vụ Hành trình hoàn thành" value="890" trend="↑ 5% so với tuần trước" color="#059669" />
     </div>
@@ -58,14 +58,15 @@ function DashboardView() {
   </>
 }
 
-export function PatientView() {
+export function HeroView({ userName = 'Nguyễn Văn A', userAvatar = '', userMeta = 'ID: HERO-2026-9042 · Nam · 34 tuổi' } = {}) {
+  const initials = String(userName || 'Hero').trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase() || 'SH'
   return <>
-    <header style={styles.patientHeader}><div style={styles.avatar}>NA</div><div><h1 style={styles.h1}>Nguyễn Văn A</h1><p style={styles.muted}>ID: PT-2026-9042 · Nam · 34 tuổi</p></div></header>
+    <header style={styles.patientHeader}><div style={styles.avatar}>{userAvatar ? <img src={userAvatar} alt={userName} style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} /> : initials}</div><div><h1 style={styles.h1}>{userName}</h1><p style={styles.muted}>{userMeta}</p></div></header>
     <div style={styles.twoCol}>
       <Card title="⚡ Phản ngẫm Tóm tắt (AI Reflection)" accent>
-        <p>Trong 30 ngày qua, bệnh nhân đã có <b>4 buổi tư vấn</b> với AI Coach, chủ yếu tập trung vào vấn đề <i>giảm mỡ nội tạng</i> và <i>cải thiện giấc ngủ</i>.</p>
-        <p><b>Điểm sáng:</b> Bệnh nhân tuân thủ rất tốt lịch uống nước (hoàn thành 28/30 ngày) và đã cập nhật 2 kết quả đo InBody cho thấy xu hướng tích cực.</p>
-        <p><b>Khuyến nghị cho bác sĩ:</b> Trong lần khám tới, hãy kiểm tra lại chỉ số huyết áp do bệnh nhân từng đề cập đến việc thỉnh thoảng chóng mặt vào buổi sáng trong chat history ngày 12/06.</p>
+        <p>Trong 30 ngày qua, siêu anh hùng đã có <b>4 buổi tư vấn</b> với AI Coach, chủ yếu tập trung vào vấn đề <i>giảm mỡ nội tạng</i> và <i>cải thiện giấc ngủ</i>.</p>
+        <p><b>Điểm sáng:</b> Siêu anh hùng tuân thủ rất tốt lịch uống nước (hoàn thành 28/30 ngày) và đã cập nhật 2 kết quả đo InBody cho thấy xu hướng tích cực.</p>
+        <p><b>Khuyến nghị cho bác sĩ:</b> Trong lần khám tới, hãy kiểm tra lại chỉ số huyết áp do siêu anh hùng từng đề cập đến việc thỉnh thoảng chóng mặt vào buổi sáng trong chat history ngày 12/06.</p>
       </Card>
       <Card title="Tiến triển Chỉ số InBody"><RadarChart /></Card>
     </div>

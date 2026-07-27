@@ -1776,5 +1776,5 @@ function ItemButton({ cat, item, selection, onSelect }) {
     </button>
   )
 
-  return isTarget ? <OrganAnatomyHoverWrap organKey={item.organKey} placement="right">{button}</OrganAnatomyHoverWrap> : button
+  return button
 }

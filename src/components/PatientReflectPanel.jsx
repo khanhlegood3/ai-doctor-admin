@@ -3,7 +3,7 @@ import NavButtons from './NavButtons.jsx'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext.jsx'
 import { getGlobalChatHistory } from '../lib/globalChatbotStorage.js'
-import { JourneyView, PatientView } from './AdminConceptPanel.jsx'
+import { JourneyView, HeroView } from './AdminConceptPanel.jsx'
 
 const RANGE_OPTIONS = [
   { value: 30, vi: '30 ngày qua', en: 'Past 30 days' },
@@ -14,7 +14,7 @@ const RANGE_OPTIONS = [
 
 const SAMPLE_EVENTS = [
   { createdAt: '2026-07-08T08:15:00.000Z', role: 'assistant', content: 'Tư vấn theo dõi huyết áp buổi sáng, nhắc uống nước và ghi nhận giấc ngủ.' },
-  { createdAt: '2026-07-06T14:40:00.000Z', role: 'user', content: 'Bệnh nhân hỏi về chỉ số InBody, cân nặng, cơ xương và kế hoạch vận động nhẹ.' },
+  { createdAt: '2026-07-06T14:40:00.000Z', role: 'user', content: 'Siêu anh hùng hỏi về chỉ số InBody, cân nặng, cơ xương và kế hoạch vận động nhẹ.' },
   { createdAt: '2026-07-03T21:10:00.000Z', role: 'assistant', content: 'Tóm tắt lịch sử chat, nhắc lịch kiểm tra lại hồ sơ và theo dõi stress.' },
   { createdAt: '2026-06-29T02:30:00.000Z', role: 'assistant', content: 'Phân tích webcam/face mesh, kiểm tra tư thế ngồi và nhắc nghỉ mắt.' },
   { createdAt: '2026-06-22T09:20:00.000Z', role: 'user', content: 'Tra cứu thuốc, triệu chứng đau đầu nhẹ, ăn uống và lịch uống nước.' },
@@ -92,13 +92,13 @@ function buildReflection(messages, daysBack, isVi) {
     ? `${totalConsultations} phiên tư vấn, trọng tâm là ${peakTopic}.`
     : `${totalConsultations} consultations, mostly focused on ${peakTopic}.`
   const paragraph = isVi
-    ? `Trong ${daysBack} ngày qua, AI Doctor ghi nhận ${sourceMessages.length} lượt trao đổi trên ${totalDays} ngày hoạt động. Nội dung nổi bật xoay quanh ${topics.map(([topic]) => topic).join(', ') || 'hồ sơ bệnh nhân'}, kết hợp nhắc lịch theo dõi, đọc lại lịch sử chat và chuẩn bị dữ liệu cho bác sĩ trước buổi khám tiếp theo.${realMessages.length ? '' : ' Đây là dữ liệu minh họa vì tài khoản hiện chưa có đủ lịch sử chat trong khoảng đã chọn.'}`
-    : `Over the last ${daysBack} days, AI Doctor found ${sourceMessages.length} exchanges across ${totalDays} active days. The most visible themes were ${topics.map(([topic]) => topic).join(', ') || 'patient records'}, combining follow-up reminders, chat-history review, and doctor-ready preparation before the next visit.${realMessages.length ? '' : ' Demo data is shown because this account has limited chat history for the selected range.'}`
+    ? `Trong ${daysBack} ngày qua, AI Doctor ghi nhận ${sourceMessages.length} lượt trao đổi trên ${totalDays} ngày hoạt động. Nội dung nổi bật xoay quanh ${topics.map(([topic]) => topic).join(', ') || 'hồ sơ siêu anh hùng'}, kết hợp nhắc lịch theo dõi, đọc lại lịch sử chat và chuẩn bị dữ liệu cho bác sĩ trước buổi khám tiếp theo.${realMessages.length ? '' : ' Đây là dữ liệu minh họa vì tài khoản hiện chưa có đủ lịch sử chat trong khoảng đã chọn.'}`
+    : `Over the last ${daysBack} days, AI Doctor found ${sourceMessages.length} exchanges across ${totalDays} active days. The most visible themes were ${topics.map(([topic]) => topic).join(', ') || 'hero records'}, combining follow-up reminders, chat-history review, and doctor-ready preparation before the next visit.${realMessages.length ? '' : ' Demo data is shown because this account has limited chat history for the selected range.'}`
 
   return { title, paragraph, topDay, peakHour: formatHour(peakHour), totalConsultations, totalDays, topics, chart, usingSample: !realMessages.length }
 }
 
-export default function PatientReflectPanel({ onNext, onPrev, prevLabel, nextLabel }) {
+export default function HeroReflectPanel({ onNext, onPrev, prevLabel, nextLabel }) {
   const { theme, lang } = useApp()
   const { user } = useAuth()
   const isDark = theme === 'dark'
@@ -126,7 +126,7 @@ export default function PatientReflectPanel({ onNext, onPrev, prevLabel, nextLab
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.6, color: '#0ea5e9' }}>AI DOCTOR · REFLECT</div>
-              <h2 style={{ margin: '8px 0 8px', color: text, fontSize: 30 }}>{isVi ? '🪞 Patient Reflection' : '🪞 Patient Reflection'}</h2>
+              <h2 style={{ margin: '8px 0 8px', color: text, fontSize: 30 }}>{isVi ? '🪞 Hero Reflection / Phản chiếu Siêu Anh Hùng' : '🪞 Hero Reflection / Phản chiếu Siêu Anh Hùng'}</h2>
               <p style={{ margin: 0, color: muted, lineHeight: 1.6 }}>{isVi ? 'Tóm tắt lịch sử chat, hồ sơ và nhịp sử dụng thành báo cáo nhanh cho bác sĩ.' : 'Summarize chat history, records, and usage rhythm into a doctor-ready report.'}</p>
             </div>
             <select value={range} onChange={e => setRange(Number(e.target.value))} style={{ border: `1px solid ${border}`, borderRadius: 14, padding: '10px 12px', color: text, background: isDark ? '#111827' : '#f8fafc', fontWeight: 800 }}>
@@ -164,9 +164,9 @@ export default function PatientReflectPanel({ onNext, onPrev, prevLabel, nextLab
         </section>
 
         <section style={{ marginTop: 24, border: `1px solid ${border}`, borderRadius: 30, padding: 24, background: card, boxShadow: isDark ? '0 24px 80px rgba(0,0,0,0.32)' : '0 24px 70px rgba(14,165,233,0.10)' }}>
-          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.6, color: '#0ea5e9', marginBottom: 16 }}>{isVi ? 'AI DOCTOR ADMIN · BỆNH NHÂN' : 'AI DOCTOR ADMIN · PATIENT'}</div>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.6, color: '#0ea5e9', marginBottom: 16 }}>{isVi ? 'AI DOCTOR ADMIN · SIÊU ANH HÙNG' : 'AI DOCTOR ADMIN · HERO'}</div>
           <div style={{ color: '#1f2937' }}>
-            <PatientView />
+            <HeroView userName={user?.name || (isVi ? 'Siêu Anh Hùng' : 'Hero')} userAvatar={user?.avatar || ''} userMeta={`UUID: ${user?.uuid || 'guest'} · ${isVi ? 'đồng bộ từ Hồ sơ cá nhân' : 'synced from User Profile'}`} />
           </div>
         </section>
 
