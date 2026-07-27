@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import {
   ArrowRight, ArrowUpRight, Play, CheckCircle2, Users, Users2, Heart, Droplet, HeartPulse,
   Brain, Trophy, Award, ShoppingBag, Gamepad2, Handshake, CalendarDays,
@@ -14,6 +14,7 @@ import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
+import { useApp } from '../context/AppContext'
 
 /**
  * landingPageZeroToForever.jsx
@@ -36,12 +37,15 @@ import { getLandingT } from '../i18n/zofoLandingI18n.js'
  * - Icon dùng lucide-react (đã có sẵn trong project)
  *
  * Bổ sung:
- *  - Toggle ngôn ngữ Tiếng Việt / English, đồng bộ với từ điển
- *    src/i18n/zofoLandingI18n.js (lưu lựa chọn vào localStorage).
- *  - Toggle giao diện Dark / Night, áp dụng class `dark` (Tailwind
- *    darkMode: 'class') chỉ trong phạm vi trang landing này.
+ *  - Toggle ngôn ngữ Tiếng Việt / English và toggle giao diện Dark / Night
+ *    dùng CHUNG state với toàn bộ app (AppContext: theme/lang, lưu key
+ *    `cdoc_theme` / `cdoc_lang`) — nên khi đổi ở Landing rồi bấm "Đăng nhập"
+ *    / "Bắt đầu hành trình" đi qua Hero, Login, vào trong app, theme và
+ *    ngôn ngữ đã chọn vẫn giữ nguyên, không bị reset về mặc định.
+ *  - Class `dark` (Tailwind darkMode: 'class') vẫn chỉ bọc trong phạm vi
+ *    trang landing này để áp style riêng của landing.
  *  - Hotline hỗ trợ: mailto:admin@blooddonation.space
- *  - Liên hệ hợp tác (đối tác): mailto:partners@zerotoforever.com
+ *  - Liên hệ hợp tác (đối tác): mailto:partner@blooddonation.space
  *
  * Props (đều optional — component vẫn render standalone bình thường):
  *  - onGetStarted()   : bấm "Bắt đầu hành trình" / "Tham gia ngay" (CTA chính)
@@ -50,8 +54,6 @@ import { getLandingT } from '../i18n/zofoLandingI18n.js'
  *  - onDownloadApp()  : bấm "Tải ứng dụng"
  */
 
-const LANG_STORAGE_KEY = 'zofo_landing_lang'
-const THEME_STORAGE_KEY = 'zofo_landing_theme'
 const HOTLINE_EMAIL = 'admin@blooddonation.space'
 const PARTNERSHIP_EMAIL = 'partner@blooddonation.space'
 
@@ -319,25 +321,18 @@ export default function LandingPageZeroToForever({
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
 
-  const [language, setLanguage] = useState(() => {
-    if (typeof window === 'undefined') return 'vi'
-    return window.localStorage.getItem(LANG_STORAGE_KEY) || 'vi'
-  })
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') return 'light'
-    return window.localStorage.getItem(THEME_STORAGE_KEY) || 'light'
-  })
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') window.localStorage.setItem(LANG_STORAGE_KEY, language)
-  }, [language])
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') window.localStorage.setItem(THEME_STORAGE_KEY, theme)
-  }, [theme])
+  // Dùng chung theme/lang với AppContext (toàn bộ app: Hero, Login, các màn
+  // hình bên trong) thay vì state + localStorage riêng của trang landing —
+  // để bấm toggle ở Landing rồi đi tiếp vào Hero/Login/trong app vẫn giữ
+  // đúng chế độ sáng/tối và ngôn ngữ đã chọn.
+  const { theme, toggleTheme, lang: language, setLang: setLanguage } = useApp()
 
   const t = getLandingT(language)
   const isDark = theme === 'dark'
+  // ThemeToggle gọi setTheme(nextValue); toggleTheme() của AppContext tự
+  // đảo trạng thái hiện tại nên bỏ qua tham số truyền vào vẫn cho kết quả
+  // đúng (vì isDark ở đây luôn phản ánh đúng theme hiện tại trong context).
+  const setTheme = () => toggleTheme()
 
   const openVideoHelp = () => setShowVideoHelp(true)
   const openQRModal = () => setShowQRModal(true)
