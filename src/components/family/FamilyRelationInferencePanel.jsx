@@ -264,11 +264,6 @@ export default function FamilyRelationInferencePanel({ patientId = 'LXK-2024', s
                 ? 'Trang giả lập các mối quan hệ tiền sử bệnh án gia đình đã input tại Family Medical Tree. Hệ thống biến dữ liệu thân nhân thành graph y khoa, sinh AI agents chuyên khoa và tạo báo cáo dự đoán theo vòng đời 5 giai đoạn.'
                 : 'Simulates the family medical-history relationships entered in Family Medical Tree. The page converts relatives into a medical graph, generates specialist AI agents, and creates a predictive report through the five-stage lifecycle.'}
             </p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
-              {['https://app.getzep.com/playground', 'https://deepwiki.com/666ghj/MiroFish'].map(url => (
-                <a key={url} href={url} target="_blank" rel="noreferrer" style={{ color: '#00e5ff', textDecoration: 'none', border: '1px solid rgba(0,229,255,.25)', background: 'rgba(0,229,255,.08)', borderRadius: 999, padding: '8px 12px', fontSize: 11, fontFamily: 'var(--font-mono)' }}>{url.replace('https://', '')} ↗</a>
-              ))}
-            </div>
           </div>
 
           <div style={{ padding: 20, borderRadius: 22, border: `1px solid ${c.border}`, background: c.panel }}>
@@ -321,7 +316,7 @@ export default function FamilyRelationInferencePanel({ patientId = 'LXK-2024', s
           ))}
         </div>
 
-        {!embedded && <NavButtons onNext={onNext} nextLabel={nextLabel || (lang === 'vi' ? 'Hồ sơ bệnh nhân' : 'Patient Record')} onPrev={onPrev} prevLabel={prevLabel} style={{ marginTop: 22 }} />}
+        {!embedded && <NavButtons onNext={onNext} nextLabel={nextLabel || (lang === 'vi' ? 'Hồ sơ Siêu Anh Hùng' : 'Patient Record')} onPrev={onPrev} prevLabel={prevLabel} style={{ marginTop: 22 }} />}
       </div>
     </div>
   )

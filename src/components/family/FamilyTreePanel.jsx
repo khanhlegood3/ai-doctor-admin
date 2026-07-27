@@ -338,7 +338,7 @@ function MemberFormModal({ mode, initialForm, onSave, onClose, lang, isDark, c, 
           </Field>
         </div>
 
-        <Field label={lang === 'vi' ? 'Quan hệ với bệnh nhân' : 'Relation to Patient'}>
+        <Field label={lang === 'vi' ? 'Quan hệ với Siêu Anh Hùng' : 'Relation to Patient'}>
           <select value={localForm.relation} onChange={e => setLocalForm(p => ({ ...p, relation:e.target.value }))} style={selectStyle}>
             {RELATIONS.map(r => (
               <option key={r} value={r}>{FAMILY_RELATION_META[r]?.label?.[lang] || FAMILY_RELATION_META[r]?.label?.vi || r}</option>
