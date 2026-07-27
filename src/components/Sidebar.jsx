@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
+import { AGENTS } from '../data/mockData.js'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
+
+const COLOR_MAP = {
+  cyan:   { bg: 'rgba(0,229,255,0.12)',   color: '#00e5ff' },
+  violet: { bg: 'rgba(156,111,255,0.12)', color: '#9c6fff' },
+  pink:   { bg: 'rgba(244,143,177,0.12)', color: '#f48fb1' },
+  green:  { bg: 'rgba(0,230,118,0.12)',   color: '#00e676' },
+}
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -69,7 +77,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'stressRelief', label: t('stressRelief'), step: '32' },
     { id: 'aiInbodyPortal', label: t('aiInbodyPortal'), step: '33' },
     { id: 'printPortal', label: 'Print Portal', step: '34' },
-    { id: 'patientReflect', label: 'Patient Reflection', step: '35' },
+    { id: 'patientReflect', label: 'Hero Reflection / Phản chiếu Siêu Anh Hùng', step: '35' },
     { id: 'chatHistory', label: 'Lịch sử Chat với AI', step: '36' },
   ]
 
@@ -99,14 +107,8 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     'stressRelief',
     'chatHistory',
   ])
-  // Nhóm "AI Agents" — các màn hội đồng AI đa tác nhân (swarm/consensus/VAR),
-  // tách riêng khỏi nhóm "VIP PRO Accounts Only" dù cả hai đều bị khoá theo
-  // cùng cơ chế VipProGate ở App.jsx (xem VIP_PRO_PANEL_IDS).
-  const AI_AGENT_STEP_IDS = new Set(['swarm', 'consensus', 'varCheck'])
-
   const PATIENT_JOURNEY_STEPS = STEPS.filter((step) => VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
-  const AI_AGENT_STEPS = STEPS.filter((step) => AI_AGENT_STEP_IDS.has(step.id))
-  const VIP_PRO_STEPS = STEPS.filter((step) => !VIP_PRO_EXCLUDED_STEP_IDS.has(step.id) && !AI_AGENT_STEP_IDS.has(step.id))
+  const VIP_PRO_STEPS = STEPS.filter((step) => !VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
 
   const ADMIN_STEPS = user?.isAdmin ? [
     { id: 'myImageToVideo', label: 'My Image to Video', step: 'LAST', icon: '🎞️' },
@@ -131,45 +133,6 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'affiliateControl', label: 'Affiliate Control Panel (Mô phỏng)', step: 'SIM', icon: '🧪' },
   ] : []
 
-  // Nhóm "Profile" — luôn hiện, không bị khoá VIP PRO.
-  const PROFILE_STEPS = [
-    { id: 'profile', label: t('profile') || 'Hồ Sơ Cá Nhân', step: '👤' },
-  ]
-
-  // Cấu hình đầy đủ các group menu (khôi phục lại toàn bộ, không còn giới
-  // hạn chỉ 2 group Admin/Mô Phỏng như commit cũ). "vip" = các mục bị khoá
-  // bởi VipProGate ở App.jsx (VIP_PRO_PANEL_IDS) trừ khi user là Admin hoặc
-  // tài khoản VIP PRO thật — user thường vẫn bấm được, chỉ là màn sẽ hiện
-  // popup khoá + làm mờ/disable layout phía sau (xem App.jsx).
-  const GROUPS = [
-    { key: 'profile', label: 'Profile', items: PROFILE_STEPS, variant: 'default', defaultOpen: true, collapsible: false },
-    { key: 'patientJourney', label: 'Patient Journey', items: PATIENT_JOURNEY_STEPS, variant: 'default', defaultOpen: true },
-    { key: 'vipPro', label: 'VIP PRO Accounts Only', items: VIP_PRO_STEPS, variant: 'vip', defaultOpen: false },
-    { key: 'aiAgents', label: 'AI Agents', items: AI_AGENT_STEPS, variant: 'vip', defaultOpen: false },
-    { key: 'admin', label: 'Admin', items: ADMIN_STEPS, variant: 'admin', defaultOpen: false },
-    { key: 'simulation', label: 'Mô Phỏng (Nội Bộ)', items: SIMULATION_STEPS, variant: 'admin', defaultOpen: false },
-  ].filter(g => g.items.length > 0)
-
-  const [openGroups, setOpenGroups] = useState(() => {
-    const initial = {}
-    GROUPS.forEach(g => { initial[g.key] = !!g.defaultOpen })
-    return initial
-  })
-
-  // Tự động mở nhóm đang chứa mục active (vd: bấm từ nơi khác điều hướng
-  // thẳng vào 1 màn VIP PRO/AI Agents thì nhóm tương ứng phải bung ra).
-  useEffect(() => {
-    const owningGroup = GROUPS.find(g => g.items.some(s => s.id === active))
-    if (owningGroup && !openGroups[owningGroup.key]) {
-      setOpenGroups(prev => ({ ...prev, [owningGroup.key]: true }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active])
-
-  const toggleGroup = (key) => {
-    setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
   useEffect(() => {
     if (openSignal > 0) setOpen(true)
   }, [openSignal])
@@ -179,68 +142,153 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     if (isMobile) setOpen(false)
   }
 
-  const handleLogout = () => {
-    logout()
-    if (isMobile) setOpen(false)
-  }
-
-  const VARIANT_COLORS = {
-    default: '#00e5ff',
-    vip: '#f59e0b',
-    admin: '#ff5252',
-  }
-
   const sidebarContent = (
     <>
-      {GROUPS.map((group, idx) => {
-        const accent = VARIANT_COLORS[group.variant] || '#00e5ff'
-        const collapsible = group.collapsible !== false
-        const isOpen = !collapsible || !!openGroups[group.key]
+      {/* User card */}
+      {user && (
+        <button
+          type="button"
+          onClick={() => handleNavigate('profile')}
+          aria-label={t('profile')}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px',
+            background: active === 'profile' ? 'rgba(0,229,255,0.12)' : surface, border: `1px solid ${active === 'profile' ? '#00e5ff' : border}`, borderRadius: 10, marginBottom: 12,
+            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          }}
+        >
+          <img src={user.avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', border: `2px solid ${user.isAdmin ? '#ff5252' : '#00b8cc'}` }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+            <div style={{ fontSize: 9, color: user.isAdmin ? '#ff5252' : '#00b8cc', fontWeight: 600 }}>{user.isAdmin ? '★ ADMIN' : '● USER'}</div>
+          </div>
+        </button>
+      )}
+
+      <NavItem active={active === 'landingZeroToForever'} onClick={() => handleNavigate('landingZeroToForever')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>♾️</span>
+        <span style={{ flex: 1 }}>Zero to Forever - Trang chủ</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>ZOFO</span>
+      </NavItem>
+      <NavItem active={active === 'chooseUserRole'} onClick={() => handleNavigate('chooseUserRole')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>🎭</span>
+        <span style={{ flex: 1 }}>Chọn Vai Trò Anh Hùng</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>NEW</span>
+      </NavItem>
+      <NavItem active={active === 'donationHero'} onClick={() => handleNavigate('donationHero')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>🦸</span>
+        <span style={{ flex: 1 }}>Anh Hùng Hiến Tặng</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>GAN</span>
+      </NavItem>
+      <NavItem active={active === 'affiliateUuidReferral'} onClick={() => handleNavigate('affiliateUuidReferral')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>🔗</span>
+        <span style={{ flex: 1 }}>Đăng Ký Affiliate Marketing</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>UUID</span>
+      </NavItem>
+      <SectionLabel color={text3}>{t('profile')}</SectionLabel>
+      <NavItem active={active === 'profile'} onClick={() => handleNavigate('profile')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>👤</span>
+        <span style={{ flex: 1 }}>{t('profile')}</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>ID</span>
+      </NavItem>
+      <NavItem active={active === 'avatarCreator'} onClick={() => handleNavigate('avatarCreator')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>🧑‍🚀</span>
+        <span style={{ flex: 1 }}>Tạo Avatar</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>VRM</span>
+      </NavItem>
+      <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('patients')} Journey</SectionLabel>
+      {PATIENT_JOURNEY_STEPS.map(s => (
+        <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
+          <span style={{ flex: 1 }}>{s.label}</span>
+          <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>{s.step}</span>
+        </NavItem>
+      ))}
+
+      {VIP_PRO_STEPS.length > 0 && (
+        <>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>VIP PRO Accounts Only</SectionLabel>
+          {VIP_PRO_STEPS.map(s => (
+            <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
+              <span style={{ flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>{s.step}</span>
+            </NavItem>
+          ))}
+        </>
+      )}
+
+      {ADMIN_STEPS.length > 0 && (
+        <>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>Admin</SectionLabel>
+          {ADMIN_STEPS.map(s => (
+            <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
+              <span style={{ fontSize: 12 }}>{s.icon || '🛡️'}</span>
+              <span style={{ flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#ff5252' }}>{s.step}</span>
+            </NavItem>
+          ))}
+        </>
+      )}
+
+      {SIMULATION_STEPS.length > 0 && (
+        <>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>Mô Phỏng (Nội Bộ)</SectionLabel>
+          {SIMULATION_STEPS.map(s => (
+            <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
+              <span style={{ fontSize: 12 }}>{s.icon || '🧪'}</span>
+              <span style={{ flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#ff5252' }}>{s.step}</span>
+            </NavItem>
+          ))}
+        </>
+      )}
+
+      <SectionLabel color={text3} style={{ marginTop: 16 }}>AI Agents</SectionLabel>
+      {AGENTS.map(agent => {
+        const c = COLOR_MAP[agent.color]
         return (
-          <div key={group.key} style={{ marginTop: idx === 0 ? 0 : 16 }}>
-            {collapsible ? (
-              <button
-                onClick={() => toggleGroup(group.key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  padding: '0 2px 8px', fontFamily: 'monospace',
-                }}
-              >
-                <span style={{ fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: group.variant === 'default' ? text3 : accent, fontWeight: group.variant === 'default' ? 400 : 700 }}>
-                  {group.label}
-                </span>
-                <span style={{ flex: 1 }} />
-                <span style={{ fontSize: 9, color: text3, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
-              </button>
-            ) : (
-              <SectionLabel color={text3} style={{ marginTop: 0 }}>{group.label}</SectionLabel>
-            )}
-            {isOpen && group.items.map(s => (
-              <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={accent} text2={text2} isDark={isDark} variant={group.variant}>
-                {s.icon && <span style={{ fontSize: 12 }}>{s.icon}</span>}
-                <span style={{ flex: 1 }}>{s.label}</span>
-                <span style={{ fontSize: 10, fontFamily: 'monospace', color: accent }}>{s.step}</span>
-              </NavItem>
-            ))}
+          <div key={agent.id} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 10px', borderRadius: 8,
+            background: surface, border: `1px solid ${border}`, marginBottom: 4,
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 7,
+              background: c.bg, color: c.color,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontFamily: 'monospace', fontWeight: 700, flexShrink: 0,
+            }}>{agent.abbr}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{agent.name}</div>
+              <div style={{ marginTop: 4, height: 3, background: surface2, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${agent.confidence}%`, borderRadius: 2, background: c.color, animation: 'grow-bar 1s ease both' }} />
+              </div>
+            </div>
+            <span style={{ fontSize: 10, fontFamily: 'monospace', color: c.color, flexShrink: 0 }}>{agent.confidence}%</span>
           </div>
         )
       })}
 
-      <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${border}` }}>
+      {/* Logout */}
+      {user && (
         <button
-          onClick={handleLogout}
+          onClick={() => { logout(); setOpen(false) }}
           style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8,
-            cursor: 'pointer', width: '100%', textAlign: 'left',
-            background: 'transparent', border: `1px solid ${border}`,
-            color: '#ff5252', fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
+            marginTop: 16, width: '100%', padding: '10px 12px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            border: '1px solid rgba(255,82,82,0.25)',
+            background: 'rgba(255,82,82,0.06)',
+            color: '#ff5252', fontFamily: 'inherit', textAlign: 'left',
+            transition: 'all 0.18s',
           }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,82,82,0.14)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,82,82,0.06)'}
         >
-          <span style={{ fontSize: 14 }}>🚪</span>
-          <span style={{ flex: 1 }}>{t('logout') || 'Đăng Xuất'}</span>
+          <span style={{ fontSize: 15 }}>🚪</span>
+          <span>{t('logout')}</span>
         </button>
-      </div>
+      )}
     </>
   )
 
@@ -304,16 +352,14 @@ function SectionLabel({ children, color, style }) {
   )
 }
 
-function NavItem({ active, onClick, children, text, text2, isDark, variant = 'default' }) {
-  const activeColor = text || (variant === 'admin' ? '#ff5252' : variant === 'vip' ? '#f59e0b' : '#00e5ff')
-  const activeBg = variant === 'admin' ? 'rgba(255,82,82,0.07)' : variant === 'vip' ? 'rgba(245,158,11,0.08)' : 'rgba(0,229,255,0.07)'
-  const activeBorder = variant === 'admin' ? 'rgba(255,82,82,0.3)' : variant === 'vip' ? 'rgba(245,158,11,0.35)' : 'rgba(0,229,255,0.25)'
+function NavItem({ active, onClick, children, text, text2, isDark, isAdmin }) {
+  const activeColor = isAdmin ? '#ff5252' : '#00e5ff'
   return (
     <button onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8,
       cursor: 'pointer',
-      background: active ? activeBg : 'transparent',
-      border: `1px solid ${active ? activeBorder : 'transparent'}`,
+      background: active ? `${isAdmin ? 'rgba(255,82,82,0.07)' : 'rgba(0,229,255,0.07)'}` : 'transparent',
+      border: `1px solid ${active ? (isAdmin ? 'rgba(255,82,82,0.3)' : 'rgba(0,229,255,0.25)') : 'transparent'}`,
       color: active ? activeColor : text2,
       fontSize: 13, fontFamily: 'inherit', fontWeight: 500,
       textAlign: 'left', width: '100%', transition: 'all 0.18s',
