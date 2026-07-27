@@ -37,7 +37,7 @@ async function submitReward({ uuid, kind, amount, currency, gameId, note }) {
   return result
 }
 
-export default function GameAffiliateRewardWidget({ uuid, lastGameResult, playerName }) {
+export default function GameAffiliateRewardWidget({ uuid, lastGameResult, playerName, cameraOpen }) {
   const [code, setCode] = useState('')
   const [referralCount, setReferralCount] = useState(0)
   const [rewards, setRewards] = useState([])
@@ -182,7 +182,10 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult, player
   if (!uuid) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    // Khung camera cử chỉ (TouchlessHandCam trong BodyProtectionJourneyPanel.jsx)
+    // cũng neo "fixed bottom-6 left-6" — khi camera đang mở, đẩy popup này
+    // lên cao hơn (bottom-48) để không bị che/đè lên khung camera.
+    <div className={`fixed left-6 z-50 transition-all ${cameraOpen ? 'bottom-48' : 'bottom-6'}`}>
       {!open && (
         <button
           type="button"

@@ -367,7 +367,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
         )}
       </div>
 
-      <GameAffiliateRewardWidget uuid={user?.uuid} lastGameResult={lastGameResult} playerName={user?.name} />
+      <GameAffiliateRewardWidget uuid={user?.uuid} lastGameResult={lastGameResult} playerName={user?.name} cameraOpen={gestureOn} />
     </div>
   )
 }
