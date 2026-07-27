@@ -293,7 +293,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
             className="h-full min-h-full w-full bg-black"
             style={{ border: 'none', display: 'block' }}
             // BẮT BUỘC: Thêm "camera" để iFrame được phép chiếm quyền
-            allow="camera; microphone; autoplay; fullscreen; display-capture"
+            allow="camera; microphone; xr-spatial-tracking; autoplay; fullscreen; display-capture"
             onLoad={syncPlayerIdentityToGame}
           />
 

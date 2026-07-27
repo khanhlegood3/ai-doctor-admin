@@ -12,18 +12,6 @@ const HOLD_FRAMES_TO_RELEASE = 5
 
 const DEFAULT_GAMES = [
   {
-    id: 'patienthelperz01',
-    caption: 'patienthelperz01',
-    captionEn: 'Siêu Anh Hùng đau chỗ nào gửi kết quả Online trước',
-    src: 'https://patienthelperz01.framer.website/',
-  },
-  {
-    id: 'patienthelperxrcc',
-    caption: 'https://portal.xrcc.events/hackathon/XRCC_26/project/ac7f951f-d453-4e77-b413-634e8254b3b4',
-    captionEn: '3D Siêu Anh Hùng đau chỗ nào gửi kết quả Online trước',
-    src: 'https://pain-path.vercel.app/',
-  },
-  {
     id: 'medconnect',
     caption: 'medconnect',
     captionEn: '3D xr hướng dẫn sử dụng thuốc',
@@ -644,7 +632,7 @@ export default function StressReliefPanel({ onNext, nextLabel, onPrev, prevLabel
           title={lang === 'en' ? selectedGame.captionEn : selectedGame.caption}
           src={selectedGame.src}
           className="stress-relief-frame"
-          allow="camera; microphone; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          allow="camera; microphone; xr-spatial-tracking; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
         />
         {selectedGame.hasMask && (
