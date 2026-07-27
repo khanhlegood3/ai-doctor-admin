@@ -36,25 +36,25 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
   const surface2 = isDark ? 'rgba(255,255,255,0.06)'  : 'rgba(0,0,0,0.06)'
 
   const STEPS = [
-    { id: 'bodyProtectionJourney', label: 'Hành Trình Bảo Vệ Cơ Thể', step: '01' },
-    { id: 'hero3DMap', label: '3D Map for Hero', step: '01a' },
-    { id: 'myPainPathBody', label: 'My Pain Path Body', step: '01b' },
-    { id: 'myPainPathBodyPixel', label: 'My Pain Path Body Pixel', step: '01c' },
-    { id: 'myPainPathNoiTang', label: 'My Pain Path Nội Tạng', step: '01d' },
-    { id: 'myPainPathNoiTangPixel', label: 'My Pain Path Nội Tạng Pixel', step: '01e' },
-    { id: 'healthJourneyGame', label: 'Health Journey Game', step: '02' },
-    { id: 'medicalAssetStore', label: 'Chợ Tài nguyên 3D', step: '03' },
-    { id: 'medicalVisualPlayground', label: 'Medical 3D Lab (Touchless)', step: '04' },
-    { id: 'medicalVisualCameraAngle3D', label: 'Medical Camera Angle 3D', step: '04b' },
-    { id: 'myRewardHealth', label: 'My Reward Health', step: '05' },
-    { id: 'affiliate', label: 'Affiliate & Earn Đa Tầng', step: '05b' },
-    { id: 'rssPortal', label: 'Healthy RSS Portal', step: '06' },
+    { id: 'bodyProtectionJourney', label: t('nav_bodyProtectionJourney'), step: '01' },
+    { id: 'hero3DMap', label: t('nav_hero3DMap'), step: '01a' },
+    { id: 'myPainPathBody', label: t('nav_myPainPathBody'), step: '01b' },
+    { id: 'myPainPathBodyPixel', label: t('nav_myPainPathBodyPixel'), step: '01c' },
+    { id: 'myPainPathNoiTang', label: t('nav_myPainPathNoiTang'), step: '01d' },
+    { id: 'myPainPathNoiTangPixel', label: t('nav_myPainPathNoiTangPixel'), step: '01e' },
+    { id: 'healthJourneyGame', label: t('nav_healthJourneyGame'), step: '02' },
+    { id: 'medicalAssetStore', label: t('nav_medicalAssetStore'), step: '03' },
+    { id: 'medicalVisualPlayground', label: t('nav_medicalVisualPlayground'), step: '04' },
+    { id: 'medicalVisualCameraAngle3D', label: t('nav_medicalVisualCameraAngle3D'), step: '04b' },
+    { id: 'myRewardHealth', label: t('nav_myRewardHealth'), step: '05' },
+    { id: 'affiliate', label: t('nav_affiliate'), step: '05b' },
+    { id: 'rssPortal', label: t('nav_rssPortal'), step: '06' },
     { id: 'waterDrinkChatBot', label: t('waterDrinkChatBot'), step: '07' },
     { id: 'wikiMedVision', label: t('wikiMedVision'), step: '08' },
-    { id: 'fullDocSummarization', label: 'Full-Document Summarization', step: '09' },
-    { id: 'documentOCR', label: 'Document OCR', step: '10' },
-    { id: 'cameraAngle3DStudio', label: '3D Camera Angle', step: '11' },
-    { id: 'organConnection', label: 'Ăn gì tốt hôm nay', step: '12' },
+    { id: 'fullDocSummarization', label: t('nav_fullDocSummarization'), step: '09' },
+    { id: 'documentOCR', label: t('nav_documentOCR'), step: '10' },
+    { id: 'cameraAngle3DStudio', label: t('nav_cameraAngle3DStudio'), step: '11' },
+    { id: 'organConnection', label: t('nav_organConnection'), step: '12' },
     { id: 'healthJourney', label: t('healthJourney'), step: '13' },
     { id: 'lunchJourney', label: t('lunchJourney'), step: '14' },
     { id: 'dinnerJourney', label: t('dinnerJourney'), step: '15' },
@@ -71,14 +71,14 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'statAnalysis', label: t('statAnalysis'), step: '26' },
     { id: 'swarm', label: t('swarmCouncil'), step: '27' },
     { id: 'consensus', label: t('consensus'), step: '28' },
-    { id: 'varCheck', label: 'VAR Y TẾ', step: '29' },
+    { id: 'varCheck', label: t('nav_varCheck'), step: '29' },
     { id: 'protein3d', label: t('protein3d'), step: '30' },
     { id: 'aiHealthcareVision', label: t('aiHealthcareVision'), step: '31' },
     { id: 'stressRelief', label: t('stressRelief'), step: '32' },
     { id: 'aiInbodyPortal', label: t('aiInbodyPortal'), step: '33' },
-    { id: 'printPortal', label: 'Print Portal', step: '34' },
-    { id: 'patientReflect', label: 'Hero Reflection / Phản chiếu Siêu Anh Hùng', step: '35' },
-    { id: 'chatHistory', label: 'Lịch sử Chat với AI', step: '36' },
+    { id: 'printPortal', label: t('nav_printPortal'), step: '34' },
+    { id: 'patientReflect', label: t('nav_patientReflect'), step: '35' },
+    { id: 'chatHistory', label: t('nav_chatHistory'), step: '36' },
   ]
 
   const VIP_PRO_EXCLUDED_STEP_IDS = new Set([
@@ -111,19 +111,19 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
   const VIP_PRO_STEPS = STEPS.filter((step) => !VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
 
   const ADMIN_STEPS = user?.isAdmin ? [
-    { id: 'myImageToVideo', label: 'My Image to Video', step: 'LAST', icon: '🎞️' },
-    { id: 'make3DModel', label: 'Make 3D Model', step: 'CULTS', icon: '🧙‍♀️' },
-    { id: 'my3dAsset', label: 'My 3D Asset', step: 'GLB', icon: '🧊' },
-    { id: 'twoDTo3DAsset', label: '2D to 3D Asset', step: '05b', icon: '🖼️' },
-    { id: 'xyzCameraAngle', label: 'Góc chụp toạ độ XYZ', step: '05b2', icon: '📐' },
+    { id: 'myImageToVideo', label: t('admin_myImageToVideo'), step: 'LAST', icon: '🎞️' },
+    { id: 'make3DModel', label: t('admin_make3DModel'), step: 'CULTS', icon: '🧙‍♀️' },
+    { id: 'my3dAsset', label: t('admin_my3dAsset'), step: 'GLB', icon: '🧊' },
+    { id: 'twoDTo3DAsset', label: t('admin_twoDTo3DAsset'), step: '05b', icon: '🖼️' },
+    { id: 'xyzCameraAngle', label: t('xyzCameraAngle'), step: '05b2', icon: '📐' },
     { id: 'aiHealthcareVisionControl', label: t('aiHealthcareVisionControl'), step: '24b' },
     { id: 'admin', label: t('adminPanel'), step: '★', icon: '🛡️' },
-    { id: 'affiliateAdmin', label: 'Quản Trị Affiliate', step: 'AFF', icon: '🤝' },
-    { id: 'roleMembershipAdmin', label: 'Quản Trị Vai Trò & Nâng Cấp Thành Viên', step: 'ROLE', icon: '🛂' },
-    { id: 'moralisPlaygroundAdmin', label: 'Moralis Playground Admin', step: 'MORALIS', icon: '🧪' },
-    { id: 'affiliateWebhookAdmin', label: 'Affiliate Webhook Admin', step: 'WEBHOOK', icon: '🔗' },
-    { id: 'create3DVideoFrom2D', label: 'Create 3D Video From 2D', step: '3D2D', icon: '🎥' },
-    { id: 'adminConcept', label: 'AI Doctor Admin Panel', step: '00', icon: '🧭' },
+    { id: 'affiliateAdmin', label: t('admin_affiliateAdmin'), step: 'AFF', icon: '🤝' },
+    { id: 'roleMembershipAdmin', label: t('admin_roleMembershipAdmin'), step: 'ROLE', icon: '🛂' },
+    { id: 'moralisPlaygroundAdmin', label: t('admin_moralisPlaygroundAdmin'), step: 'MORALIS', icon: '🧪' },
+    { id: 'affiliateWebhookAdmin', label: t('admin_affiliateWebhookAdmin'), step: 'WEBHOOK', icon: '🔗' },
+    { id: 'create3DVideoFrom2D', label: t('admin_create3DVideoFrom2D'), step: '3D2D', icon: '🎥' },
+    { id: 'adminConcept', label: t('admin_adminConcept'), step: '00', icon: '🧭' },
   ] : []
 
   // Nhóm menu MÔ PHỎNG/NỘI BỘ — tách riêng khỏi nhóm Admin thật ở trên. Đây là
@@ -131,7 +131,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
   // thật), chỉ dành cho Admin xem/test, KHÔNG phải dữ liệu affiliate thật của
   // người dùng (xem chú thích trong App.jsx — ADMIN_ONLY_PANELS).
   const SIMULATION_STEPS = user?.isAdmin ? [
-    { id: 'affiliateControl', label: 'Affiliate Control Panel (Mô phỏng)', step: 'SIM', icon: '🧪' },
+    { id: 'affiliateControl', label: t('sim_affiliateControl'), step: 'SIM', icon: '🧪' },
   ] : []
 
   useEffect(() => {
@@ -167,22 +167,22 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
       <NavItem active={active === 'landingZeroToForever'} onClick={() => handleNavigate('landingZeroToForever')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>♾️</span>
-        <span style={{ flex: 1 }}>Zero to Forever - Trang chủ</span>
+        <span style={{ flex: 1 }}>{t('nav_zeroToForever')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>ZOFO</span>
       </NavItem>
       <NavItem active={active === 'chooseUserRole'} onClick={() => handleNavigate('chooseUserRole')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🎭</span>
-        <span style={{ flex: 1 }}>Chọn Vai Trò Anh Hùng</span>
+        <span style={{ flex: 1 }}>{t('nav_chooseUserRole')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>NEW</span>
       </NavItem>
       <NavItem active={active === 'donationHero'} onClick={() => handleNavigate('donationHero')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🦸</span>
-        <span style={{ flex: 1 }}>Anh Hùng Hiến Tặng</span>
+        <span style={{ flex: 1 }}>{t('nav_donationHero')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>GAN</span>
       </NavItem>
       <NavItem active={active === 'affiliateUuidReferral'} onClick={() => handleNavigate('affiliateUuidReferral')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🔗</span>
-        <span style={{ flex: 1 }}>Đăng Ký Affiliate Marketing</span>
+        <span style={{ flex: 1 }}>{t('nav_affiliateUuidReferral')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>UUID</span>
       </NavItem>
       <SectionLabel color={text3}>{t('profile')}</SectionLabel>
@@ -193,10 +193,10 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
       </NavItem>
       <NavItem active={active === 'avatarCreator'} onClick={() => handleNavigate('avatarCreator')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🧑‍🚀</span>
-        <span style={{ flex: 1 }}>Tạo Avatar</span>
+        <span style={{ flex: 1 }}>{t('nav_avatarCreator')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>VRM</span>
       </NavItem>
-      <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('patients')} Journey</SectionLabel>
+      <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_patientsJourney')}</SectionLabel>
       {PATIENT_JOURNEY_STEPS.map(s => (
         <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
@@ -207,7 +207,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
       {VIP_PRO_STEPS.length > 0 && (
         <>
-          <SectionLabel color={text3} style={{ marginTop: 16 }}>VIP PRO Accounts Only</SectionLabel>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_vipProOnly')}</SectionLabel>
           {VIP_PRO_STEPS.map(s => (
             <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
@@ -220,7 +220,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
       {ADMIN_STEPS.length > 0 && (
         <>
-          <SectionLabel color={text3} style={{ marginTop: 16 }}>Admin</SectionLabel>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_admin')}</SectionLabel>
           {ADMIN_STEPS.map(s => (
             <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
               <span style={{ fontSize: 12 }}>{s.icon || '🛡️'}</span>
@@ -233,7 +233,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
       {SIMULATION_STEPS.length > 0 && (
         <>
-          <SectionLabel color={text3} style={{ marginTop: 16 }}>Mô Phỏng (Nội Bộ)</SectionLabel>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_simulationInternal')}</SectionLabel>
           {SIMULATION_STEPS.map(s => (
             <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text="#ff5252" text2={text2} isDark={isDark} isAdmin>
               <span style={{ fontSize: 12 }}>{s.icon || '🧪'}</span>
@@ -244,7 +244,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
         </>
       )}
 
-      <SectionLabel color={text3} style={{ marginTop: 16 }}>AI Agents</SectionLabel>
+      <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_aiAgents')}</SectionLabel>
       {AGENTS.map(agent => {
         const c = COLOR_MAP[agent.color]
         return (
