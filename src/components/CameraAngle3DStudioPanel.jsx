@@ -535,7 +535,7 @@ export default function CameraAngle3DStudioPanel({ onNext, nextLabel, onPrev, pr
         <section style={{ border: `1px solid ${palette.border}`, background: `radial-gradient(circle at 16% 8%, rgba(34,211,238,.22), transparent 34%), radial-gradient(circle at 84% 12%, rgba(167,139,250,.20), transparent 32%), ${palette.card}`, borderRadius: 30, padding: '28px clamp(18px, 4vw, 38px)', boxShadow: isDark ? '0 28px 90px rgba(0,0,0,.42)' : '0 24px 70px rgba(14,116,144,.12)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ maxWidth: 780 }}>
-              <div style={{ color: palette.cyan, fontSize: 12, fontWeight: 950, letterSpacing: '.16em', textTransform: 'uppercase' }}>3D XYZ Camera Angle · Qwen Multiple-Angles LoRA</div>
+              <div style={{ color: palette.cyan, fontSize: 12, fontWeight: 950, letterSpacing: '.16em', textTransform: 'uppercase' }}>3D XYZ Camera Angle</div>
               <h1 style={{ margin: '10px 0 8px', fontSize: 'clamp(28px, 4vw, 48px)', lineHeight: 1.05 }}>Chọn góc chụp bằng gizmo 3D thật</h1>
               <p style={{ margin: 0, color: palette.text2, fontSize: 15, lineHeight: 1.7 }}>
                 Kéo 3 tay cầm màu quanh mô hình <strong>.obj</strong> để chọn <strong>Azimuth</strong> (🟢 xoay ngang), <strong>Elevation</strong> (🩷 góc nghiêng), <strong>Distance</strong> (🟠 khoảng cách) — y hệt cơ chế của Space gốc, rồi gửi prompt sinh ra kèm ảnh 2D thật tới <strong>fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA</strong> để đổi góc chụp ảnh thật.
@@ -978,42 +978,6 @@ export default function CameraAngle3DStudioPanel({ onNext, nextLabel, onPrev, pr
             </div>
           </section>
 
-          {/* --- REALTIME HF SPACE --- */}
-          <section style={cardStyle(palette)}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 20 }}>🚀 Realtime Hugging Face API</h2>
-            <label style={labelStyle(palette)}>Ảnh 2D đầu vào (ảnh thật cần đổi góc chụp)</label>
-            <input type="file" accept="image/*" onChange={handleImageChange} style={{ ...inputStyle(palette), padding: 10 }} />
-            {sourcePreview && <img src={sourcePreview} alt="2D source preview" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 18, border: `1px solid ${palette.border}`, background: palette.card2, marginTop: 12 }} />}
-
-            <label style={labelStyle(palette)}>Hugging Face Space ID</label>
-            <input value={spaceId} onChange={(e) => setSpaceId(e.target.value)} style={inputStyle(palette)} />
-
-            <label style={labelStyle(palette)}>Endpoint Gradio API</label>
-            <input value={apiEndpoint} onChange={(e) => setApiEndpoint(e.target.value)} placeholder="/infer_camera_edit hoặc endpoint trong schema" style={inputStyle(palette)} />
-
-            <label style={labelStyle(palette)}>Hugging Face token nếu Space yêu cầu</label>
-            <input value={hfToken} onChange={(e) => setHfToken(e.target.value)} type="password" placeholder="hf_..." style={inputStyle(palette)} />
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
-              <button type="button" onClick={inspectApi} disabled={busy} style={actionButton(palette, busy, palette.amber, '#1f1300')}>🔎 Đọc API</button>
-              <button type="button" onClick={runCameraEdit} disabled={busy} style={actionButton(palette, busy, palette.cyan, '#001018')}>{busy ? 'Đang chạy...' : '⚡ Chạy realtime'}</button>
-            </div>
-            <p style={{ color: status.startsWith('Không') ? palette.red : palette.text2, fontSize: 12, lineHeight: 1.6 }}>{status}</p>
-
-            {outputImage && (
-              <>
-                <label style={labelStyle(palette)}>Kết quả</label>
-                <img src={outputImage} alt="output" style={{ width: '100%', borderRadius: 18, border: `1px solid ${palette.border}` }} />
-              </>
-            )}
-
-            {(apiSchema || rawResponse) && (
-              <details open style={{ marginTop: 14 }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 900 }}>API schema / Raw response</summary>
-                <pre style={{ overflow: 'auto', maxHeight: 380, background: palette.card2, color: palette.text, border: `1px solid ${palette.border}`, borderRadius: 14, padding: 12, fontSize: 11 }}>{JSON.stringify({ apiSchema, rawResponse }, null, 2)}</pre>
-              </details>
-            )}
-          </section>
         </div>
         {(onNext || onPrev) && (
           <NavButtons onNext={onNext} nextLabel={nextLabel} onPrev={onPrev} prevLabel={prevLabel} />
