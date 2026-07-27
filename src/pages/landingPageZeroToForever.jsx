@@ -14,6 +14,8 @@ import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
+import HeroZoneStackPopup from '../components/heroPanels/HeroZoneStackPopup.jsx'
+import { DEFAULT_ORGAN_ID } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
 
@@ -116,47 +118,97 @@ function ThemeToggle({ theme, setTheme }) {
 /* ── Shared: thanh điều hướng trên cùng, dùng chung cho mọi trang con ── */
 function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage, theme, setTheme }) {
   const NAV_ITEMS = getNavItems(t)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const goToPage = (key) => {
+    setPage(key)
+    setMobileMenuOpen(false)
+  }
+
   return (
-    <nav className="absolute w-full z-50 top-0 left-0 pt-6 px-6 lg:px-12 flex justify-between items-center text-white">
-      <button onClick={() => setPage('home')} className="flex items-center gap-3">
-        <img src={zofoLogo} alt="Zero to Forever" className="h-10 md:h-12 w-auto object-contain" />
-      </button>
-      <div className="hidden lg:flex space-x-8 text-sm font-medium">
-        {NAV_ITEMS.map((item) => (
+    <nav className="absolute w-full z-50 top-0 left-0 pt-6 px-6 lg:px-12 text-white">
+      <div className="flex justify-between items-center">
+        <button onClick={() => goToPage('home')} className="flex items-center gap-3">
+          <img src={zofoLogo} alt="Zero to Forever" className="h-10 md:h-12 w-auto object-contain" />
+        </button>
+        <div className="hidden lg:flex space-x-8 text-sm font-medium">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setPage(item.key)}
+              className={
+                page === item.key
+                  ? 'border-b-2 border-white pb-1'
+                  : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent'
+              }
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="hidden lg:flex items-center space-x-3">
+          <LanguageToggle language={language} setLanguage={setLanguage} />
+          <ThemeToggle theme={theme} setTheme={setTheme} />
           <button
-            key={item.key}
-            onClick={() => setPage(item.key)}
-            className={
-              page === item.key
-                ? 'border-b-2 border-white pb-1'
-                : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent'
-            }
+            onClick={onLogin}
+            className="text-sm font-medium hover:text-gray-300 transition px-4 py-2 border border-white/30 rounded-full"
           >
-            {item.label}
+            {t.nav.login}
           </button>
-        ))}
+          <button
+            onClick={onGetStarted}
+            className="text-sm font-semibold zofo-gradient-blue px-6 py-2 rounded-full zofo-shadow-neon-cyan hover:scale-105 transition transform flex items-center gap-1"
+          >
+            {t.nav.join} <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="lg:hidden flex items-center gap-2">
+          <LanguageToggle language={language} setLanguage={setLanguage} compact />
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-expanded={mobileMenuOpen}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-white/30 bg-white/5 backdrop-blur-sm text-2xl"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
-      <div className="hidden lg:flex items-center space-x-3">
-        <LanguageToggle language={language} setLanguage={setLanguage} />
-        <ThemeToggle theme={theme} setTheme={setTheme} />
-        <button
-          onClick={onLogin}
-          className="text-sm font-medium hover:text-gray-300 transition px-4 py-2 border border-white/30 rounded-full"
-        >
-          {t.nav.login}
-        </button>
-        <button
-          onClick={onGetStarted}
-          className="text-sm font-semibold zofo-gradient-blue px-6 py-2 rounded-full zofo-shadow-neon-cyan hover:scale-105 transition transform flex items-center gap-1"
-        >
-          {t.nav.join} <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="lg:hidden flex items-center gap-2">
-        <LanguageToggle language={language} setLanguage={setLanguage} compact />
-        <ThemeToggle theme={theme} setTheme={setTheme} />
-        <button className="text-2xl"><Menu /></button>
-      </div>
+
+      {/* ── Mobile dropdown menu ── */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden mt-4 rounded-2xl border border-white/15 bg-[#0B132B]/95 backdrop-blur-md shadow-2xl overflow-hidden">
+          <div className="flex flex-col divide-y divide-white/10">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => goToPage(item.key)}
+                className={`text-left px-5 py-3 text-sm font-medium transition ${
+                  page === item.key ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-3 p-5 border-t border-white/10">
+            <button
+              onClick={() => { setMobileMenuOpen(false); onLogin() }}
+              className="text-sm font-medium text-center px-4 py-2.5 border border-white/30 rounded-full"
+            >
+              {t.nav.login}
+            </button>
+            <button
+              onClick={() => { setMobileMenuOpen(false); onGetStarted() }}
+              className="text-sm font-semibold zofo-gradient-blue px-6 py-2.5 rounded-full zofo-shadow-neon-cyan flex items-center justify-center gap-1"
+            >
+              {t.nav.join} <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
@@ -416,6 +468,7 @@ export default function LandingPageZeroToForever({
         .zofo-gradient-brand { background: linear-gradient(135deg, #FF543C 0%, #8B4DFF 100%); }
         .zofo-gradient-blue { background: linear-gradient(135deg, #00C2FF 0%, #4B6BFF 100%); }
         .zofo-hero-glow { background: radial-gradient(circle at 50% 50%, rgba(139, 77, 255, 0.15) 0%, rgba(11, 19, 43, 0) 60%); }
+        .zofo-organ-zone-inline button[aria-label="zofo-organ-zone-inline-close"] { display: none !important; }
       `}</style>
 
       <NavBar
@@ -437,7 +490,7 @@ export default function LandingPageZeroToForever({
           <header className="zofo-hero-section min-h-[90vh] flex items-center pt-24 pb-32 px-6 lg:px-12 relative overflow-hidden">
             <div className="zofo-stars"></div>
             <div className="absolute inset-0 zofo-hero-glow"></div>
-            <div className="container mx-auto max-w-7xl grid lg:grid-cols-2 gap-12 relative z-10 items-center">
+            <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
               {/* Hero Left */}
               <div className="text-white space-y-6">
                 <h1 className="text-6xl md:text-8xl font-black leading-tight tracking-tight">
@@ -487,8 +540,8 @@ export default function LandingPageZeroToForever({
                 </div>
               </div>
 
-              {/* Hero Right: Embedded Framer iframe — level with the big "Zero to Forever" heading */}
-              <div className="hidden lg:block relative h-full min-h-[500px]">
+              {/* Hero Right: Embedded Framer iframe — level with the big "Zero to Forever" heading. Always visible (was `hidden lg:block`, which removed it on mobile). */}
+              <div className="relative w-full h-[340px] sm:h-[420px] lg:h-full lg:min-h-[500px]">
                 <div className="relative w-full h-full rounded-3xl overflow-hidden border border-white/10 zofo-shadow-neon-purple bg-white/5 backdrop-blur-sm">
                   <iframe
                     src="https://strange-tenure-258776.framer.app/"
@@ -503,9 +556,68 @@ export default function LandingPageZeroToForever({
             </div>
           </header>
 
+          {/* ── Organ Hero Zone: restored "Hero Right: Graphic" (infinity + astronaut)
+              combined with the HERO_ZONES organ map (toggle "Chồng nội tạng theo cột
+              cơ thể" / "Sắp xếp các nút cơ quan thành dáng người thân thiện."),
+              placed right below the Hero+Iframe section as requested. ── */}
+          <section className="zofo-hero-section relative overflow-hidden px-6 lg:px-12 py-16">
+            <div className="zofo-stars"></div>
+            <div className="absolute inset-0 zofo-hero-glow"></div>
+            <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
+              {/* Restored graphic: infinity svg + astronaut */}
+              <div className="relative h-[420px] lg:h-full lg:min-h-[520px] order-2 lg:order-1">
+                <div className="relative w-full h-full flex items-center justify-center zofo-animate-float">
+                  <svg className="zofo-infinity-svg w-[120%] h-[120%] absolute -right-10 top-0" fill="none" viewBox="0 0 200 100">
+                    <path d="M 50 50 C 10 10, 10 90, 50 50 C 90 10, 90 90, 130 50 C 170 10, 170 90, 130 50 C 90 10, 90 90, 50 50 Z" fill="none" opacity="0.8" stroke="url(#zofo-neon-grad-3)" strokeWidth="2" />
+                    <path d="M 50 50 C 10 10, 10 90, 50 50 C 90 10, 90 90, 130 50 C 170 10, 170 90, 130 50 C 90 10, 90 90, 50 50 Z" fill="none" style={{ filter: 'blur(8px)' }} opacity="0.4" stroke="url(#zofo-neon-grad-4)" strokeWidth="6" />
+                    <defs>
+                      <linearGradient id="zofo-neon-grad-3" x1="0%" x2="100%" y1="0%" y2="0%">
+                        <stop offset="0%" stopColor="#FF543C" />
+                        <stop offset="50%" stopColor="#8B4DFF" />
+                        <stop offset="100%" stopColor="#00C2FF" />
+                      </linearGradient>
+                      <linearGradient id="zofo-neon-grad-4" x1="0%" x2="100%" y1="0%" y2="0%">
+                        <stop offset="0%" stopColor="#FF543C" />
+                        <stop offset="50%" stopColor="#8B4DFF" />
+                        <stop offset="100%" stopColor="#00C2FF" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <img
+                    alt="Astronaut looking at space"
+                    className="absolute right-10 bottom-0 h-64 object-cover object-top opacity-80"
+                    src="https://images.unsplash.com/photo-1614729939124-03290b5509ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                    style={{
+                      maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
+                      WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
+                    }}
+                  />
+                  <div className="absolute bottom-12 right-0 text-right z-20">
+                    <h4 className="text-2xl font-bold text-white">Zero to Forever</h4>
+                    <p className="text-[#00C2FF] font-medium">{t.home.heroGraphicTagline}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* HERO_ZONES organ map: "Sắp xếp các nút cơ quan thành dáng người thân thiện." */}
+              <div className="relative order-1 lg:order-2 zofo-organ-zone-inline">
+                <HeroZoneStackPopup
+                  open
+                  onClose={() => {}}
+                  isDark={isDark}
+                  isEn={language === 'en'}
+                  organId={DEFAULT_ORGAN_ID}
+                  wrapperClassName="relative w-full z-10 pointer-events-auto"
+                  hint=" "
+                  closeLabel="zofo-organ-zone-inline-close"
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Feature Pillars (Overlapping Hero) */}
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 relative z-20 -mt-16">
-            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6 lg:p-8 flex flex-wrap lg:flex-nowrap justify-between gap-6">
+            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6 lg:p-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-8 lg:gap-6">
               {[
                 { icon: Droplet, bg: 'bg-red-50 dark:bg-red-500/10', color: 'text-[#FF543C]' },
                 { icon: HeartPulse, bg: 'bg-green-50 dark:bg-green-500/10', color: 'text-green-500' },
@@ -514,7 +626,7 @@ export default function LandingPageZeroToForever({
                 { icon: Award, bg: 'bg-purple-50 dark:bg-purple-500/10', color: 'text-[#8B4DFF]' },
                 { icon: Users, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]' },
               ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center text-center w-1/2 lg:w-1/5 group relative">
+                <div key={i} className="flex flex-col items-center text-center group relative">
                   {item.hot && (
                     <div className="absolute -top-4 text-xs font-bold bg-[#00C2FF] text-white px-3 py-1 rounded-full shadow-md">HOT</div>
                   )}
