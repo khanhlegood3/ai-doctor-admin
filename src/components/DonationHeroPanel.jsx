@@ -14,7 +14,7 @@ import HeroZoneStackPopup from './heroPanels/HeroZoneStackPopup.jsx';
 // DonationHeroPanel — màn hình chào mừng cho tính năng "Anh Hùng Hiến Tặng"
 // (hỗ trợ tìm hiểu hành trình hiến tặng). Dựng theo bản thiết kế tham
 // khảo: avatar trợ lý ở giữa, bản đồ HERO_ZONES, Micro, và
-// "Hành trình Siêu Anh Hùng" gồm 5 cấp độ để
+// "Hành trình Siêu Anh Hùng" gồm 6 cấp độ để
 // khuyến khích người dùng quay lại tìm hiểu dần từng bước.
 //
 // Đây là màn hình ĐỘC LẬP với theme sáng/tối chung của app — nhưng CÓ theme
@@ -48,20 +48,21 @@ const TEXT = {
     anatomyPreviewTitle: 'Bản đồ giải phẫu cơ thể',
     anatomyPreviewHint: 'Bấm vào từng điểm để xem chú thích',
     bodyProtectionPreviewTitle: 'Game bảo vệ cơ thể',
-    bodyProtectionPreviewHint: 'Bấm vào Cấp 2 để xem trước trò chơi',
+    bodyProtectionPreviewHint: 'Bấm vào Cấp 3 để xem trước trò chơi',
     captainKhanhPreviewTitle: 'Captain Khánh Game',
-    captainKhanhPreviewHint: 'Bấm vào Cấp 3 để mở trò chơi',
+    captainKhanhPreviewHint: 'Bấm vào Cấp 4 để mở trò chơi',
     heroZonesPreviewTitle: 'Bản đồ 3D nội tạng anh hùng',
-    heroZonesPreviewHint: 'Bấm vào Cấp 4 để mở bản đồ HERO_ZONES',
+    heroZonesPreviewHint: 'Bấm vào Cấp 5 để mở bản đồ HERO_ZONES',
     footer: 'Anh Hùng Hiến Tặng · Cùng nhau lan toả sự sống',
     back: 'Quay lại',
     login: 'Đăng nhập',
     levels: [
-      { level: 1, title: 'Người Tìm Hiểu', icon: '🥷', ring: 'from-emerald-400 to-emerald-600', badge: 'bg-emerald-500' },
-      { level: 2, title: 'Người Quan Tâm', icon: '💚', ring: 'from-emerald-300 to-emerald-500', badge: 'bg-emerald-400' },
-      { level: 3, title: 'Người Có Kiến Thức', icon: '📖', ring: 'from-sky-300 to-sky-500', badge: 'bg-sky-500' },
-      { level: 4, title: 'Người Sẵn Sàng', icon: '🌱', ring: 'from-violet-300 to-violet-500', badge: 'bg-violet-500' },
-      { level: 5, title: 'Đại Sứ Hiến Tặng', icon: '🛡️', ring: 'from-amber-300 to-amber-500', badge: 'bg-amber-500' },
+      { level: 1, title: 'Zero', icon: '🌱', ring: 'from-gray-400 to-gray-500', badge: 'bg-gray-500' },
+      { level: 2, title: 'Explorer', icon: '🧭', ring: 'from-sky-400 to-blue-500', badge: 'bg-blue-500' },
+      { level: 3, title: 'Guardian', icon: '🛡️', ring: 'from-amber-300 to-amber-500', badge: 'bg-amber-500' },
+      { level: 4, title: 'Hero', icon: '🦸', ring: 'from-rose-400 to-red-500', badge: 'bg-red-500' },
+      { level: 5, title: 'Legend', icon: '🏆', ring: 'from-violet-400 to-purple-600', badge: 'bg-purple-600' },
+      { level: 6, title: 'Forever', icon: '♾️', ring: 'from-teal-300 to-teal-500', badge: 'bg-teal-500' },
     ],
   },
   en: {
@@ -87,20 +88,21 @@ const TEXT = {
     anatomyPreviewTitle: 'Body anatomy atlas',
     anatomyPreviewHint: 'Click each point for details',
     bodyProtectionPreviewTitle: 'Body protection game',
-    bodyProtectionPreviewHint: 'Click Level 2 to preview the game',
+    bodyProtectionPreviewHint: 'Click Level 3 to preview the game',
     captainKhanhPreviewTitle: 'Captain Khánh Game',
-    captainKhanhPreviewHint: 'Click Level 3 to open the game',
+    captainKhanhPreviewHint: 'Click Level 4 to open the game',
     heroZonesPreviewTitle: '3D hero organ map',
-    heroZonesPreviewHint: 'Click Level 4 to open HERO_ZONES map',
+    heroZonesPreviewHint: 'Click Level 5 to open HERO_ZONES map',
     footer: 'Donation Hero · Spreading life together',
     back: 'Back',
     login: 'Log in',
     levels: [
-      { level: 1, title: 'Learner', icon: '🥷', ring: 'from-emerald-400 to-emerald-600', badge: 'bg-emerald-500' },
-      { level: 2, title: 'Interested Person', icon: '💚', ring: 'from-emerald-300 to-emerald-500', badge: 'bg-emerald-400' },
-      { level: 3, title: 'Knowledgeable Person', icon: '📖', ring: 'from-sky-300 to-sky-500', badge: 'bg-sky-500' },
-      { level: 4, title: 'Ready Person', icon: '🌱', ring: 'from-violet-300 to-violet-500', badge: 'bg-violet-500' },
-      { level: 5, title: 'Donation Ambassador', icon: '🛡️', ring: 'from-amber-300 to-amber-500', badge: 'bg-amber-500' },
+      { level: 1, title: 'Zero', icon: '🌱', ring: 'from-gray-400 to-gray-500', badge: 'bg-gray-500' },
+      { level: 2, title: 'Explorer', icon: '🧭', ring: 'from-sky-400 to-blue-500', badge: 'bg-blue-500' },
+      { level: 3, title: 'Guardian', icon: '🛡️', ring: 'from-amber-300 to-amber-500', badge: 'bg-amber-500' },
+      { level: 4, title: 'Hero', icon: '🦸', ring: 'from-rose-400 to-red-500', badge: 'bg-red-500' },
+      { level: 5, title: 'Legend', icon: '🏆', ring: 'from-violet-400 to-purple-600', badge: 'bg-purple-600' },
+      { level: 6, title: 'Forever', icon: '♾️', ring: 'from-teal-300 to-teal-500', badge: 'bg-teal-500' },
     ],
   },
 };
@@ -150,6 +152,7 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
   const organ = getOrganById(organId);
   const t = isEn ? TEXT.en : TEXT.vi;
   const JOURNEY_LEVELS = t.levels;
+  const currentLevelInfo = JOURNEY_LEVELS.find((l) => l.level === currentLevel) || JOURNEY_LEVELS[0];
   const organLabel = isEn ? organ.en : organ.vi;
   // Nếu ở màn hình trước người dùng chọn "Tôi chưa muốn hiến tặng"
   // (role === 'notDonate') HOẶC chọn thẻ "Rèn luyện sức khỏe"
@@ -252,53 +255,58 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
             {JOURNEY_LEVELS.map((lvl) => {
               const unlocked = lvl.level <= currentLevel;
               const isCurrent = lvl.level === currentLevel;
-              const isLevelOne = lvl.level === 1;
+              // Cấp 1 "Zero" là điểm khởi đầu, không gắn popup xem trước.
+              // 4 popup xem trước (giải phẫu / bảo vệ cơ thể / Captain Khánh /
+              // HERO_ZONES) lùi xuống đúng 1 cấp so với trước, gắn vào các
+              // cấp Explorer(2) → Guardian(3) → Hero(4) → Legend(5).
+              // Cấp 6 "Forever" là cấp cuối, cũng không có popup.
               const isLevelTwo = lvl.level === 2;
               const isLevelThree = lvl.level === 3;
               const isLevelFour = lvl.level === 4;
-              const isPreviewLevel = isLevelOne || isLevelTwo || isLevelThree || isLevelFour;
+              const isLevelFive = lvl.level === 5;
+              const isPreviewLevel = isLevelTwo || isLevelThree || isLevelFour || isLevelFive;
               return (
                 <div
                   key={lvl.level}
-                  ref={isLevelOne ? anatomyPreviewRef : isLevelTwo ? bodyProtectionPreviewRef : isLevelThree ? captainKhanhPreviewRef : isLevelFour ? heroZonesPreviewRef : undefined}
+                  ref={isLevelTwo ? anatomyPreviewRef : isLevelThree ? bodyProtectionPreviewRef : isLevelFour ? captainKhanhPreviewRef : isLevelFive ? heroZonesPreviewRef : undefined}
                   className={`relative flex flex-col items-center w-[150px] text-center ${isPreviewLevel ? 'group' : ''}`}
 
                 >
                   <div className="relative mb-3">
-                    {isLevelOne && unlocked && (
+                    {isCurrent && (
                       <div
                         className="absolute -inset-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 opacity-40 blur-md transition duration-500 animate-pulse group-hover:opacity-100 group-hover:duration-200 group-hover:animate-none"
                         style={{ clipPath: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)' }}
                       />
                     )}
                     <div
-                      className={`relative overflow-hidden w-16 h-16 flex items-center justify-center text-2xl bg-gradient-to-br ${isLevelOne && unlocked ? 'from-slate-900/80 to-slate-950' : unlocked ? lvl.ring : (isDark ? 'from-white/10 to-white/5' : 'from-gray-200 to-gray-300')} shadow-sm transition-all duration-300 ${isPreviewLevel ? 'cursor-pointer group-hover:scale-[0.98]' : ''}`}
+                      className={`relative overflow-hidden w-16 h-16 flex items-center justify-center text-2xl bg-gradient-to-br ${isCurrent ? 'from-slate-900/80 to-slate-950' : unlocked ? lvl.ring : (isDark ? 'from-white/10 to-white/5' : 'from-gray-200 to-gray-300')} shadow-sm transition-all duration-300 ${isPreviewLevel ? 'cursor-pointer group-hover:scale-[0.98]' : ''}`}
                       style={{ clipPath: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)' }}
                       {...(isPreviewLevel
                         ? {
                             // Bấm để mở/đóng popup; không mở bằng hover.
                             onClick: () => {
-                              if (isLevelOne) setShowAnatomyPreview((prev) => !prev);
-                              if (isLevelTwo) setShowBodyProtectionPreview((prev) => !prev);
-                              if (isLevelThree) setShowCaptainKhanhPreview((prev) => !prev);
-                              if (isLevelFour) setShowHeroZonesPreview((prev) => !prev);
+                              if (isLevelTwo) setShowAnatomyPreview((prev) => !prev);
+                              if (isLevelThree) setShowBodyProtectionPreview((prev) => !prev);
+                              if (isLevelFour) setShowCaptainKhanhPreview((prev) => !prev);
+                              if (isLevelFive) setShowHeroZonesPreview((prev) => !prev);
                             },
                             role: 'button',
                             tabIndex: 0,
-                            'aria-expanded': isLevelOne ? showAnatomyPreview : isLevelTwo ? showBodyProtectionPreview : isLevelThree ? showCaptainKhanhPreview : showHeroZonesPreview,
+                            'aria-expanded': isLevelTwo ? showAnatomyPreview : isLevelThree ? showBodyProtectionPreview : isLevelFour ? showCaptainKhanhPreview : showHeroZonesPreview,
                             onKeyDown: (event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                if (isLevelOne) setShowAnatomyPreview((prev) => !prev);
-                                if (isLevelTwo) setShowBodyProtectionPreview((prev) => !prev);
-                                if (isLevelThree) setShowCaptainKhanhPreview((prev) => !prev);
-                                if (isLevelFour) setShowHeroZonesPreview((prev) => !prev);
+                                if (isLevelTwo) setShowAnatomyPreview((prev) => !prev);
+                                if (isLevelThree) setShowBodyProtectionPreview((prev) => !prev);
+                                if (isLevelFour) setShowCaptainKhanhPreview((prev) => !prev);
+                                if (isLevelFive) setShowHeroZonesPreview((prev) => !prev);
                               }
                             },
                           }
                         : {})}
                     >
-                      {isLevelOne && unlocked && (
+                      {isCurrent && (
                         <span className="absolute top-0 left-[-100%] h-full w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-45deg] group-hover:animate-shine" />
                       )}
                       <span className={unlocked ? '' : 'opacity-40 grayscale'}>{lvl.icon}</span>
@@ -310,13 +318,14 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
                   <div className={`font-bold text-sm ${isDark ? 'text-gray-100' : 'text-[#16241c]'}`}>{t.levelLabel} {lvl.level}</div>
                   <div className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{lvl.title}</div>
 
-                  {/* Popup xem trước bản đồ giải phẫu — chỉ gắn vào thẻ Cấp 1
-                  "Người Tìm Hiểu". Điều khiển bằng state showAnatomyPreview
-                  (thay vì chỉ CSS group-hover thuần) để:
+                  {/* Popup xem trước bản đồ giải phẫu — chỉ gắn vào thẻ Cấp 2
+                  "Explorer" (đã lùi xuống 1 cấp so với trước để nhường Cấp 1
+                  cho "Zero" — điểm khởi đầu mới). Điều khiển bằng state
+                  showAnatomyPreview (thay vì chỉ CSS group-hover thuần) để:
                   - Mở/đóng khi bấm vào icon (onClick), và tự đóng khi chạm/click
                     ra ngoài (xem useEffect pointerdown ở trên).
                   Định vị tuyệt đối phía trên thẻ, căn giữa theo chiều ngang. */}
-                  {isLevelOne && showAnatomyPreview && (
+                  {isLevelTwo && showAnatomyPreview && (
                     <div
                       className={`
                         fixed left-2 right-2 bottom-24 mb-0 w-auto translate-x-0
