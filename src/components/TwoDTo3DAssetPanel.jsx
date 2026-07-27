@@ -142,10 +142,8 @@ export default function TwoDTo3DAssetPanel({ onNext, nextLabel, onPrev, prevLabe
                 Panel này kết nối <strong>official inference code</strong> của VAST-AI Research với model weights <strong>VAST-AI/TripoSplat</strong> và Hugging Face Space realtime để xuất asset dạng <strong>.ply</strong> / <strong>.splat</strong> có thể mở bằng Gaussian Splat viewer.
               </p>
             </div>
-            <div style={{ display: 'grid', gap: 10, minWidth: 230 }}>
-              <a href={TRIPOSPLAT_GITHUB_URL} target="_blank" rel="noreferrer" style={linkButton(palette.cyan, '#031018')}>GitHub Official Code ↗</a>
-              <a href={TRIPOSPLAT_MODEL_README_URL} target="_blank" rel="noreferrer" style={linkButton(palette.violet, '#12071f')}>HF Model README ↗</a>
-              <a href={TRIPOSPLAT_SPACE_URL} target="_blank" rel="noreferrer" style={linkButton(palette.green, '#03140b')}>HF Realtime Space ↗</a>
+            <div style={{ minWidth: 230, color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+              External GitHub/Hugging Face project links are hidden from the admin menu UI.
             </div>
           </div>
         </section>

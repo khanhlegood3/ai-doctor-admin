@@ -160,10 +160,8 @@ export default function My3DAssetPanel() {
                 Kết nối trực tiếp Gradio API của Space <strong>microsoft/TRELLIS.2</strong>, upload ảnh nguồn, gọi endpoint image-to-3D và lưu các output GLB/MP4 vào thư viện asset trong trình duyệt.
               </p>
             </div>
-            <div style={{ display: 'grid', gap: 10, minWidth: 220 }}>
-              <a href={TRELLIS_SPACE_URL} target="_blank" rel="noreferrer" style={linkButton(palette.green, '#03140a')}>Official Space ↗</a>
-              <a href={TRELLIS_REPO_URL} target="_blank" rel="noreferrer" style={linkButton(palette.accent, '#001018')}>GitHub TRELLIS.2 ↗</a>
-              <a href={TRELLIS_MODEL_URL} target="_blank" rel="noreferrer" style={linkButton(palette.purple, '#12071f')}>Model TRELLIS.2-4B ↗</a>
+            <div style={{ minWidth: 220, color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+              External GitHub/Hugging Face project links are hidden from the admin menu UI.
             </div>
           </div>
         </section>
