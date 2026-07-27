@@ -53,7 +53,7 @@ import { getLandingT } from '../i18n/zofoLandingI18n.js'
 const LANG_STORAGE_KEY = 'zofo_landing_lang'
 const THEME_STORAGE_KEY = 'zofo_landing_theme'
 const HOTLINE_EMAIL = 'admin@blooddonation.space'
-const PARTNERSHIP_EMAIL = 'partners@zerotoforever.com'
+const PARTNERSHIP_EMAIL = 'partner@blooddonation.space'
 
 function getNavItems(t) {
   return [
