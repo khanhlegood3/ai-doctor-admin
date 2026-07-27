@@ -405,7 +405,6 @@ function TexturePreviewCard({ texture, meta, palette, isDark, vi, onLoad, large 
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: palette.text3 }}>{vi ? 'Dung lượng' : 'File Size'}:</span><strong>{formatBytes(meta?.bytes)}</strong></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: palette.text3 }}>{vi ? 'Loại' : 'Type'}:</span><strong>{texture.type}</strong></div>
         </div>
-        <a href={texture.url} target="_blank" rel="noreferrer" download style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14, borderRadius: 10, border: `1px solid ${palette.border}`, padding: '9px 10px', color: palette.accent, fontSize: 11, fontWeight: 900, textDecoration: 'none' }}><Download size={14} /> {vi ? 'Tải texture' : 'Download texture'}</a>
       </div>
     </div>
   )
@@ -784,19 +783,8 @@ export default function AvatarCreatorPanel() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '.02em' }}>OSA</span>
-                <span style={{ fontSize: 12, fontWeight: 900, color: palette.accent, letterSpacing: '.12em', textTransform: 'uppercase' }}>Open Source Avatars</span>
+                <span style={{ fontSize: 12, fontWeight: 900, color: palette.accent, letterSpacing: '.12em', textTransform: 'uppercase' }}>{vi ? 'Tạo Avatar' : 'Avatar Creator'}</span>
               </div>
-              <nav style={{ display: 'flex', gap: 6 }}>
-                {['Home', 'Avatars', 'Finder', 'Inspector'].map((tab) => (
-                  <span key={tab} style={{
-                    fontSize: 11, fontWeight: 900, letterSpacing: '.06em', textTransform: 'uppercase',
-                    padding: '6px 10px', borderRadius: 999,
-                    color: tab === 'Avatars' ? '#001018' : palette.text3,
-                    background: tab === 'Avatars' ? palette.accent : 'transparent',
-                  }}>{tab}</span>
-                ))}
-              </nav>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <img src={user?.avatar || selectedAvatar?.thumbnail_url || FALLBACK_AVATARS[0].thumbnail_url} alt="Current user avatar" style={{ width: 44, height: 44, borderRadius: 14, objectFit: 'cover', border: `2px solid ${palette.accent}` }} />
@@ -824,11 +812,6 @@ export default function AvatarCreatorPanel() {
               </span>
             )}
           </div>
-          <p style={{ margin: '10px 0 0', color: palette.text2, maxWidth: 760, lineHeight: 1.6, fontSize: 13 }}>
-            {vi
-              ? 'Chọn chủ đề từ projects.json của xuankhanh1612/open-source-avatars, duyệt & phân trang danh sách avatar, xem 3D thật, nhận diện item có link OpenSea và lưu làm avatar hồ sơ.'
-              : 'Pick a theme from xuankhanh1612/open-source-avatars projects.json, browse the paginated list, view a real 3D model, detect OpenSea-linked items, and save it as the profile avatar.'}
-          </p>
         </div>
 
         <div style={{ padding: 18 }}>
@@ -972,9 +955,6 @@ export default function AvatarCreatorPanel() {
                       <strong title={selectedOpenSea.contract}>{shortenAddress(selectedOpenSea.contract)}</strong>
                     </div>
                   </div>
-                  <a href={selectedOpenSea.url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 12, borderRadius: 10, border: `1px solid ${palette.border}`, padding: '9px 10px', color: palette.accent, fontSize: 11, fontWeight: 900, textDecoration: 'none', background: palette.card }}>
-                    {vi ? 'Mở item trên OpenSea' : 'Open item on OpenSea'} <ExternalLink size={13} />
-                  </a>
                 </div>
               )}
 
@@ -1006,10 +986,6 @@ export default function AvatarCreatorPanel() {
                   </div>
                 </>
               )}
-
-              <a href={selectedAvatarFinderUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, color: palette.accent, fontSize: 11, fontWeight: 800, textDecoration: 'none' }}>
-                {vi ? 'Mở trong Finder' : 'Open in Finder'} <ExternalLink size={11} />
-              </a>
 
               <button type="button" onClick={handleUseAvatar} disabled={!selectedAvatar || saving} style={{ marginTop: 12, width: '100%', border: 'none', borderRadius: 12, padding: '11px 14px', cursor: saving ? 'wait' : 'pointer', fontWeight: 900, fontSize: 12, color: '#001018', background: 'linear-gradient(135deg,#00e5ff,#00e676)' }}>
                 {saving ? (vi ? 'Đang lưu...' : 'Saving...') : (vi ? 'Dùng làm avatar hồ sơ' : 'Use as profile avatar')}
@@ -1130,22 +1106,6 @@ export default function AvatarCreatorPanel() {
                     ) : <span style={{ color: palette.text3, fontSize: 12 }}>{vi ? 'Chưa tìm thấy texture trong dữ liệu avatar.' : 'No texture assets were found in this avatar record.'}</span>}
                   </div>
                 )}
-                <a
-                  href={activeModelUrl || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  download
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', borderRadius: 12, padding: '11px 14px',
-                    fontWeight: 900, fontSize: 13, textDecoration: 'none',
-                    color: activeModelUrl ? '#001018' : palette.text3,
-                    background: activeModelUrl ? 'linear-gradient(135deg,#00e5ff,#9c6fff)' : palette.card,
-                    border: activeModelUrl ? 'none' : `1px solid ${palette.border}`,
-                    pointerEvents: activeModelUrl ? 'auto' : 'none',
-                  }}
-                >
-                  <Download size={15} /> {vi ? 'Tải xuống' : 'Download'}
-                </a>
               </div>
 
               <p style={{ padding: '0 14px 14px', color: error ? '#ff6b6b' : palette.text3, fontSize: 11, lineHeight: 1.5, margin: 0 }}>{error || status}</p>
@@ -1260,18 +1220,7 @@ export default function AvatarCreatorPanel() {
                   <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.01em', color: palette.text }}>
                     {vi ? 'Trình xem 3D & Animation' : '3D & Animation Viewer'}
                   </div>
-                  <div style={{ fontSize: 12, color: palette.text3, marginTop: 2 }}>
-                    opensourceavatars.com/finder
-                  </div>
                 </div>
-                <a
-                  href={selectedAvatarFinderUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: palette.accent, fontSize: 13, fontWeight: 900, textDecoration: 'none', whiteSpace: 'nowrap' }}
-                >
-                  {vi ? 'Mở 3D' : 'Open 3D'} <ExternalLink size={14} />
-                </a>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
@@ -1363,23 +1312,12 @@ export default function AvatarCreatorPanel() {
                 <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.01em', color: palette.text }}>
                   {vi ? 'Khung render 3D' : '3D Render Frame'}
                 </div>
-                <div style={{ fontSize: 12, color: palette.text3, marginTop: 2 }}>
-                  opensourceavatars.com/finder
-                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => setShowHeightRuler((v) => !v)} style={iconBtnStyle(showHeightRuler)} title={vi ? 'Thước đo chiều cao' : 'Height ruler'} aria-pressed={showHeightRuler}><MoveVertical size={15} /></button>
                 <button type="button" onClick={() => setShowBones((v) => !v)} style={iconBtnStyle(showBones)} title={vi ? 'Hiện xương' : 'Show Bones'} aria-pressed={showBones}>🦴</button>
                 <button type="button" onClick={() => setShowWireframe((v) => !v)} style={iconBtnStyle(showWireframe)} title="Wireframe" aria-pressed={showWireframe}><Box size={15} /></button>
                 <button type="button" onClick={() => setShowTextures((v) => !v)} style={iconBtnStyle(showTextures)} title="Textures" aria-pressed={showTextures}><ImageIcon size={15} /></button>
-              <a
-                href={selectedAvatarFinderUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: palette.accent, fontSize: 13, fontWeight: 900, textDecoration: 'none', whiteSpace: 'nowrap' }}
-              >
-                {vi ? 'Mở 3D' : 'Open 3D'} <ExternalLink size={14} />
-              </a>
               </div>
             </div>
 

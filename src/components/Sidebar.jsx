@@ -53,7 +53,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'wikiMedVision', label: t('wikiMedVision'), step: '08' },
     { id: 'fullDocSummarization', label: 'Full-Document Summarization', step: '09' },
     { id: 'documentOCR', label: 'Document OCR', step: '10' },
-    { id: 'cameraAngle3DStudio', label: '3D Camera Angle (Qwen)', step: '11' },
+    { id: 'cameraAngle3DStudio', label: '3D Camera Angle', step: '11' },
     { id: 'organConnection', label: 'Ăn gì tốt hôm nay', step: '12' },
     { id: 'healthJourney', label: t('healthJourney'), step: '13' },
     { id: 'lunchJourney', label: t('lunchJourney'), step: '14' },

@@ -538,7 +538,7 @@ export default function CameraAngle3DStudioPanel({ onNext, nextLabel, onPrev, pr
               <div style={{ color: palette.cyan, fontSize: 12, fontWeight: 950, letterSpacing: '.16em', textTransform: 'uppercase' }}>3D XYZ Camera Angle</div>
               <h1 style={{ margin: '10px 0 8px', fontSize: 'clamp(28px, 4vw, 48px)', lineHeight: 1.05 }}>Chọn góc chụp bằng gizmo 3D thật</h1>
               <p style={{ margin: 0, color: palette.text2, fontSize: 15, lineHeight: 1.7 }}>
-                Kéo 3 tay cầm màu quanh mô hình <strong>.obj</strong> để chọn <strong>Azimuth</strong> (🟢 xoay ngang), <strong>Elevation</strong> (🩷 góc nghiêng), <strong>Distance</strong> (🟠 khoảng cách) — y hệt cơ chế của Space gốc, rồi gửi prompt sinh ra kèm ảnh 2D thật tới <strong>fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA</strong> để đổi góc chụp ảnh thật.
+                Kéo 3 tay cầm màu quanh mô hình <strong>.obj</strong> để chọn <strong>Azimuth</strong> (🟢 xoay ngang), <strong>Elevation</strong> (🩷 góc nghiêng), <strong>Distance</strong> (🟠 khoảng cách) — y hệt cơ chế của Space gốc, rồi gửi prompt sinh ra kèm ảnh 2D thật để đổi góc chụp ảnh thật.
               </p>
             </div>
             <div style={{ minWidth: 230, color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>

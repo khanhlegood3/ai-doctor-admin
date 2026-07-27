@@ -249,7 +249,7 @@ export default function App() {
     documentOCR: 'Document OCR',
     twoDTo3DAsset: '2D to 3D Asset',
     xyzCameraAngle: 'Góc chụp toạ độ XYZ',
-    cameraAngle3DStudio: '3D Camera Angle (Qwen)',
+    cameraAngle3DStudio: '3D Camera Angle',
     organConnection: 'Ăn gì tốt hôm nay',
     printPortal: 'Print Portal',
     patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
