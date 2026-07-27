@@ -644,7 +644,7 @@ export default function StressReliefPanel({ onNext, nextLabel, onPrev, prevLabel
           title={lang === 'en' ? selectedGame.captionEn : selectedGame.caption}
           src={selectedGame.src}
           className="stress-relief-frame"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          allow="camera; microphone; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
         />
         {selectedGame.hasMask && (
