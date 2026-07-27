@@ -81,6 +81,33 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'chatHistory', label: 'Lịch sử Chat với AI', step: '36' },
   ]
 
+  const VIP_PRO_EXCLUDED_STEP_IDS = new Set([
+    'bodyProtectionJourney',
+    'hero3DMap',
+    'healthJourneyGame',
+    'medicalAssetStore',
+    'medicalVisualCameraAngle3D',
+    'waterDrinkChatBot',
+    'wikiMedVision',
+    'fullDocSummarization',
+    'documentOCR',
+    'cameraAngle3DStudio',
+    'organConnection',
+    'healthJourney',
+    'lunchJourney',
+    'dinnerJourney',
+    'upload',
+    'imaging',
+    'family',
+    'record',
+    'familyRelationship',
+    'omnidirectional3dBody',
+    'stressRelief',
+    'chatHistory',
+  ])
+  const PATIENT_JOURNEY_STEPS = STEPS.filter((step) => VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
+  const VIP_PRO_STEPS = STEPS.filter((step) => !VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
+
   const ADMIN_STEPS = user?.isAdmin ? [
     { id: 'myImageToVideo', label: 'My Image to Video', step: 'LAST', icon: '🎞️' },
     { id: 'make3DModel', label: 'Make 3D Model', step: 'CULTS', icon: '🧙‍♀️' },
@@ -167,7 +194,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>VRM</span>
       </NavItem>
       <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('patients')} Journey</SectionLabel>
-      {STEPS.map(s => (
+      {PATIENT_JOURNEY_STEPS.map(s => (
         <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
           <span style={{ flex: 1 }}>{s.label}</span>
@@ -175,6 +202,18 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
         </NavItem>
       ))}
 
+      {VIP_PRO_STEPS.length > 0 && (
+        <>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>Only VIP PRO Accounts</SectionLabel>
+          {VIP_PRO_STEPS.map(s => (
+            <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
+              <span style={{ flex: 1 }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>{s.step}</span>
+            </NavItem>
+          ))}
+        </>
+      )}
 
       {ADMIN_STEPS.length > 0 && (
         <>
