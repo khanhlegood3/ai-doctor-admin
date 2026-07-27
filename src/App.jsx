@@ -81,6 +81,8 @@ const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathNoiTangPixel',
   'medicalVisualPlayground',
   'myRewardHealth',
+  'affiliate',
+  'rssPortal',
   'checkin',
   'matrix3dBody',
   'twin',
@@ -91,6 +93,7 @@ const VIP_PRO_PANEL_IDS = new Set([
   'varCheck',
   'protein3d',
   'aiInbodyPortal',
+  'printPortal',
 ])
 
 const VIP_PRO_LOCK_MESSAGE = 'Bạn phải hoạt động mạnh mẽ và hữu ích thì VIP PRO Account sẽ là của bạn toàn quyền'
@@ -247,7 +250,7 @@ export default function App() {
     cameraAngle3DStudio: '3D Camera Angle (Qwen)',
     organConnection: 'Ăn gì tốt hôm nay',
     printPortal: 'Print Portal',
-    patientReflect: 'Patient Reflection',
+    patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
     chatHistory: 'Lịch sử Chat với AI',
     myImageToVideo: 'My Image to Video',
     profile: t('profile'),
@@ -362,19 +365,13 @@ export default function App() {
   // là hoa hồng/tuyến dưới thật của họ (xem thêm Sidebar.jsx — đã tách sang
   // nhóm menu riêng "Mô Phỏng (Nội Bộ)" ngay sau nhóm Admin).
   const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
-  const ADMIN_MENU_PANELS = ['myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'aiHealthcareVisionControl', 'admin', 'affiliateAdmin', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'create3DVideoFrom2D', 'adminConcept']
-  const SIMULATION_MENU_PANELS = ['affiliateControl']
-  const visiblePanels = user?.isAdmin ? [...ADMIN_MENU_PANELS, ...SIMULATION_MENU_PANELS] : []
+  const visiblePanels = user?.isAdmin ? PANELS : PANELS.filter(id => !ADMIN_ONLY_PANELS.includes(id))
 
   useEffect(() => {
-    if (!user?.isAdmin) {
-      if (ADMIN_ONLY_PANELS.includes(active)) setActive('bodyProtectionJourney')
-      return
+    if (ADMIN_ONLY_PANELS.includes(active) && !user?.isAdmin) {
+      setActive('bodyProtectionJourney')
     }
-    if (!visiblePanels.includes(active)) {
-      setActive('admin')
-    }
-  }, [active, user?.isAdmin, visiblePanels])
+  }, [active, user?.isAdmin])
 
   const goNext = () => {
     const idx = visiblePanels.indexOf(active)
@@ -720,6 +717,13 @@ export default function App() {
           />
           <GlobalPageReader readRootRef={mainRef} activeKey={active} />
         </main>
+        {!hideSidebarForFocus && (
+          <GlobalBottomNav
+            active={active}
+            onOpenMainMenu={openMainMenu}
+            onNavigate={(id) => setActive(id)}
+          />
+        )}
         <GlobalAIChatbot activePanelLabel={panelLabels[active] || active} />
       </div>
     </div>
