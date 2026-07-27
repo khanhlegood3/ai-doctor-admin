@@ -8,6 +8,10 @@
     <style>
         body { background-color: #0f172a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; user-select: none; }
         canvas { background: linear-gradient(to bottom, #1e1b4b, #311042); border: 2px solid #4f46e5; box-shadow: 0 0 25px rgba(79, 70, 229, 0.4); }
+        /* Bộ nhớ vẽ (canvas.width/height) vẫn giữ nguyên 800x420 để không phá vỡ
+           toạ độ vật lý trong game — chỉ kích thước HIỂN THỊ co giãn theo chiều
+           rộng khung chứa, giữ đúng tỉ lệ khung hình. */
+        #gameCanvas { width: 100%; height: auto; aspect-ratio: 800 / 420; max-height: 70vh; }
         .ctrl-btn { background: rgba(30, 41, 59, 0.8); border: 1px solid #475569; border-radius: 8px; color: #cbd5e1; font-weight: bold; font-size: 11px; padding: 8px 4px; text-align: center; cursor: pointer; transition: 0.1s; }
         .ctrl-btn:active, .ctrl-btn.active { transform: scale(0.95); }
         
@@ -21,12 +25,17 @@
 
         .mode-btn { padding: 8px; border-radius: 8px; font-weight: bold; font-size: 12px; transition: 0.2s; border: 1px solid transparent; }
         .mode-btn.active { box-shadow: 0 0 10px rgba(255,255,255,0.2); }
+
+        /* Màn hình rất hẹp (điện thoại nhỏ): thu gọn nút điều khiển để không vỡ lưới 4 cột */
+        @media (max-width: 420px) {
+            .ctrl-btn { font-size: 9.5px; padding: 7px 2px; }
+        }
     </style>
 </head>
-<body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="text-slate-200 min-h-screen flex flex-col items-center justify-center p-2 sm:p-4">
 
-    <div class="max-w-7xl w-full grid grid-cols-4 gap-6">
-        <div class="col-span-1 space-y-4 bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-2xl flex flex-col">
+    <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div class="lg:col-span-1 space-y-4 bg-slate-900/90 p-4 sm:p-5 rounded-2xl border border-slate-800 shadow-2xl flex flex-col">
             <div>
                 <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950 px-2 py-1 rounded">Medical Sandbox</span>
                 <h1 class="text-xl font-black text-white mt-2">Bảo Vệ Cơ Thể</h1>
@@ -42,7 +51,7 @@
             </div>
 
             <h3 class="text-xs font-bold text-slate-400 mt-2 border-b border-slate-700 pb-1">CHỌN HỆ CƠ QUAN:</h3>
-            <div class="grid grid-cols-2 gap-2 flex-1">
+            <div class="grid grid-cols-3 lg:grid-cols-2 gap-2 flex-1">
                 <button id="btn-brain" class="organ-btn selected" onclick="selectOrgan('brain')">
                     <span class="text-2xl mb-1">🧠</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ thần kinh<br>(Não)</span>
                 </button>
@@ -64,25 +73,25 @@
             </div>
         </div>
 
-        <div class="col-span-3 flex flex-col">
-            <div class="bg-slate-950 p-2 rounded-t-xl border-t border-x border-slate-800 flex justify-between items-center px-4">
-                <div class="flex gap-4">
-                    <div class="text-emerald-400 font-bold text-sm w-[80px]">🛡️ P1: <span id="p1-hp">10</span></div>
-                    <div id="p2-hp-container" class="text-sky-400 font-bold text-sm hidden w-[80px]">🛡️ P2: <span id="p2-hp">10</span></div>
+        <div class="lg:col-span-3 flex flex-col w-full">
+            <div class="bg-slate-950 p-2 rounded-t-xl border-t border-x border-slate-800 flex flex-wrap justify-center sm:justify-between items-center gap-x-3 gap-y-1 px-2 sm:px-4">
+                <div class="flex gap-3 sm:gap-4">
+                    <div class="text-emerald-400 font-bold text-xs sm:text-sm">🛡️ P1: <span id="p1-hp">10</span></div>
+                    <div id="p2-hp-container" class="text-sky-400 font-bold text-xs sm:text-sm hidden">🛡️ P2: <span id="p2-hp">10</span></div>
                 </div>
-                <div class="text-fuchsia-400 font-bold text-sm bg-fuchsia-950/50 px-3 py-1 rounded border border-fuchsia-900">
+                <div class="text-fuchsia-400 font-bold text-xs sm:text-sm bg-fuchsia-950/50 px-2 sm:px-3 py-1 rounded border border-fuchsia-900 whitespace-nowrap">
                     🧱 TƯỜNG BASE: <span id="base-hp">20</span>/20
                 </div>
-                <div class="text-amber-400 font-bold text-sm">⏱️ <span id="time-display">0.0</span>s</div>
-                <div class="text-rose-400 font-bold text-sm">🦠 BOSS: <span id="boss-hp">10</span></div>
+                <div class="text-amber-400 font-bold text-xs sm:text-sm">⏱️ <span id="time-display">0.0</span>s</div>
+                <div class="text-rose-400 font-bold text-xs sm:text-sm">🦠 BOSS: <span id="boss-hp">10</span></div>
             </div>
             
-            <canvas id="gameCanvas" width="800" height="420" class="w-full object-cover"></canvas>
+            <canvas id="gameCanvas" width="800" height="420" class="w-full h-auto block"></canvas>
 
-            <div class="bg-slate-900 border-b border-x border-slate-800 rounded-b-xl p-3 flex justify-between items-center shadow-xl">
+            <div class="bg-slate-900 border-b border-x border-slate-800 rounded-b-xl p-2 sm:p-3 flex flex-col sm:flex-row justify-between items-center shadow-xl gap-3 sm:gap-0">
                 
-                <div class="flex flex-col items-center w-1/2 border-r border-slate-700 pr-2">
-                    <span class="text-[11px] font-bold text-emerald-400 mb-2">P1 (Bảo Vệ) - Phím: W A S D E</span>
+                <div class="flex flex-col items-center w-full sm:w-1/2 sm:border-r border-slate-700 sm:pr-2">
+                    <span class="text-[11px] font-bold text-emerald-400 mb-2 text-center">P1 (Bảo Vệ) - Phím: W A S D E</span>
                     <div class="grid grid-cols-4 gap-1.5 w-full max-w-[300px]">
                         <div class="col-span-4 flex justify-center mb-1">
                             <button class="ctrl-btn p1-btn w-1/3" onmousedown="setKey('w', true)" onmouseup="setKey('w', false)" ontouchstart="setKey('w', true)" ontouchend="setKey('w', false)">W Nhảy</button>
@@ -94,8 +103,8 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col items-center w-1/2 pl-2" id="p2-panel">
-                    <span class="text-[11px] font-bold text-rose-400 mb-2" id="p2-control-label">P2 (Boss) - Phím: Mũi tên (↑ ↓ ← →)</span>
+                <div class="flex flex-col items-center w-full sm:w-1/2 sm:pl-2" id="p2-panel">
+                    <span class="text-[11px] font-bold text-rose-400 mb-2 text-center" id="p2-control-label">P2 (Boss) - Phím: Mũi tên (↑ ↓ ← →)</span>
                     <div class="grid grid-cols-4 gap-1.5 w-full max-w-[300px]" id="p2-controls">
                         </div>
                 </div>
