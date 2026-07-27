@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   ArrowRight, ArrowUpRight, Play, CheckCircle2, Users, Users2, Heart, Droplet, HeartPulse,
   Brain, Trophy, Award, ShoppingBag, Gamepad2, Handshake, CalendarDays,
@@ -6,13 +6,14 @@ import {
   Quote, Fingerprint, QrCode, Smartphone, Menu, Home, User, X,
   Target, Eye, Sparkles, Rocket, Cpu, Database, Layers, MapPin, Building2,
   Star, MessageCircle, Mail, ChevronRight, Lock, Globe, Coins, Wallet,
-  BadgeCheck, HeartHandshake, Clock, ScanFace, Boxes,
+  BadgeCheck, HeartHandshake, Clock, ScanFace, Boxes, Languages, Sun, Moon, Phone,
 } from 'lucide-react'
 import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 import zofoQRCode from '../assets/landing/KLX12-QR-Code.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
+import { getLandingT } from '../i18n/zofoLandingI18n.js'
 
 /**
  * landingPageZeroToForever.jsx
@@ -34,6 +35,14 @@ import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
  * - QR "Quét để tải app" dùng ảnh thật: KLX12-QR-Code.png
  * - Icon dùng lucide-react (đã có sẵn trong project)
  *
+ * Bổ sung:
+ *  - Toggle ngôn ngữ Tiếng Việt / English, đồng bộ với từ điển
+ *    src/i18n/zofoLandingI18n.js (lưu lựa chọn vào localStorage).
+ *  - Toggle giao diện Dark / Night, áp dụng class `dark` (Tailwind
+ *    darkMode: 'class') chỉ trong phạm vi trang landing này.
+ *  - Hotline hỗ trợ: mailto:admin@blooddonation.space
+ *  - Liên hệ hợp tác (đối tác): mailto:partners@zerotoforever.com
+ *
  * Props (đều optional — component vẫn render standalone bình thường):
  *  - onGetStarted()   : bấm "Bắt đầu hành trình" / "Tham gia ngay" (CTA chính)
  *  - onLogin()        : bấm "Đăng nhập"
@@ -41,17 +50,69 @@ import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
  *  - onDownloadApp()  : bấm "Tải ứng dụng"
  */
 
-const NAV_ITEMS = [
-  { key: 'home', label: 'Trang chủ' },
-  { key: 'about', label: 'Về chúng tôi' },
-  { key: 'journey', label: 'Hành trình' },
-  { key: 'community', label: 'Cộng đồng' },
-  { key: 'technology', label: 'Công nghệ' },
-  { key: 'partners', label: 'Đối tác' },
-]
+const LANG_STORAGE_KEY = 'zofo_landing_lang'
+const THEME_STORAGE_KEY = 'zofo_landing_theme'
+const HOTLINE_EMAIL = 'admin@blooddonation.space'
+const PARTNERSHIP_EMAIL = 'partners@zerotoforever.com'
+
+function getNavItems(t) {
+  return [
+    { key: 'home', label: t.nav.home },
+    { key: 'about', label: t.nav.about },
+    { key: 'journey', label: t.nav.journey },
+    { key: 'community', label: t.nav.community },
+    { key: 'technology', label: t.nav.technology },
+    { key: 'partners', label: t.nav.partners },
+  ]
+}
+
+/* ── Shared: nút bấm chuyển ngôn ngữ Tiếng Việt / English ── */
+function LanguageToggle({ language, setLanguage, compact = false }) {
+  return (
+    <div className={`flex items-center rounded-full border border-white/30 bg-white/5 backdrop-blur-sm p-0.5 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+      <button
+        type="button"
+        onClick={() => setLanguage('vi')}
+        aria-pressed={language === 'vi'}
+        className={`flex items-center gap-1 px-3 py-1.5 rounded-full font-semibold transition ${
+          language === 'vi' ? 'bg-white text-[#0B132B]' : 'text-white/80 hover:text-white'
+        }`}
+      >
+        <Languages className="w-3.5 h-3.5" /> VI
+      </button>
+      <button
+        type="button"
+        onClick={() => setLanguage('en')}
+        aria-pressed={language === 'en'}
+        className={`px-3 py-1.5 rounded-full font-semibold transition ${
+          language === 'en' ? 'bg-white text-[#0B132B]' : 'text-white/80 hover:text-white'
+        }`}
+      >
+        EN
+      </button>
+    </div>
+  )
+}
+
+/* ── Shared: nút bấm chuyển giao diện Dark / Night ── */
+function ThemeToggle({ theme, setTheme }) {
+  const isDark = theme === 'dark'
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      aria-pressed={isDark}
+      title={isDark ? 'Light mode' : 'Dark / Night mode'}
+      className="w-9 h-9 flex items-center justify-center rounded-full border border-white/30 bg-white/5 backdrop-blur-sm text-white hover:bg-white/15 transition"
+    >
+      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+  )
+}
 
 /* ── Shared: thanh điều hướng trên cùng, dùng chung cho mọi trang con ── */
-function NavBar({ page, setPage, onLogin, onGetStarted }) {
+function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage, theme, setTheme }) {
+  const NAV_ITEMS = getNavItems(t)
   return (
     <nav className="absolute w-full z-50 top-0 left-0 pt-6 px-6 lg:px-12 flex justify-between items-center text-white">
       <button onClick={() => setPage('home')} className="flex items-center gap-3">
@@ -72,21 +133,25 @@ function NavBar({ page, setPage, onLogin, onGetStarted }) {
           </button>
         ))}
       </div>
-      <div className="hidden lg:flex items-center space-x-4">
+      <div className="hidden lg:flex items-center space-x-3">
+        <LanguageToggle language={language} setLanguage={setLanguage} />
+        <ThemeToggle theme={theme} setTheme={setTheme} />
         <button
           onClick={onLogin}
           className="text-sm font-medium hover:text-gray-300 transition px-4 py-2 border border-white/30 rounded-full"
         >
-          Đăng nhập
+          {t.nav.login}
         </button>
         <button
           onClick={onGetStarted}
           className="text-sm font-semibold zofo-gradient-blue px-6 py-2 rounded-full zofo-shadow-neon-cyan hover:scale-105 transition transform flex items-center gap-1"
         >
-          Tham gia ngay <ArrowRight className="w-4 h-4" />
+          {t.nav.join} <ArrowRight className="w-4 h-4" />
         </button>
       </div>
-      <div className="lg:hidden">
+      <div className="lg:hidden flex items-center gap-2">
+        <LanguageToggle language={language} setLanguage={setLanguage} compact />
+        <ThemeToggle theme={theme} setTheme={setTheme} />
         <button className="text-2xl"><Menu /></button>
       </div>
     </nav>
@@ -120,57 +185,56 @@ function PageHero({ eyebrow, title, subtitle, icon: Icon }) {
 }
 
 /* ── Shared: dải số liệu tối, dùng lại ở nhiều trang ── */
-function StatsBand() {
-  const stats = [
-    { icon: HeartPulse, color: 'text-[#FF543C]', value: '3.248.765+', label: 'Lượt hành động tử tế' },
-    { icon: Users, color: 'text-[#00C2FF]', value: '207.654+', label: 'Người đang tham gia' },
-    { icon: Handshake, color: 'text-[#8B4DFF]', value: '1.245+', label: 'Đối tác & tổ chức' },
-    { icon: CalendarDays, color: 'text-[#4B6BFF]', value: '365', label: 'Ngày - Hành trình tốt hơn' },
-  ]
+function StatsBand({ stats }) {
+  const icons = [HeartPulse, Users, Handshake, CalendarDays]
+  const colors = ['text-[#FF543C]', 'text-[#00C2FF]', 'text-[#8B4DFF]', 'text-[#4B6BFF]']
   return (
     <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-6">
       <div className="bg-[#0B132B] rounded-2xl shadow-xl p-6 lg:p-10 flex flex-wrap lg:flex-nowrap justify-between gap-6 relative overflow-hidden">
         <div className="absolute inset-0 zofo-hero-glow opacity-50"></div>
-        {stats.map((s, i) => (
-          <div key={i} className="w-1/2 lg:w-1/4 flex items-center gap-4 relative z-10">
-            <s.icon className={`w-9 h-9 ${s.color}`} />
-            <div>
-              <h3 className="text-2xl lg:text-3xl font-bold text-white leading-tight">{s.value}</h3>
-              <p className="text-gray-400 text-sm">{s.label}</p>
+        {stats.map((s, i) => {
+          const Icon = icons[i]
+          return (
+            <div key={i} className="w-1/2 lg:w-1/4 flex items-center gap-4 relative z-10">
+              <Icon className={`w-9 h-9 ${colors[i]}`} />
+              <div>
+                <h3 className="text-2xl lg:text-3xl font-bold text-white leading-tight">{s.value}</h3>
+                <p className="text-gray-400 text-sm">{s.label}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
 }
 
 /* ── Shared: dải CTA gọn, dùng ở cuối các trang con ── */
-function CTABand({ onGetStarted, onOpenQR, title, subtitle }) {
+function CTABand({ onGetStarted, onOpenQR, title, subtitle, t }) {
   return (
     <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10 mb-20">
-      <div className="rounded-3xl shadow-2xl relative overflow-hidden bg-gradient-to-br from-orange-100 via-purple-100 to-blue-100 border border-white">
+      <div className="rounded-3xl shadow-2xl relative overflow-hidden bg-gradient-to-br from-orange-100 via-purple-100 to-blue-100 dark:from-[#241a3a] dark:via-[#1a2036] dark:to-[#132033] border border-white dark:border-white/10">
         <div
           className="absolute top-0 left-0 w-full h-full"
           style={{ background: 'linear-gradient(90deg, rgba(255,84,60,0.1) 0%, rgba(139,77,255,0.2) 50%, rgba(0,194,255,0.1) 100%)' }}
         ></div>
         <div className="relative z-10 p-10 lg:p-14 text-center flex flex-col items-center gap-6">
-          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 leading-tight max-w-2xl">
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 dark:text-gray-50 leading-tight max-w-2xl">
             {title}
           </h2>
-          <p className="text-gray-700 font-medium max-w-xl">{subtitle}</p>
+          <p className="text-gray-700 dark:text-gray-300 font-medium max-w-xl">{subtitle}</p>
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
             <button
               onClick={onGetStarted}
               className="bg-[#0B132B] text-white px-8 py-4 rounded-full font-bold shadow-lg hover:shadow-[0_0_20px_rgba(0,194,255,0.4)] transition w-full sm:w-auto"
             >
-              Tham gia ngay
+              {t.common.joinNow}
             </button>
             <button
               onClick={onOpenQR}
-              className="bg-white/50 backdrop-blur border-2 border-[#0B132B] text-[#0B132B] px-8 py-4 rounded-full font-bold hover:bg-white transition flex items-center justify-center gap-2 w-full sm:w-auto"
+              className="bg-white/50 dark:bg-white/10 backdrop-blur border-2 border-[#0B132B] dark:border-white/30 text-[#0B132B] dark:text-white px-8 py-4 rounded-full font-bold hover:bg-white dark:hover:bg-white/20 transition flex items-center justify-center gap-2 w-full sm:w-auto"
             >
-              <Smartphone className="w-4 h-4" /> Tải ứng dụng
+              <Smartphone className="w-4 h-4" /> {t.common.downloadApp}
             </button>
           </div>
         </div>
@@ -188,9 +252,60 @@ function SectionHeading({ eyebrow, title, subtitle, center = true }) {
           {eyebrow}
         </div>
       )}
-      <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-3 leading-tight">{title}</h2>
-      {subtitle && <p className="text-gray-500 text-sm md:text-base">{subtitle}</p>}
+      <h2 className="text-3xl lg:text-4xl font-black text-gray-900 dark:text-gray-50 mb-3 leading-tight">{title}</h2>
+      {subtitle && <p className="text-gray-500 dark:text-gray-400 text-sm md:text-base">{subtitle}</p>}
     </div>
+  )
+}
+
+/* ── Shared: footer với hotline hỗ trợ & liên hệ hợp tác ── */
+function LandingFooter({ t, setPage }) {
+  const NAV_ITEMS = getNavItems(t)
+  return (
+    <footer className="bg-[#0B132B] text-gray-300 border-t border-white/10">
+      <div className="container mx-auto max-w-7xl px-6 lg:px-12 py-14 grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div>
+          <img src={zofoLogo} alt="Zero to Forever" className="h-10 w-auto object-contain mb-4" />
+          <p className="text-sm text-gray-400 max-w-xs leading-relaxed">{t.footer.tagline}</p>
+        </div>
+        <div>
+          <h5 className="text-white font-bold text-sm mb-4 uppercase tracking-wide">{t.footer.quickLinks}</h5>
+          <ul className="space-y-2 text-sm">
+            {NAV_ITEMS.map((item) => (
+              <li key={item.key}>
+                <button onClick={() => setPage(item.key)} className="hover:text-white transition">{item.label}</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h5 className="text-white font-bold text-sm mb-4 uppercase tracking-wide">{t.footer.contact}</h5>
+          <ul className="space-y-3 text-sm">
+            <li>
+              <a href={`mailto:${HOTLINE_EMAIL}`} className="flex items-center gap-2 hover:text-white transition">
+                <Phone className="w-4 h-4 text-[#00C2FF] flex-shrink-0" />
+                <span>
+                  <span className="block text-xs text-gray-400">{t.footer.hotlineLabel}</span>
+                  {HOTLINE_EMAIL}
+                </span>
+              </a>
+            </li>
+            <li>
+              <a href={`mailto:${PARTNERSHIP_EMAIL}`} className="flex items-center gap-2 hover:text-white transition">
+                <Mail className="w-4 h-4 text-[#8B4DFF] flex-shrink-0" />
+                <span>
+                  <span className="block text-xs text-gray-400">{t.footer.partnershipLabel}</span>
+                  {PARTNERSHIP_EMAIL}
+                </span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div className="border-t border-white/10 py-5 text-center text-xs text-gray-500">
+        {t.footer.rights}
+      </div>
+    </footer>
   )
 }
 
@@ -204,13 +319,32 @@ export default function LandingPageZeroToForever({
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
 
+  const [language, setLanguage] = useState(() => {
+    if (typeof window === 'undefined') return 'vi'
+    return window.localStorage.getItem(LANG_STORAGE_KEY) || 'vi'
+  })
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light'
+    return window.localStorage.getItem(THEME_STORAGE_KEY) || 'light'
+  })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(LANG_STORAGE_KEY, language)
+  }, [language])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }, [theme])
+
+  const t = getLandingT(language)
+  const isDark = theme === 'dark'
+
   const openVideoHelp = () => setShowVideoHelp(true)
   const openQRModal = () => setShowQRModal(true)
 
-  const goHome = () => setPage('home')
-
   return (
-    <div className="antialiased bg-[#F2F4F8] text-[#333] overflow-x-hidden font-sans">
+    <div className={`antialiased overflow-x-hidden font-sans ${isDark ? 'dark' : ''}`}>
+      <div className="bg-[#F2F4F8] dark:bg-[#0a0e1a] text-[#333] dark:text-gray-200 transition-colors duration-300">
       <style>{`
         .zofo-hero-section {
           background-color: #0B132B;
@@ -254,7 +388,11 @@ export default function LandingPageZeroToForever({
           transform: translateY(-50%);
           z-index: -1;
         }
+        .dark .zofo-timeline-line::before {
+          background: linear-gradient(90deg, #2a3350 0%, #4B6BFF 50%, #8B4DFF 100%);
+        }
         .zofo-shadow-soft { box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08); }
+        .dark .zofo-shadow-soft { box-shadow: 0 10px 40px -10px rgba(0,0,0,0.4); }
         .zofo-shadow-neon-cyan { box-shadow: 0 0 20px rgba(0, 194, 255, 0.4); }
         .zofo-shadow-neon-purple { box-shadow: 0 0 20px rgba(139, 77, 255, 0.4); }
         .zofo-gradient-brand { background: linear-gradient(135deg, #FF543C 0%, #8B4DFF 100%); }
@@ -262,7 +400,17 @@ export default function LandingPageZeroToForever({
         .zofo-hero-glow { background: radial-gradient(circle at 50% 50%, rgba(139, 77, 255, 0.15) 0%, rgba(11, 19, 43, 0) 60%); }
       `}</style>
 
-      <NavBar page={page} setPage={setPage} onLogin={onLogin} onGetStarted={onGetStarted} />
+      <NavBar
+        page={page}
+        setPage={setPage}
+        onLogin={onLogin}
+        onGetStarted={onGetStarted}
+        t={t}
+        language={language}
+        setLanguage={setLanguage}
+        theme={theme}
+        setTheme={setTheme}
+      />
 
       {/* ══════════════════════════ TRANG CHỦ ══════════════════════════ */}
       {page === 'home' && (
@@ -279,18 +427,18 @@ export default function LandingPageZeroToForever({
                   <span className="text-[#00C2FF] zofo-text-glow-cyan">Forever</span>
                 </h1>
                 <h3 className="text-xl md:text-2xl font-semibold text-gray-200">
-                  Khám phá sức mạnh bên trong bạn. <br />
-                  Sống khỏe – Sống ý nghĩa – Sống mãi giá trị.
+                  {t.home.heroSub} <br />
+                  {t.home.heroLine1}
                 </h3>
                 <p className="text-gray-400 max-w-lg text-sm md:text-base leading-relaxed">
-                  Từ từng tế bào đến tâm hồn, từ mỗi hành động tử tế đến những thay đổi bền vững, để mỗi ngày bạn trở thành phiên bản tốt hơn của chính mình.
+                  {t.home.heroDesc}
                 </p>
                 <div className="flex flex-wrap items-center gap-4 pt-4">
                   <button
                     onClick={onGetStarted}
                     className="zofo-gradient-brand text-white px-8 py-4 rounded-full font-semibold zofo-shadow-neon-purple hover:scale-105 transition transform flex items-center gap-2"
                   >
-                    Bắt đầu hành trình <ArrowRight className="w-4 h-4" />
+                    {t.common.getStarted} <ArrowRight className="w-4 h-4" />
                   </button>
                   <button
                     onClick={openVideoHelp}
@@ -300,16 +448,16 @@ export default function LandingPageZeroToForever({
                       <Play className="w-4 h-4 ml-0.5" />
                     </div>
                     <div className="text-sm text-left">
-                      <div className="font-semibold">Xem video giới thiệu</div>
-                      <div className="text-gray-400">(2:45)</div>
+                      <div className="font-semibold">{t.common.watchIntro}</div>
+                      <div className="text-gray-400">{t.home.videoDuration}</div>
                     </div>
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-6 pt-8 text-sm font-medium text-gray-300">
-                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00C2FF]" /> An toàn</span>
-                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00C2FF]" /> Minh bạch</span>
-                  <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#00C2FF]" /> Cộng đồng</span>
-                  <span className="flex items-center gap-2"><Heart className="w-4 h-4 text-[#00C2FF]" /> Tích cực</span>
+                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00C2FF]" /> {t.home.badges[0]}</span>
+                  <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#00C2FF]" /> {t.home.badges[1]}</span>
+                  <span className="flex items-center gap-2"><Users className="w-4 h-4 text-[#00C2FF]" /> {t.home.badges[2]}</span>
+                  <span className="flex items-center gap-2"><Heart className="w-4 h-4 text-[#00C2FF]" /> {t.home.badges[3]}</span>
                 </div>
               </div>
 
@@ -343,7 +491,7 @@ export default function LandingPageZeroToForever({
                   />
                   <div className="absolute bottom-12 right-0 text-right z-20">
                     <h4 className="text-2xl font-bold text-white">Zero to Forever</h4>
-                    <p className="text-[#00C2FF] font-medium">Become The Hero Within.</p>
+                    <p className="text-[#00C2FF] font-medium">{t.home.heroGraphicTagline}</p>
                   </div>
                 </div>
               </div>
@@ -352,14 +500,14 @@ export default function LandingPageZeroToForever({
 
           {/* Feature Pillars (Overlapping Hero) */}
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 relative z-20 -mt-16">
-            <div className="bg-white rounded-3xl zofo-shadow-soft p-6 lg:p-8 flex flex-wrap lg:flex-nowrap justify-between gap-6">
+            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6 lg:p-8 flex flex-wrap lg:flex-nowrap justify-between gap-6">
               {[
-                { icon: Droplet, bg: 'bg-red-50', color: 'text-[#FF543C]', title: 'Hiến máu', sub: 'Nhân Văn' },
-                { icon: HeartPulse, bg: 'bg-green-50', color: 'text-green-500', title: 'Sức khỏe', sub: 'Toàn diện' },
-                { icon: Brain, bg: 'bg-blue-50', color: 'text-[#4B6BFF]', title: 'AI Coach', sub: 'Cá nhân hóa', hot: true },
-                { icon: Trophy, bg: 'bg-orange-50', color: 'text-yellow-500', title: 'Game hóa', sub: 'Zero to Hero' },
-                { icon: Award, bg: 'bg-purple-50', color: 'text-[#8B4DFF]', title: 'POAP & Badge', sub: 'Dấu ấn vĩnh cửu' },
-                { icon: Users, bg: 'bg-blue-50', color: 'text-[#4B6BFF]', title: 'Cộng đồng', sub: 'Tích cực' },
+                { icon: Droplet, bg: 'bg-red-50 dark:bg-red-500/10', color: 'text-[#FF543C]' },
+                { icon: HeartPulse, bg: 'bg-green-50 dark:bg-green-500/10', color: 'text-green-500' },
+                { icon: Brain, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', hot: true },
+                { icon: Trophy, bg: 'bg-orange-50 dark:bg-orange-500/10', color: 'text-yellow-500' },
+                { icon: Award, bg: 'bg-purple-50 dark:bg-purple-500/10', color: 'text-[#8B4DFF]' },
+                { icon: Users, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]' },
               ].map((item, i) => (
                 <div key={i} className="flex flex-col items-center text-center w-1/2 lg:w-1/5 group relative">
                   {item.hot && (
@@ -368,8 +516,8 @@ export default function LandingPageZeroToForever({
                   <div className={`w-16 h-16 rounded-full ${item.bg} flex items-center justify-center mb-3 group-hover:scale-110 transition`}>
                     <item.icon className={`w-7 h-7 ${item.color}`} />
                   </div>
-                  <h4 className="font-bold text-gray-800 leading-tight">
-                    {item.title}<br /><span className="text-gray-500 font-medium">{item.sub}</span>
+                  <h4 className="font-bold text-gray-800 dark:text-gray-100 leading-tight">
+                    {t.home.pillars[i].title}<br /><span className="text-gray-500 dark:text-gray-400 font-medium">{t.home.pillars[i].sub}</span>
                   </h4>
                 </div>
               ))}
@@ -380,21 +528,16 @@ export default function LandingPageZeroToForever({
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-20">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               {/* Left: AI Coach Text */}
-              <div className="lg:col-span-3 space-y-6 bg-white p-8 rounded-3xl zofo-shadow-soft h-full flex flex-col justify-center">
+              <div className="lg:col-span-3 space-y-6 bg-white dark:bg-[#141b2e] p-8 rounded-3xl zofo-shadow-soft h-full flex flex-col justify-center">
                 <div className="inline-block border border-[#8B4DFF] text-[#8B4DFF] font-semibold text-xs rounded-full px-4 py-1 tracking-wide w-max">
-                  AI COACH
+                  {t.home.aiCoach.eyebrow}
                 </div>
-                <h2 className="text-4xl font-bold text-gray-900 leading-tight">
-                  <span className="text-[#FF543C]">AI</span> đồng hành <br />
-                  trên hành trình <span className="text-[#4B6BFF]">của bạn</span>
+                <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-50 leading-tight">
+                  <span className="text-[#FF543C]">{t.home.aiCoach.titleA}</span> {t.home.aiCoach.titleB} <br />
+                  {t.home.aiCoach.titleC} <span className="text-[#4B6BFF]">{t.home.aiCoach.titleD}</span>
                 </h2>
-                <ul className="space-y-4 text-sm font-medium text-gray-700">
-                  {[
-                    'Phân tích sức khỏe & thói quen',
-                    'Thiết kế Roadmap riêng cho bạn',
-                    'Gợi ý Daily Quest phù hợp',
-                    'Theo dõi tiến độ & động lực mỗi ngày',
-                  ].map((text, i) => (
+                <ul className="space-y-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t.home.aiCoach.items.map((text, i) => (
                     <li key={i} className="flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
                       {text}
@@ -405,7 +548,7 @@ export default function LandingPageZeroToForever({
                   onClick={() => setPage('technology')}
                   className="mt-4 border border-[#4B6BFF] text-[#4B6BFF] hover:bg-[#4B6BFF] hover:text-white font-medium px-6 py-3 rounded-full transition w-max flex items-center gap-2"
                 >
-                  Khám phá AI Coach <ArrowRight className="w-4 h-4" />
+                  {t.home.aiCoach.cta} <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
@@ -416,8 +559,8 @@ export default function LandingPageZeroToForever({
                   <div className="flex-1 bg-gray-50 pt-10 px-5 flex flex-col gap-4 overflow-hidden">
                     <div className="flex justify-between items-center">
                       <div>
-                        <h4 className="font-bold text-gray-900">Xin chào, Hero! 👋</h4>
-                        <p className="text-xs text-gray-500">Hôm nay bạn đã sẵn sàng chưa?</p>
+                        <h4 className="font-bold text-gray-900">{t.home.phone.greeting}</h4>
+                        <p className="text-xs text-gray-500">{t.home.phone.ready}</p>
                       </div>
                       <div className="w-8 h-8 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center bg-gray-100">
                         <User className="w-4 h-4 text-gray-400" />
@@ -425,7 +568,7 @@ export default function LandingPageZeroToForever({
                     </div>
                     <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Điểm sức khỏe</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">{t.home.phone.healthScore}</p>
                         <div className="flex items-baseline gap-1">
                           <span className="text-4xl font-bold text-gray-900">86</span>
                           <span className="text-sm font-medium text-gray-400">/100</span>
@@ -437,86 +580,80 @@ export default function LandingPageZeroToForever({
                     </div>
                     <div>
                       <div className="flex justify-between items-center mb-3">
-                        <h5 className="font-bold text-sm">Daily Quest</h5>
-                        <span className="text-xs text-gray-400">4/5 hoàn thành</span>
+                        <h5 className="font-bold text-sm">{t.home.phone.dailyQuest}</h5>
+                        <span className="text-xs text-gray-400">{t.home.phone.completed}</span>
                       </div>
                       <div className="space-y-3">
-                        {[
-                          { title: 'Đi bộ 6.000 bước', sub: '6.200/6.000', done: true },
-                          { title: 'Uống 2L nước', sub: '1.8/2L', done: true },
-                          { title: 'Thiền 10 phút', sub: '7/10', done: false },
-                          { title: 'Ngủ trước 23:00', sub: '22:30 ✔', done: true, red: true },
-                        ].map((q, i) => (
-                          <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${q.done ? 'bg-green-100 text-green-500' : 'bg-purple-100 text-[#8B4DFF]'}`}>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                        {t.home.phone.quests.map((q, i) => {
+                          const done = i !== 2
+                          const red = i === 3
+                          return (
+                            <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${done ? 'bg-green-100 text-green-500' : 'bg-purple-100 text-[#8B4DFF]'}`}>
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-gray-800">{q.title}</p>
+                                <p className={`text-[10px] ${red ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{q.sub}</p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-gray-800">{q.title}</p>
-                              <p className={`text-[10px] ${q.red ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{q.sub}</p>
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   </div>
                   <div className="h-16 bg-white border-t border-gray-100 flex justify-around items-center px-4 text-xs font-medium text-gray-400">
-                    <div className="flex flex-col items-center text-[#4B6BFF]"><Home className="w-4 h-4 mb-1" /> Home</div>
-                    <div className="flex flex-col items-center"><Compass className="w-4 h-4 mb-1" /> Quest</div>
-                    <div className="flex flex-col items-center"><Users className="w-4 h-4 mb-1" /> Community</div>
-                    <div className="flex flex-col items-center"><User className="w-4 h-4 mb-1" /> Profile</div>
+                    <div className="flex flex-col items-center text-[#4B6BFF]"><Home className="w-4 h-4 mb-1" /> {t.home.phone.navHome}</div>
+                    <div className="flex flex-col items-center"><Compass className="w-4 h-4 mb-1" /> {t.home.phone.navQuest}</div>
+                    <div className="flex flex-col items-center"><Users className="w-4 h-4 mb-1" /> {t.home.phone.navCommunity}</div>
+                    <div className="flex flex-col items-center"><User className="w-4 h-4 mb-1" /> {t.home.phone.navProfile}</div>
                   </div>
                 </div>
               </div>
 
               {/* Right: Journey & Stats */}
-              <div className="lg:col-span-5 bg-[#eef1fc] p-8 rounded-3xl flex flex-col gap-8 h-full zofo-shadow-soft">
+              <div className="lg:col-span-5 bg-[#eef1fc] dark:bg-[#1a2036] p-8 rounded-3xl flex flex-col gap-8 h-full zofo-shadow-soft">
                 <div>
                   <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xl font-bold">Hành trình Zero to Hero</h3>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-gray-50">{t.home.journeyPanel.title}</h3>
                     <button onClick={() => setPage('journey')} className="text-xs font-semibold text-[#4B6BFF] hover:underline flex items-center gap-1">
-                      Xem chi tiết <ChevronRight className="w-3.5 h-3.5" />
+                      {t.home.journeyPanel.viewDetail} <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="zofo-timeline-line flex justify-between px-2">
                     {[
-                      { icon: Mountain, bg: 'bg-gray-300', text: 'text-gray-600', label: 'Zero' },
-                      { icon: Sprout, bg: 'bg-green-400', text: 'text-white', label: 'Awaken', labelColor: 'text-green-600' },
-                      { icon: Compass, bg: 'bg-blue-400', text: 'text-white', label: 'Explorer', labelColor: 'text-[#4B6BFF]' },
-                      { icon: ShieldCheck, bg: 'bg-yellow-400', text: 'text-white', label: 'Guardian', labelColor: 'text-yellow-600' },
-                      { icon: Zap, bg: 'bg-[#FF543C]', text: 'text-white', label: 'Hero', labelColor: 'text-[#FF543C]', big: true, bold: true },
-                      { icon: Crown, bg: 'bg-purple-500', text: 'text-white', label: 'Legend', labelColor: 'text-purple-600', dim: true },
-                      { icon: InfinityIcon, bg: 'bg-teal-400', text: 'text-white', label: 'Forever', labelColor: 'text-teal-600', dim: true },
+                      { icon: Mountain, bg: 'bg-gray-300', text: 'text-gray-600' },
+                      { icon: Sprout, bg: 'bg-green-400', text: 'text-white', labelColor: 'text-green-600' },
+                      { icon: Compass, bg: 'bg-blue-400', text: 'text-white', labelColor: 'text-[#4B6BFF]' },
+                      { icon: ShieldCheck, bg: 'bg-yellow-400', text: 'text-white', labelColor: 'text-yellow-600' },
+                      { icon: Zap, bg: 'bg-[#FF543C]', text: 'text-white', labelColor: 'text-[#FF543C]', big: true, bold: true },
+                      { icon: Crown, bg: 'bg-purple-500', text: 'text-white', labelColor: 'text-purple-600', dim: true },
+                      { icon: InfinityIcon, bg: 'bg-teal-400', text: 'text-white', labelColor: 'text-teal-600', dim: true },
                     ].map((step, i) => (
                       <div key={i} className={`flex flex-col items-center gap-2 relative z-10 group ${step.dim ? 'opacity-50' : ''}`}>
                         <div className={`${step.big ? 'w-12 h-12 -translate-y-1' : 'w-10 h-10'} rounded-full ${step.bg} ${step.text} flex items-center justify-center shadow-md`}>
                           <step.icon className={step.big ? 'w-5 h-5' : 'w-4 h-4'} />
                         </div>
-                        <span className={`text-xs ${step.bold ? 'font-bold' : 'font-semibold'} ${step.labelColor || 'text-gray-600'}`}>{step.label}</span>
+                        <span className={`text-xs ${step.bold ? 'font-bold' : 'font-semibold'} ${step.labelColor || 'text-gray-600'}`}>{t.home.journeyPanel.steps[i]}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-auto">
-                  {[
-                    { icon: Users, color: 'text-[#4B6BFF]', value: '100.000+', label: 'Thành viên' },
-                    { icon: Droplet, color: 'text-[#FF543C]', value: '50.000+', label: 'Đơn vị máu' },
-                    { icon: Award, color: 'text-yellow-500', value: '10.000+', label: 'Anh Hùng' },
-                    { icon: Trophy, color: 'text-[#8B4DFF]', value: '1.000.000+', label: 'Nhiệm vụ' },
-                  ].map((s, i) => (
-                    <div key={i} className="bg-white rounded-xl p-4 text-center shadow-sm">
-                      <s.icon className={`w-6 h-6 ${s.color} mb-1 mx-auto`} />
-                      <h4 className="font-bold text-gray-900">{s.value}</h4>
-                      <p className="text-[10px] text-gray-500 uppercase">{s.label}</p>
+                  {[Users, Droplet, Award, Trophy].map((Icon, i) => (
+                    <div key={i} className="bg-white dark:bg-[#141b2e] rounded-xl p-4 text-center shadow-sm">
+                      <Icon className={`w-6 h-6 ${['text-[#4B6BFF]', 'text-[#FF543C]', 'text-yellow-500', 'text-[#8B4DFF]'][i]} mb-1 mx-auto`} />
+                      <h4 className="font-bold text-gray-900 dark:text-gray-50">{t.home.journeyPanel.stats[i].value}</h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase">{t.home.journeyPanel.stats[i].label}</p>
                     </div>
                   ))}
                 </div>
 
-                <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 flex items-center gap-4 relative overflow-hidden">
+                <div className="bg-blue-50/50 dark:bg-blue-500/10 rounded-xl p-4 border border-blue-100 dark:border-blue-400/20 flex items-center gap-4 relative overflow-hidden">
                   <Quote className="w-8 h-8 text-[#4B6BFF] opacity-20 absolute top-2 left-2" />
-                  <p className="text-sm font-medium text-gray-700 italic relative z-10 w-2/3">
-                    Không phải ai cũng có cơ hội bay vào vũ trụ. Nhưng ai cũng có thể khám phá sức mạnh vô hạn bên trong mình.
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 italic relative z-10 w-2/3">
+                    {t.home.journeyPanel.quote}
                   </p>
                   <div className="w-1/3 flex justify-end">
                     <img
@@ -540,32 +677,24 @@ export default function LandingPageZeroToForever({
                     bg: 'bg-purple-100',
                     icon: Award,
                     iconBg: 'bg-[#8B4DFF]',
-                    title: 'Proof of Humanity',
-                    desc: 'Ghi nhận mỗi hành động tốt đẹp của bạn bằng POAP & SBT.',
                     overlay: true,
                     goto: 'technology',
                   },
                   {
                     img: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
                     bg: 'bg-blue-100',
-                    title: 'Cộng đồng',
-                    desc: 'Kết nối – Chia sẻ – Lan tỏa những giá trị tích cực.',
                     goto: 'community',
                   },
                   {
                     img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
                     bg: 'bg-orange-100',
                     icon: ShoppingBag,
-                    title: 'Marketplace',
-                    desc: 'Sản phẩm & dịch vụ sức khỏe uy tín.',
                     overlayCenter: true,
                     goto: 'partners',
                   },
                   {
                     img: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
                     bg: 'bg-gray-900',
-                    title: 'Game hóa',
-                    desc: 'XP – Level – Quest – Guild. Lên cấp mỗi ngày.',
                     darkOverlay: true,
                     goto: 'journey',
                   },
@@ -573,10 +702,10 @@ export default function LandingPageZeroToForever({
                   <button
                     key={i}
                     onClick={() => setPage(card.goto)}
-                    className="text-left bg-white rounded-2xl overflow-hidden zofo-shadow-soft flex flex-col group cursor-pointer hover:-translate-y-1 transition duration-300"
+                    className="text-left bg-white dark:bg-[#141b2e] rounded-2xl overflow-hidden zofo-shadow-soft flex flex-col group cursor-pointer hover:-translate-y-1 transition duration-300"
                   >
                     <div className={`h-40 ${card.bg} relative overflow-hidden`}>
-                      <img alt={card.title} className={`w-full h-full object-cover ${card.darkOverlay ? 'opacity-60' : 'opacity-90'} group-hover:scale-105 transition duration-500`} src={card.img} />
+                      <img alt={t.home.featureCards[i].title} className={`w-full h-full object-cover ${card.darkOverlay ? 'opacity-60' : 'opacity-90'} group-hover:scale-105 transition duration-500`} src={card.img} />
                       {card.overlay && card.icon && (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className={`w-16 h-16 rounded-full ${card.iconBg} text-white shadow-lg flex items-center justify-center border-4 border-white`}>
@@ -596,48 +725,48 @@ export default function LandingPageZeroToForever({
                       )}
                     </div>
                     <div className="p-5 flex-1 flex flex-col">
-                      <h4 className="font-bold text-lg text-gray-900 mb-2">{card.title}</h4>
-                      <p className="text-sm text-gray-500 flex-1">{card.desc}</p>
-                      <span className="text-[#4B6BFF] text-sm font-semibold mt-4 group-hover:text-[#8B4DFF] transition">Tìm hiểu thêm →</span>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-2">{t.home.featureCards[i].title}</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 flex-1">{t.home.featureCards[i].desc}</p>
+                      <span className="text-[#4B6BFF] text-sm font-semibold mt-4 group-hover:text-[#8B4DFF] transition">{t.common.learnMore}</span>
                     </div>
                   </button>
                 ))}
               </div>
 
               {/* Partners List */}
-              <div className="lg:col-span-1 bg-white rounded-2xl zofo-shadow-soft p-6 flex flex-col justify-between">
+              <div className="lg:col-span-1 bg-white dark:bg-[#141b2e] rounded-2xl zofo-shadow-soft p-6 flex flex-col justify-between">
                 <div className="space-y-6">
-                  <div className="flex items-center justify-center gap-2 font-bold text-gray-700">
-                    <Gamepad2 className="w-5 h-5 text-blue-900" /> STEAMLAND
+                  <div className="flex items-center justify-center gap-2 font-bold text-gray-700 dark:text-gray-200">
+                    <Gamepad2 className="w-5 h-5 text-blue-900 dark:text-blue-300" /> STEAMLAND
                   </div>
-                  <div className="flex items-center justify-center gap-2 font-bold text-gray-700">
+                  <div className="flex items-center justify-center gap-2 font-bold text-gray-700 dark:text-gray-200">
                     <span className="text-[#FF543C] text-xl">▲</span> ACCESSTRADE
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center justify-center gap-1 font-bold text-orange-500 text-sm">
                       <ShoppingBag className="w-4 h-4" /> Shopee
                     </div>
-                    <div className="flex items-center justify-center gap-1 font-bold text-blue-800 text-sm">
+                    <div className="flex items-center justify-center gap-1 font-bold text-blue-800 dark:text-blue-300 text-sm">
                       <span className="text-pink-500 text-lg">♡</span> Lazada
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center justify-center gap-1 font-bold text-black text-sm">TikTok Shop</div>
+                    <div className="flex items-center justify-center gap-1 font-bold text-black dark:text-gray-200 text-sm">TikTok Shop</div>
                     <div className="flex items-center justify-center font-bold text-blue-500 text-sm">Tiki</div>
                   </div>
                 </div>
                 <div className="text-center mt-6">
-                  <button onClick={() => setPage('partners')} className="text-[#4B6BFF] text-sm font-semibold hover:underline">Xem tất cả →</button>
+                  <button onClick={() => setPage('partners')} className="text-[#4B6BFF] text-sm font-semibold hover:underline">{t.common.viewAll}</button>
                 </div>
               </div>
             </div>
           </section>
 
-          <StatsBand />
+          <StatsBand stats={t.home.journeyPanel.stats} />
 
           {/* CTA Section */}
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10 mb-20">
-            <div className="rounded-3xl shadow-2xl relative overflow-hidden bg-gradient-to-br from-orange-100 via-purple-100 to-blue-100 border border-white">
+            <div className="rounded-3xl shadow-2xl relative overflow-hidden bg-gradient-to-br from-orange-100 via-purple-100 to-blue-100 dark:from-[#241a3a] dark:via-[#1a2036] dark:to-[#132033] border border-white dark:border-white/10">
               <div
                 className="absolute top-0 left-0 w-full h-full"
                 style={{ background: 'linear-gradient(90deg, rgba(255,84,60,0.1) 0%, rgba(139,77,255,0.2) 50%, rgba(0,194,255,0.1) 100%)' }}
@@ -657,8 +786,8 @@ export default function LandingPageZeroToForever({
                 </div>
                 {/* Center: Content */}
                 <div className="col-span-12 lg:col-span-5 text-center flex flex-col justify-center">
-                  <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4 leading-tight">
-                    Sẵn sàng trở thành phiên bản{' '}
+                  <h2 className="text-3xl lg:text-4xl font-black text-gray-900 dark:text-gray-50 mb-4 leading-tight">
+                    {t.home.ctaSection.titlePre}{' '}
                     <span
                       style={{
                         backgroundImage: 'linear-gradient(135deg, #FF543C 0%, #8B4DFF 100%)',
@@ -668,25 +797,25 @@ export default function LandingPageZeroToForever({
                         WebkitTextFillColor: 'transparent',
                       }}
                     >
-                      tốt hơn
+                      {t.home.ctaSection.titleHighlight}
                     </span>{' '}
-                    của chính mình?
+                    {t.home.ctaSection.titlePost}
                   </h2>
-                  <p className="text-gray-700 font-medium mb-8">
-                    Bắt đầu ngay hôm nay – Hành trình chỉ thuộc về bạn.
+                  <p className="text-gray-700 dark:text-gray-300 font-medium mb-8">
+                    {t.home.ctaSection.subtitle}
                   </p>
                   <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
                     <button
                       onClick={onGetStarted}
                       className="bg-[#0B132B] text-white px-8 py-4 rounded-full font-bold shadow-lg hover:shadow-[0_0_20px_rgba(0,194,255,0.4)] transition w-full sm:w-auto"
                     >
-                      Tham gia ngay
+                      {t.common.joinNow}
                     </button>
                     <button
                       onClick={openQRModal}
-                      className="bg-white/50 backdrop-blur border-2 border-[#0B132B] text-[#0B132B] px-8 py-4 rounded-full font-bold hover:bg-white transition flex items-center justify-center gap-2 w-full sm:w-auto"
+                      className="bg-white/50 dark:bg-white/10 backdrop-blur border-2 border-[#0B132B] dark:border-white/30 text-[#0B132B] dark:text-white px-8 py-4 rounded-full font-bold hover:bg-white dark:hover:bg-white/20 transition flex items-center justify-center gap-2 w-full sm:w-auto"
                     >
-                      <Smartphone className="w-4 h-4" /> Tải ứng dụng
+                      <Smartphone className="w-4 h-4" /> {t.common.downloadApp}
                     </button>
                   </div>
                 </div>
@@ -705,7 +834,7 @@ export default function LandingPageZeroToForever({
                   <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col items-center">
                     <img alt="QR Code tải app Zero to Forever" className="w-20 h-20 mb-2 object-contain" src={zofoQRCode} />
                     <span className="text-[10px] text-gray-500 font-semibold flex items-center gap-1">
-                      <QrCode className="w-3 h-3" /> quét để tải app
+                      <QrCode className="w-3 h-3" /> {t.common.scanToDownload}
                     </span>
                   </div>
                 </div>
@@ -717,16 +846,16 @@ export default function LandingPageZeroToForever({
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 pb-20">
             <div className="text-center mb-8">
               <div className="inline-block border border-[#8B4DFF] text-[#8B4DFF] font-semibold text-xs rounded-full px-4 py-1 tracking-wide mb-4">
-                BRAND ASSETS
+                {t.home.brand.eyebrow}
               </div>
-              <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-3">
-                Bộ nhận diện thương hiệu
+              <h2 className="text-3xl lg:text-4xl font-black text-gray-900 dark:text-gray-50 mb-3">
+                {t.home.brand.title}
               </h2>
-              <p className="text-gray-500 max-w-xl mx-auto text-sm md:text-base">
-                Logo, màu sắc, typography và các quy chuẩn sử dụng chính thức của Zero to Forever.
+              <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto text-sm md:text-base">
+                {t.home.brand.subtitle}
               </p>
             </div>
-            <div className="bg-white rounded-3xl zofo-shadow-soft p-3 md:p-6 overflow-hidden">
+            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-3 md:p-6 overflow-hidden">
               <img
                 src={zofoLogoKit}
                 alt="Zero to Forever - Brand Assets / Logo Kit"
@@ -742,28 +871,28 @@ export default function LandingPageZeroToForever({
         <>
           <PageHero
             icon={Sparkles}
-            eyebrow="Về chúng tôi"
-            title="Chúng tôi tin ai cũng có thể trở thành phiên bản tốt hơn của chính mình"
-            subtitle="Zero to Forever là nền tảng game hóa hành trình sống khỏe & sống tử tế — nơi mỗi hành động nhân văn của bạn, từ hiến máu đến chăm sóc sức khỏe mỗi ngày, đều được ghi nhận và lan tỏa."
+            eyebrow={t.about.hero.eyebrow}
+            title={t.about.hero.title}
+            subtitle={t.about.hero.subtitle}
           />
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
             <SectionHeading
-              eyebrow="SỨ MỆNH · TẦM NHÌN · GIÁ TRỊ"
-              title="Điều thôi thúc chúng tôi mỗi ngày"
+              eyebrow={t.about.values.eyebrow}
+              title={t.about.values.title}
             />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { icon: Target, color: 'text-[#FF543C]', bg: 'bg-red-50', title: 'Sứ mệnh', desc: 'Biến mỗi hành động tử tế nhỏ nhất — hiến máu, tập luyện, nghỉ ngơi đủ giấc — thành một bước tiến có thể đo lường và ghi nhận vĩnh viễn.' },
-                { icon: Eye, color: 'text-[#4B6BFF]', bg: 'bg-blue-50', title: 'Tầm nhìn', desc: 'Trở thành hệ sinh thái "sống khỏe – sống ý nghĩa" lớn nhất Việt Nam, nơi công nghệ AI và Web3 phục vụ giá trị con người thật.' },
-                { icon: HeartHandshake, color: 'text-[#8B4DFF]', bg: 'bg-purple-50', title: 'Giá trị cốt lõi', desc: 'An toàn – Minh bạch – Bảo mật – Nhân văn. Dữ liệu của bạn luôn thuộc về bạn, không đánh đổi bằng quảng cáo hay dữ liệu cá nhân.' },
+                { icon: Target, color: 'text-[#FF543C]', bg: 'bg-red-50 dark:bg-red-500/10' },
+                { icon: Eye, color: 'text-[#4B6BFF]', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                { icon: HeartHandshake, color: 'text-[#8B4DFF]', bg: 'bg-purple-50 dark:bg-purple-500/10' },
               ].map((v, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-8">
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8">
                   <div className={`w-14 h-14 rounded-2xl ${v.bg} flex items-center justify-center mb-5`}>
                     <v.icon className={`w-7 h-7 ${v.color}`} />
                   </div>
-                  <h4 className="font-bold text-xl text-gray-900 mb-3">{v.title}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">{v.desc}</p>
+                  <h4 className="font-bold text-xl text-gray-900 dark:text-gray-50 mb-3">{t.about.values.items[i].title}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.about.values.items[i].desc}</p>
                 </div>
               ))}
             </div>
@@ -771,24 +900,19 @@ export default function LandingPageZeroToForever({
 
           <section className="container mx-auto max-w-5xl px-4 lg:px-8 py-10">
             <SectionHeading
-              eyebrow="CHẶNG ĐƯỜNG"
-              title="Câu chuyện của chúng tôi"
-              subtitle="Từ một ý tưởng nhỏ về việc khuyến khích hiến máu, đến một hệ sinh thái sống khỏe toàn diện."
+              eyebrow={t.about.milestones.eyebrow}
+              title={t.about.milestones.title}
+              subtitle={t.about.milestones.subtitle}
             />
             <div className="space-y-6">
-              {[
-                { year: '2023', title: 'Khởi nguồn ý tưởng', desc: 'Nhóm sáng lập nhận ra: mọi người muốn làm điều tốt, nhưng thiếu một nơi để ghi nhận & duy trì động lực lâu dài.' },
-                { year: '2024', title: 'Xây dựng bản thử nghiệm', desc: 'Ra mắt chương trình "Hiến máu nhân văn" thí điểm cùng vài bệnh viện & tổ chức đối tác đầu tiên.' },
-                { year: '2025', title: 'Ra mắt Zero to Forever', desc: 'Chính thức ra mắt nền tảng game hóa Zero to Hero, tích hợp AI Coach cá nhân hóa và hệ thống POAP/SBT ghi nhận vĩnh viễn.' },
-                { year: '2026', title: 'Mở rộng hệ sinh thái', desc: 'Kết nối thêm đối tác y tế, doanh nghiệp và nền tảng công nghệ để nhân rộng hành trình "sống khỏe – sống ý nghĩa" trên toàn quốc.' },
-              ].map((m, i) => (
-                <div key={i} className="flex gap-6 items-start bg-white rounded-2xl zofo-shadow-soft p-6">
+              {t.about.milestones.items.map((m, i) => (
+                <div key={i} className="flex gap-6 items-start bg-white dark:bg-[#141b2e] rounded-2xl zofo-shadow-soft p-6">
                   <div className="flex-shrink-0 w-20 h-14 rounded-xl zofo-gradient-brand text-white font-black text-lg flex items-center justify-center">
                     {m.year}
                   </div>
                   <div>
-                    <h4 className="font-bold text-gray-900 mb-1">{m.title}</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed">{m.desc}</p>
+                    <h4 className="font-bold text-gray-900 dark:text-gray-50 mb-1">{m.title}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{m.desc}</p>
                   </div>
                 </div>
               ))}
@@ -797,33 +921,34 @@ export default function LandingPageZeroToForever({
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
             <SectionHeading
-              eyebrow="ĐỘI NGŨ"
-              title="Những người đứng sau hành trình"
-              subtitle="Một đội ngũ nhỏ, đa lĩnh vực — y tế, công nghệ AI, thiết kế game hóa và cộng đồng."
+              eyebrow={t.about.team.eyebrow}
+              title={t.about.team.title}
+              subtitle={t.about.team.subtitle}
             />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {[
-                { role: 'Founder & CEO', color: 'bg-red-50 text-[#FF543C]' },
-                { role: 'Product & Game Design', color: 'bg-blue-50 text-[#4B6BFF]' },
-                { role: 'AI & Công nghệ', color: 'bg-purple-50 text-[#8B4DFF]' },
-                { role: 'Cộng đồng & Đối tác', color: 'bg-green-50 text-green-600' },
-              ].map((p, i) => (
-                <div key={i} className="bg-white rounded-2xl zofo-shadow-soft p-6 text-center">
-                  <div className={`w-16 h-16 rounded-full ${p.color} flex items-center justify-center mx-auto mb-4`}>
+                'bg-red-50 text-[#FF543C] dark:bg-red-500/10',
+                'bg-blue-50 text-[#4B6BFF] dark:bg-blue-500/10',
+                'bg-purple-50 text-[#8B4DFF] dark:bg-purple-500/10',
+                'bg-green-50 text-green-600 dark:bg-green-500/10',
+              ].map((color, i) => (
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-2xl zofo-shadow-soft p-6 text-center">
+                  <div className={`w-16 h-16 rounded-full ${color} flex items-center justify-center mx-auto mb-4`}>
                     <User className="w-7 h-7" />
                   </div>
-                  <h4 className="font-bold text-sm text-gray-900">{p.role}</h4>
+                  <h4 className="font-bold text-sm text-gray-900 dark:text-gray-50">{t.about.team.roles[i]}</h4>
                 </div>
               ))}
             </div>
           </section>
 
-          <StatsBand />
+          <StatsBand stats={t.home.journeyPanel.stats} />
           <CTABand
             onGetStarted={onGetStarted}
             onOpenQR={openQRModal}
-            title="Cùng chúng tôi viết tiếp câu chuyện này"
-            subtitle="Mỗi thành viên tham gia là một chương mới trong hành trình Zero to Forever."
+            title={t.about.cta.title}
+            subtitle={t.about.cta.subtitle}
+            t={t}
           />
         </>
       )}
@@ -833,69 +958,64 @@ export default function LandingPageZeroToForever({
         <>
           <PageHero
             icon={Compass}
-            eyebrow="Hành trình"
-            title="Zero to Hero — 7 chặng để trở thành phiên bản tốt hơn"
-            subtitle="Một hệ thống cấp bậc game hóa, biến mỗi thói quen tốt và hành động tử tế thành kinh nghiệm (EXP) để bạn lên cấp mỗi ngày."
+            eyebrow={t.journey.hero.eyebrow}
+            title={t.journey.hero.title}
+            subtitle={t.journey.hero.subtitle}
           />
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
-            <SectionHeading eyebrow="7 CHẶNG HÀNH TRÌNH" title="Bạn đang ở đâu trên hành trình?" />
+            <SectionHeading eyebrow={t.journey.stages.eyebrow} title={t.journey.stages.title} />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { icon: Mountain, bg: 'bg-gray-100', color: 'text-gray-600', label: 'Zero', desc: 'Bắt đầu hành trình. Tạo hồ sơ ẩn danh chỉ trong 5 giây, không cần đăng ký.' },
-                { icon: Sprout, bg: 'bg-green-100', color: 'text-green-600', label: 'Awaken', desc: 'Khám phá bản thân qua các bài đánh giá sức khỏe & thói quen đầu tiên.' },
-                { icon: Compass, bg: 'bg-blue-100', color: 'text-[#4B6BFF]', label: 'Explorer', desc: 'Thử nghiệm Daily Quest, làm quen với AI Coach và cộng đồng.' },
-                { icon: ShieldCheck, bg: 'bg-yellow-100', color: 'text-yellow-600', label: 'Guardian', desc: 'Xây dựng thói quen bền vững: vận động, dinh dưỡng, giấc ngủ đều đặn.' },
-                { icon: Zap, bg: 'bg-red-100', color: 'text-[#FF543C]', label: 'Hero', desc: 'Tạo ra giá trị thật: hiến máu, giúp đỡ cộng đồng, hoàn thành nhiệm vụ lớn.' },
-                { icon: Crown, bg: 'bg-purple-100', color: 'text-purple-600', label: 'Legend', desc: 'Truyền cảm hứng — dẫn dắt Guild, cố vấn cho các Hero mới.' },
-                { icon: InfinityIcon, bg: 'bg-teal-100', color: 'text-teal-600', label: 'Forever', desc: 'Sống mãi giá trị — dấu ấn của bạn được ghi nhận vĩnh viễn bằng POAP & SBT.' },
+                { icon: Mountain, bg: 'bg-gray-100 dark:bg-gray-500/10', color: 'text-gray-600 dark:text-gray-300' },
+                { icon: Sprout, bg: 'bg-green-100 dark:bg-green-500/10', color: 'text-green-600' },
+                { icon: Compass, bg: 'bg-blue-100 dark:bg-blue-500/10', color: 'text-[#4B6BFF]' },
+                { icon: ShieldCheck, bg: 'bg-yellow-100 dark:bg-yellow-500/10', color: 'text-yellow-600' },
+                { icon: Zap, bg: 'bg-red-100 dark:bg-red-500/10', color: 'text-[#FF543C]' },
+                { icon: Crown, bg: 'bg-purple-100 dark:bg-purple-500/10', color: 'text-purple-600' },
+                { icon: InfinityIcon, bg: 'bg-teal-100 dark:bg-teal-500/10', color: 'text-teal-600' },
               ].map((s, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-6 flex flex-col gap-4">
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6 flex flex-col gap-4">
                   <div className={`w-14 h-14 rounded-2xl ${s.bg} flex items-center justify-center`}>
                     <s.icon className={`w-7 h-7 ${s.color}`} />
                   </div>
-                  <h4 className="font-black text-lg text-gray-900">{s.label}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
+                  <h4 className="font-black text-lg text-gray-900 dark:text-gray-50">{t.journey.stages.items[i].label}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.journey.stages.items[i].desc}</p>
                 </div>
               ))}
               <div className="bg-[#0B132B] rounded-3xl p-6 flex flex-col justify-center items-start gap-3 text-white">
                 <Rocket className="w-8 h-8 text-[#00C2FF]" />
-                <h4 className="font-black text-lg">Bạn sẽ ở chặng nào?</h4>
-                <p className="text-sm text-gray-300">Bắt đầu ngay để AI Coach xác định điểm khởi đầu phù hợp với bạn.</p>
+                <h4 className="font-black text-lg">{t.journey.stages.askCard.title}</h4>
+                <p className="text-sm text-gray-300">{t.journey.stages.askCard.desc}</p>
                 <button onClick={onGetStarted} className="mt-2 zofo-gradient-blue text-sm font-semibold px-5 py-2.5 rounded-full flex items-center gap-1">
-                  Bắt đầu hành trình <ArrowRight className="w-4 h-4" />
+                  {t.common.getStarted} <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </section>
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
-            <div className="bg-white rounded-3xl zofo-shadow-soft p-8 lg:p-12 grid lg:grid-cols-2 gap-10 items-center">
+            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8 lg:p-12 grid lg:grid-cols-2 gap-10 items-center">
               <div>
                 <SectionHeading
                   center={false}
-                  eyebrow="CÁCH LÊN CẤP"
-                  title="EXP, Daily Quest & Streak"
-                  subtitle="Mỗi hành động tốt đều quy đổi thành EXP minh bạch, có thể theo dõi từng ngày."
+                  eyebrow={t.journey.exp.eyebrow}
+                  title={t.journey.exp.title}
+                  subtitle={t.journey.exp.subtitle}
                 />
-                <ul className="space-y-4 text-sm font-medium text-gray-700">
-                  {[
-                    'Hoàn thành Daily Quest (đi bộ, uống nước, thiền, ngủ đúng giờ) để nhận EXP mỗi ngày',
-                    'Duy trì streak liên tục để nhận thêm hệ số EXP thưởng',
-                    'Hiến máu, tham gia sự kiện cộng đồng nhận EXP & Badge đặc biệt',
-                    'AI Coach tự động đề xuất Roadmap lên cấp phù hợp với thể trạng của bạn',
-                  ].map((t, i) => (
+                <ul className="space-y-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t.journey.exp.items.map((text, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                      {t}
+                      {text}
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="bg-[#eef1fc] rounded-3xl p-6">
+              <div className="bg-[#eef1fc] dark:bg-[#1a2036] rounded-3xl p-6">
                 <div className="bg-white rounded-2xl p-5 shadow-sm flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">Cấp hiện tại</p>
+                    <p className="text-xs text-gray-500 font-medium mb-1">{t.journey.exp.currentLevel}</p>
                     <p className="font-black text-xl text-gray-900">HERO</p>
                   </div>
                   <div className="text-right">
@@ -907,14 +1027,9 @@ export default function LandingPageZeroToForever({
                   <div className="h-full zofo-gradient-brand" style={{ width: '68%' }}></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Đi bộ 6.000 bước', value: '6.432/6.000', done: true },
-                    { label: 'Uống 2 lít nước', value: '1,8/2 lít', done: false },
-                    { label: 'Thiền 10 phút', value: '10/10', done: true },
-                    { label: 'Ngủ trước 23:00', value: '22:30', done: true },
-                  ].map((q, i) => (
+                  {t.journey.exp.quests.map((q, i) => (
                     <div key={i} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${q.done ? 'bg-green-100 text-green-500' : 'bg-purple-100 text-[#8B4DFF]'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${i !== 1 ? 'bg-green-100 text-green-500' : 'bg-purple-100 text-[#8B4DFF]'}`}>
                         <CheckCircle2 className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
@@ -931,8 +1046,9 @@ export default function LandingPageZeroToForever({
           <CTABand
             onGetStarted={onGetStarted}
             onOpenQR={openQRModal}
-            title="Bắt đầu chặng đầu tiên của bạn ngay hôm nay"
-            subtitle="Không cần đăng ký — hồ sơ ẩn danh của bạn đã sẵn sàng trong vài giây."
+            title={t.journey.cta.title}
+            subtitle={t.journey.cta.subtitle}
+            t={t}
           />
         </>
       )}
@@ -942,45 +1058,41 @@ export default function LandingPageZeroToForever({
         <>
           <PageHero
             icon={Users}
-            eyebrow="Cộng đồng"
-            title="Một cộng đồng cùng nhau trở nên tốt hơn mỗi ngày"
-            subtitle="Hơn 207.000 thành viên đang cùng nhau hiến máu, rèn luyện sức khỏe và lan tỏa những giá trị tích cực khắp Việt Nam."
+            eyebrow={t.community.hero.eyebrow}
+            title={t.community.hero.title}
+            subtitle={t.community.hero.subtitle}
           />
 
-          <StatsBand />
+          <StatsBand stats={t.home.journeyPanel.stats} />
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
-            <SectionHeading eyebrow="THAM GIA CÙNG NHAU" title="Nhiều cách để kết nối" />
+            <SectionHeading eyebrow={t.community.ways.eyebrow} title={t.community.ways.title} />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { icon: Users2, color: 'text-[#4B6BFF]', bg: 'bg-blue-50', title: 'Guild theo sở thích', desc: 'Tham gia Guild như Blood Hero, Runner Guild... để cùng thi đua và hỗ trợ nhau.' },
-                { icon: CalendarDays, color: 'text-[#FF543C]', bg: 'bg-red-50', title: 'Sự kiện offline', desc: 'Ngày hội hiến máu, giải chạy cộng đồng, workshop sức khỏe tại nhiều tỉnh thành.' },
-                { icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-50', title: 'Diễn đàn chia sẻ', desc: 'Chia sẻ hành trình, kinh nghiệm sống khỏe và động viên nhau mỗi ngày.' },
-                { icon: Trophy, color: 'text-[#8B4DFF]', bg: 'bg-purple-50', title: 'Bảng xếp hạng', desc: 'Thi đua lành mạnh giữa các Hero và Guild theo tuần, tháng, mùa giải.' },
+                { icon: Users2, color: 'text-[#4B6BFF]', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                { icon: CalendarDays, color: 'text-[#FF543C]', bg: 'bg-red-50 dark:bg-red-500/10' },
+                { icon: MessageCircle, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-500/10' },
+                { icon: Trophy, color: 'text-[#8B4DFF]', bg: 'bg-purple-50 dark:bg-purple-500/10' },
               ].map((c, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-6">
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6">
                   <div className={`w-14 h-14 rounded-2xl ${c.bg} flex items-center justify-center mb-4`}>
                     <c.icon className={`w-7 h-7 ${c.color}`} />
                   </div>
-                  <h4 className="font-bold text-gray-900 mb-2">{c.title}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">{c.desc}</p>
+                  <h4 className="font-bold text-gray-900 dark:text-gray-50 mb-2">{t.community.ways.items[i].title}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.community.ways.items[i].desc}</p>
                 </div>
               ))}
             </div>
           </section>
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
-            <SectionHeading eyebrow="CẢM NHẬN THÀNH VIÊN" title="Câu chuyện từ cộng đồng" />
+            <SectionHeading eyebrow={t.community.testimonials.eyebrow} title={t.community.testimonials.title} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { name: 'Minh — Blood Hero Guild', quote: 'Lần đầu hiến máu tôi thấy hơi lo, nhưng khi thấy Badge "First Blood" xuất hiện trong hồ sơ, tôi thật sự tự hào và muốn tiếp tục.' },
-                { name: 'Lan Anh — Runner Guild', quote: 'Daily Quest giúp tôi duy trì thói quen chạy bộ đều đặn suốt 3 tháng — điều tôi chưa từng làm được trước đây.' },
-                { name: 'Khang — Health Hero', quote: 'AI Coach nhắc tôi uống nước và ngủ đúng giờ mỗi ngày, nhỏ nhưng thay đổi lớn cho sức khỏe của tôi.' },
-              ].map((t, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-6 flex flex-col gap-4">
+              {t.community.testimonials.items.map((tItem, i) => (
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-6 flex flex-col gap-4">
                   <Quote className="w-8 h-8 text-[#4B6BFF] opacity-30" />
-                  <p className="text-sm text-gray-700 italic leading-relaxed flex-1">{t.quote}</p>
-                  <p className="text-xs font-bold text-gray-900">{t.name}</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 italic leading-relaxed flex-1">{tItem.quote}</p>
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-50">{tItem.name}</p>
                 </div>
               ))}
             </div>
@@ -989,8 +1101,9 @@ export default function LandingPageZeroToForever({
           <CTABand
             onGetStarted={onGetStarted}
             onOpenQR={openQRModal}
-            title="Tham gia cộng đồng Zero to Forever ngay hôm nay"
-            subtitle="Kết nối với hàng trăm ngàn Hero khác trên khắp Việt Nam."
+            title={t.community.cta.title}
+            subtitle={t.community.cta.subtitle}
+            t={t}
           />
         </>
       )}
@@ -1000,27 +1113,27 @@ export default function LandingPageZeroToForever({
         <>
           <PageHero
             icon={Cpu}
-            eyebrow="Công nghệ"
-            title="Công nghệ phục vụ con người — không phải ngược lại"
-            subtitle="AI cá nhân hóa, ghi nhận vĩnh viễn bằng công nghệ blockchain, và quyền riêng tư tuyệt đối — tất cả được thiết kế để phục vụ hành trình của bạn."
+            eyebrow={t.technology.hero.eyebrow}
+            title={t.technology.hero.title}
+            subtitle={t.technology.hero.subtitle}
           />
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
-            <SectionHeading eyebrow="4 TRỤ CỘT CÔNG NGHỆ" title="Nền tảng đứng sau Zero to Forever" />
+            <SectionHeading eyebrow={t.technology.pillars.eyebrow} title={t.technology.pillars.title} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
-                { icon: Brain, color: 'text-[#FF543C]', bg: 'bg-red-50', title: 'AI Coach cá nhân hóa', desc: 'Phân tích thói quen, thiết kế roadmap và gợi ý Daily Quest riêng cho từng người, học hỏi liên tục từ tiến độ thực tế của bạn.' },
-                { icon: Boxes, color: 'text-[#8B4DFF]', bg: 'bg-purple-50', title: 'POAP & Soulbound Token', desc: 'Mỗi cột mốc hành trình được ghi nhận bằng NFT vĩnh viễn (POAP/SBT) — bằng chứng nhân văn không thể làm giả, không thể xóa.' },
-                { icon: ScanFace, color: 'text-[#4B6BFF]', bg: 'bg-blue-50', title: 'Avatar 3D cá nhân hóa', desc: 'Tạo nhân vật đại diện 3D (VRM) riêng cho hành trình của bạn, đồng bộ chuyển động và cảm xúc sống động.' },
-                { icon: Lock, color: 'text-green-600', bg: 'bg-green-50', title: 'Bảo mật & quyền riêng tư', desc: 'Hồ sơ ẩn danh theo UUID thiết bị, dữ liệu sức khỏe không rời khỏi thiết bị của bạn nếu bạn không muốn.' },
-              ].map((t, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-8 flex gap-5">
-                  <div className={`w-14 h-14 rounded-2xl ${t.bg} flex items-center justify-center flex-shrink-0`}>
-                    <t.icon className={`w-7 h-7 ${t.color}`} />
+                { icon: Brain, color: 'text-[#FF543C]', bg: 'bg-red-50 dark:bg-red-500/10' },
+                { icon: Boxes, color: 'text-[#8B4DFF]', bg: 'bg-purple-50 dark:bg-purple-500/10' },
+                { icon: ScanFace, color: 'text-[#4B6BFF]', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                { icon: Lock, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-500/10' },
+              ].map((tech, i) => (
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8 flex gap-5">
+                  <div className={`w-14 h-14 rounded-2xl ${tech.bg} flex items-center justify-center flex-shrink-0`}>
+                    <tech.icon className={`w-7 h-7 ${tech.color}`} />
                   </div>
                   <div>
-                    <h4 className="font-bold text-lg text-gray-900 mb-2">{t.title}</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed">{t.desc}</p>
+                    <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-2">{t.technology.pillars.items[i].title}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.technology.pillars.items[i].desc}</p>
                   </div>
                 </div>
               ))}
@@ -1031,18 +1144,13 @@ export default function LandingPageZeroToForever({
             <div className="bg-[#0B132B] rounded-3xl p-8 lg:p-12 text-white">
               <div className="flex items-center gap-3 mb-6">
                 <Fingerprint className="w-8 h-8 text-[#00C2FF]" />
-                <h3 className="text-2xl font-bold">Kiến trúc quyền riêng tư "UUID-first"</h3>
+                <h3 className="text-2xl font-bold">{t.technology.privacy.title}</h3>
               </div>
               <div className="grid sm:grid-cols-2 gap-5 text-sm text-gray-300">
-                {[
-                  'Mỗi thiết bị được cấp một UUID duy nhất — không cần email hay mật khẩu để bắt đầu.',
-                  'Hồ sơ, cấp độ và tiến trình được lưu ngay trên thiết bị của bạn.',
-                  'Bạn có thể nâng cấp lên tài khoản thật bất cứ lúc nào để đồng bộ đa thiết bị.',
-                  'Dữ liệu sức khỏe không bao giờ được bán hay chia sẻ cho bên thứ ba.',
-                ].map((t, i) => (
+                {t.technology.privacy.items.map((text, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-[#00C2FF] flex-shrink-0 mt-0.5" />
-                    {t}
+                    {text}
                   </div>
                 ))}
               </div>
@@ -1050,23 +1158,18 @@ export default function LandingPageZeroToForever({
                 onClick={openVideoHelp}
                 className="mt-8 zofo-gradient-blue text-sm font-semibold px-6 py-3 rounded-full flex items-center gap-2 w-max"
               >
-                Xem giải thích chi tiết <ArrowUpRight className="w-4 h-4" />
+                {t.technology.privacy.cta} <ArrowUpRight className="w-4 h-4" />
               </button>
             </div>
           </section>
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
-            <SectionHeading eyebrow="NĂNG LỰC NỀN TẢNG" title="Được xây dựng để mở rộng" />
+            <SectionHeading eyebrow={t.technology.capabilities.eyebrow} title={t.technology.capabilities.title} />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[
-                { icon: Database, label: 'Dữ liệu on-device' },
-                { icon: Layers, label: 'Kiến trúc module hóa' },
-                { icon: Coins, label: 'Token hóa hành động tốt' },
-                { icon: Wallet, label: 'Ví định danh ẩn' },
-              ].map((s, i) => (
-                <div key={i} className="bg-white rounded-2xl zofo-shadow-soft p-6 text-center">
-                  <s.icon className="w-8 h-8 text-[#4B6BFF] mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-gray-700">{s.label}</p>
+              {[Database, Layers, Coins, Wallet].map((Icon, i) => (
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-2xl zofo-shadow-soft p-6 text-center">
+                  <Icon className="w-8 h-8 text-[#4B6BFF] mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.technology.capabilities.items[i]}</p>
                 </div>
               ))}
             </div>
@@ -1075,8 +1178,9 @@ export default function LandingPageZeroToForever({
           <CTABand
             onGetStarted={onGetStarted}
             onOpenQR={openQRModal}
-            title="Trải nghiệm công nghệ đứng sau hành trình của bạn"
-            subtitle="Bắt đầu miễn phí, ẩn danh, không ràng buộc."
+            title={t.technology.cta.title}
+            subtitle={t.technology.cta.subtitle}
+            t={t}
           />
         </>
       )}
@@ -1086,55 +1190,55 @@ export default function LandingPageZeroToForever({
         <>
           <PageHero
             icon={Handshake}
-            eyebrow="Đối tác"
-            title="Cùng nhau nhân rộng những giá trị tốt đẹp"
-            subtitle="Hơn 1.245 đối tác & tổ chức — từ bệnh viện, doanh nghiệp đến nền tảng công nghệ — đang đồng hành cùng Zero to Forever."
+            eyebrow={t.partners.hero.eyebrow}
+            title={t.partners.hero.title}
+            subtitle={t.partners.hero.subtitle}
           />
 
-          <StatsBand />
+          <StatsBand stats={t.home.journeyPanel.stats} />
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-16">
-            <SectionHeading eyebrow="HỆ SINH THÁI ĐỐI TÁC" title="Đối tác trong nhiều lĩnh vực" />
+            <SectionHeading eyebrow={t.partners.ecosystem.eyebrow} title={t.partners.ecosystem.title} />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { icon: Building2, color: 'text-[#FF543C]', bg: 'bg-red-50', title: 'Đối tác Y tế', desc: 'Bệnh viện, trung tâm hiến máu và tổ chức y tế phối hợp trong quy trình hiến – nhận tạng an toàn, minh bạch.' },
-                { icon: Handshake, color: 'text-[#4B6BFF]', bg: 'bg-blue-50', title: 'Đối tác Doanh nghiệp', desc: 'Chương trình CSR, phúc lợi nhân viên gắn với sức khỏe và hoạt động tử tế, đo lường tác động thực tế.' },
-                { icon: Cpu, color: 'text-[#8B4DFF]', bg: 'bg-purple-50', title: 'Đối tác Công nghệ', desc: 'Tích hợp API, marketplace và hạ tầng thanh toán/giao vận để mở rộng trải nghiệm cho thành viên.' },
+                { icon: Building2, color: 'text-[#FF543C]', bg: 'bg-red-50 dark:bg-red-500/10' },
+                { icon: Handshake, color: 'text-[#4B6BFF]', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                { icon: Cpu, color: 'text-[#8B4DFF]', bg: 'bg-purple-50 dark:bg-purple-500/10' },
               ].map((p, i) => (
-                <div key={i} className="bg-white rounded-3xl zofo-shadow-soft p-8">
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8">
                   <div className={`w-14 h-14 rounded-2xl ${p.bg} flex items-center justify-center mb-5`}>
                     <p.icon className={`w-7 h-7 ${p.color}`} />
                   </div>
-                  <h4 className="font-bold text-xl text-gray-900 mb-3">{p.title}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">{p.desc}</p>
+                  <h4 className="font-bold text-xl text-gray-900 dark:text-gray-50 mb-3">{t.partners.ecosystem.items[i].title}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.partners.ecosystem.items[i].desc}</p>
                 </div>
               ))}
             </div>
           </section>
 
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
-            <SectionHeading eyebrow="ĐỐI TÁC HIỆN TẠI" title="Cùng đồng hành" />
-            <div className="bg-white rounded-3xl zofo-shadow-soft p-8 lg:p-10">
+            <SectionHeading eyebrow={t.partners.current.eyebrow} title={t.partners.current.title} />
+            <div className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8 lg:p-10">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                <div className="flex items-center justify-center gap-2 font-bold text-gray-700">
-                  <Gamepad2 className="w-5 h-5 text-blue-900" /> STEAMLAND
+                <div className="flex items-center justify-center gap-2 font-bold text-gray-700 dark:text-gray-200">
+                  <Gamepad2 className="w-5 h-5 text-blue-900 dark:text-blue-300" /> STEAMLAND
                 </div>
-                <div className="flex items-center justify-center gap-2 font-bold text-gray-700">
+                <div className="flex items-center justify-center gap-2 font-bold text-gray-700 dark:text-gray-200">
                   <span className="text-[#FF543C] text-xl">▲</span> ACCESSTRADE
                 </div>
                 <div className="flex items-center justify-center gap-1 font-bold text-orange-500 text-sm">
                   <ShoppingBag className="w-4 h-4" /> Shopee
                 </div>
-                <div className="flex items-center justify-center gap-1 font-bold text-blue-800 text-sm">
+                <div className="flex items-center justify-center gap-1 font-bold text-blue-800 dark:text-blue-300 text-sm">
                   <span className="text-pink-500 text-lg">♡</span> Lazada
                 </div>
-                <div className="flex items-center justify-center font-bold text-black text-sm">TikTok Shop</div>
+                <div className="flex items-center justify-center font-bold text-black dark:text-gray-200 text-sm">TikTok Shop</div>
                 <div className="flex items-center justify-center font-bold text-blue-500 text-sm">Tiki</div>
                 <div className="flex items-center justify-center gap-2 font-bold text-gray-400 text-sm">
-                  <Building2 className="w-4 h-4" /> Bệnh viện & TT Y tế
+                  <Building2 className="w-4 h-4" /> {t.partners.current.hospital}
                 </div>
                 <div className="flex items-center justify-center gap-2 font-bold text-gray-400 text-sm">
-                  <Globe className="w-4 h-4" /> Tổ chức phi lợi nhuận
+                  <Globe className="w-4 h-4" /> {t.partners.current.ngo}
                 </div>
               </div>
             </div>
@@ -1143,27 +1247,34 @@ export default function LandingPageZeroToForever({
           <section className="container mx-auto max-w-4xl px-4 lg:px-8 py-10 mb-10">
             <div className="bg-[#0B132B] rounded-3xl p-8 lg:p-12 text-center text-white">
               <BadgeCheck className="w-10 h-10 text-[#00C2FF] mx-auto mb-4" />
-              <h3 className="text-2xl lg:text-3xl font-bold mb-3">Trở thành đối tác của Zero to Forever</h3>
+              <h3 className="text-2xl lg:text-3xl font-bold mb-3">{t.partners.becomePartner.title}</h3>
               <p className="text-gray-300 max-w-xl mx-auto mb-6 text-sm md:text-base">
-                Cùng chúng tôi mở rộng tác động tích cực đến hàng trăm ngàn con người trên khắp Việt Nam.
+                {t.partners.becomePartner.desc}
               </p>
               <a
-                href="mailto:partners@zerotoforever.com"
+                href={`mailto:${PARTNERSHIP_EMAIL}`}
                 className="inline-flex items-center gap-2 zofo-gradient-brand px-6 py-3 rounded-full font-semibold hover:scale-105 transition transform"
               >
-                <Mail className="w-4 h-4" /> Liên hệ hợp tác
+                <Mail className="w-4 h-4" /> {t.partners.becomePartner.cta}
               </a>
+              <p className="text-xs text-gray-400 mt-4 flex items-center justify-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-[#00C2FF]" />
+                {t.footer.hotlineLabel}: <a href={`mailto:${HOTLINE_EMAIL}`} className="underline hover:text-white">{HOTLINE_EMAIL}</a>
+              </p>
             </div>
           </section>
 
           <CTABand
             onGetStarted={onGetStarted}
             onOpenQR={openQRModal}
-            title="Cùng Zero to Forever lan tỏa giá trị tốt đẹp"
-            subtitle="Trở thành một phần trong hệ sinh thái vì cộng đồng."
+            title={t.partners.cta.title}
+            subtitle={t.partners.cta.subtitle}
+            t={t}
           />
         </>
       )}
+
+      <LandingFooter t={t} setPage={setPage} />
 
       {/* ── Popup: Xem video giới thiệu (giống Help Popup của trang Login) ── */}
       {showVideoHelp && (
@@ -1197,10 +1308,10 @@ export default function LandingPageZeroToForever({
             }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>
-                  🌿 Hồ sơ ẩn danh (UUID) là gì?
+                  {t.videoModal.title}
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
-                  Bắt đầu ngay — không cần đăng ký tài khoản
+                  {t.videoModal.subtitle}
                 </div>
               </div>
               <button
@@ -1226,7 +1337,7 @@ export default function LandingPageZeroToForever({
                   fontSize: 13, fontWeight: 800, color: '#00e5ff',
                   marginBottom: 12, letterSpacing: '.05em', textTransform: 'uppercase',
                 }}>
-                  🎬 Video hướng dẫn
+                  {t.videoModal.guideLabel}
                 </div>
                 <div className="zofo-help-video-avatar-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 0.85fr) minmax(180px, 1fr)', gap: 14, alignItems: 'stretch' }}>
                   <div style={{
@@ -1243,8 +1354,8 @@ export default function LandingPageZeroToForever({
                     />
                   </div>
                   <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 320 }}>
-                    <UserUuid3DAvatar uuid="anonymous-profile-demo-uuid" isDark accent="#2d8a5e" label="Guest UUID" height="100%" minWidth={160} />
-                    <UserUuid3DAvatar uuid="real-account-profile-demo-uuid" isDark accent="#00b8cc" label="User UUID" height="100%" minWidth={160} />
+                    <UserUuid3DAvatar uuid="anonymous-profile-demo-uuid" isDark accent="#2d8a5e" label={t.videoModal.guestUuid} height="100%" minWidth={160} />
+                    <UserUuid3DAvatar uuid="real-account-profile-demo-uuid" isDark accent="#00b8cc" label={t.videoModal.userUuid} height="100%" minWidth={160} />
                   </div>
                 </div>
 
@@ -1256,14 +1367,14 @@ export default function LandingPageZeroToForever({
                   border: '1px solid rgba(45,138,94,0.3)',
                   fontSize: 13, color: 'rgba(232,240,248,0.8)', lineHeight: 1.7,
                 }}>
-                  🔑 Mỗi thiết bị được cấp một UUID duy nhất. Hồ sơ, cấp độ và tiến trình của bạn được lưu ngay trên thiết bị — không cần email hay mật khẩu. Bạn có thể nâng cấp lên tài khoản thật bất cứ lúc nào để đồng bộ đa thiết bị.
+                  {t.videoModal.note}
                 </div>
 
                 <button
                   onClick={() => { setShowVideoHelp(false); onGetStarted() }}
                   className="mt-5 w-full zofo-gradient-brand text-white px-6 py-3 rounded-full font-semibold hover:scale-[1.02] transition transform flex items-center justify-center gap-2"
                 >
-                  Bắt đầu hành trình ngay <ArrowRight className="w-4 h-4" />
+                  {t.videoModal.cta} <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -1311,19 +1422,20 @@ export default function LandingPageZeroToForever({
             <div className="flex items-center justify-center gap-2 mb-1">
               <img src={zofoLogo} alt="Zero to Forever" className="h-8 w-auto object-contain" />
             </div>
-            <h3 className="text-lg font-bold mt-3">Tải ứng dụng Zero to Forever</h3>
-            <p className="text-sm text-gray-400 mt-1 mb-5">Quét mã QR bên dưới bằng camera điện thoại để tải app.</p>
+            <h3 className="text-lg font-bold mt-3">{t.qrModal.title}</h3>
+            <p className="text-sm text-gray-400 mt-1 mb-5">{t.qrModal.subtitle}</p>
 
             <div className="bg-white p-4 rounded-2xl shadow-lg inline-flex flex-col items-center">
               <img alt="QR Code tải app Zero to Forever" className="w-48 h-48 object-contain" src={zofoQRCode} />
             </div>
 
             <p className="text-[11px] text-gray-400 mt-4 flex items-center justify-center gap-1">
-              <QrCode className="w-3.5 h-3.5" /> quét để tải app
+              <QrCode className="w-3.5 h-3.5" /> {t.qrModal.scan}
             </p>
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
