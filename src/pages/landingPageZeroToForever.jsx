@@ -14,8 +14,7 @@ import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
-import HeroZoneStackPopup from '../components/heroPanels/HeroZoneStackPopup.jsx'
-import { DEFAULT_ORGAN_ID } from '../data/organs.js'
+import { ORGANS } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
 
@@ -69,6 +68,119 @@ function getNavItems(t) {
     { key: 'technology', label: t.nav.technology },
     { key: 'partners', label: t.nav.partners },
   ]
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+ * Organ map visual — chỉ phần "vẽ lại nội tạng" của HeroZoneStackPopup
+ * (heroPanels/HeroZoneStackPopup.jsx), luôn ở mode "Sắp xếp các nút cơ
+ * quan thành dáng người thân thiện" (stack-as-human), KHÔNG kèm card
+ * tiêu đề/mô tả, KHÔNG toggle, KHÔNG ảnh anatomy — chỉ khối bản đồ 3D
+ * nổi để đặt cạnh "Hero Right: Graphic" trên landing page.
+ * ══════════════════════════════════════════════════════════════════════ */
+const ORGAN_MAP_BASE_LAYOUT = [
+  { x: 15, y: 55, z: 18, color: '#38bdf8' },
+  { x: 31, y: 28, z: 58, color: '#fb7185' },
+  { x: 48, y: 18, z: 82, color: '#a78bfa' },
+  { x: 66, y: 40, z: 48, color: '#22d3ee' },
+  { x: 58, y: 69, z: 34, color: '#34d399' },
+  { x: 79, y: 22, z: 96, color: '#facc15' },
+  { x: 23, y: 78, z: 42, color: '#f97316' },
+  { x: 42, y: 51, z: 68, color: '#ef4444' },
+  { x: 74, y: 65, z: 52, color: '#14b8a6' },
+  { x: 88, y: 47, z: 74, color: '#e879f9' },
+  { x: 12, y: 23, z: 88, color: '#c084fc' },
+]
+
+const ORGAN_MAP_HUMAN_LAYOUT = {
+  giacmac: { x: 50, y: 10, z: 108 },
+  phoi: { x: 50, y: 27, z: 92 },
+  tim: { x: 50, y: 38, z: 104 },
+  gan: { x: 50, y: 49, z: 82 },
+  than: { x: 50, y: 60, z: 76 },
+  tuy: { x: 50, y: 69, z: 70 },
+  ruot: { x: 50, y: 80, z: 64 },
+  xuong: { x: 26, y: 57, z: 54 },
+  da: { x: 74, y: 57, z: 54 },
+  mauhiem: { x: 26, y: 40, z: 66 },
+  'all-after-death': { x: 74, y: 40, z: 66 },
+}
+
+function buildHumanOrganZones() {
+  return ORGANS.map((organ, index) => ({
+    ...ORGAN_MAP_BASE_LAYOUT[index % ORGAN_MAP_BASE_LAYOUT.length],
+    ...(ORGAN_MAP_HUMAN_LAYOUT[organ.id] || {}),
+    id: organ.id,
+    icon: organ.emoji,
+  }))
+}
+
+function OrganMapPath({ from, to }) {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const length = Math.sqrt(dx * dx + dy * dy)
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI
+  return (
+    <div
+      className="absolute h-1 rounded-full shadow-[0_0_18px_rgba(34,211,238,0.65)]"
+      style={{
+        left: `${from.x}%`,
+        top: `${from.y}%`,
+        width: `${length}%`,
+        transformOrigin: '0 50%',
+        transform: `rotate(${angle}deg) translateZ(8px)`,
+        background: 'linear-gradient(90deg, rgba(34,211,238,0.85), rgba(250,204,21,0.7))',
+      }}
+    />
+  )
+}
+
+function OrganZoneMap() {
+  const [mapTilt, setMapTilt] = useState({ x: 58, y: -18 })
+  const zones = buildHumanOrganZones()
+  const paths = zones.slice(0, -1).map((zone, index) => ({ from: zone, to: zones[index + 1] }))
+
+  const handlePointerMove = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const px = (event.clientX - rect.left) / rect.width - 0.5
+    const py = (event.clientY - rect.top) / rect.height - 0.5
+    setMapTilt({ x: 58 - py * 10, y: -18 + px * 14 })
+  }
+
+  return (
+    <div
+      onPointerMove={handlePointerMove}
+      onPointerLeave={() => setMapTilt({ x: 58, y: -18 })}
+      className="relative w-full h-[420px] lg:h-full lg:min-h-[520px] overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-b from-slate-900/90 to-slate-950"
+      style={{ perspective: 1100, boxShadow: 'inset 0 0 90px rgba(14,165,233,0.16)' }}
+    >
+      <div
+        className="absolute inset-[12%_8%]"
+        style={{ transformStyle: 'preserve-3d', transform: `rotateX(${mapTilt.x}deg) rotateZ(${mapTilt.y}deg)`, transition: 'transform 180ms ease-out' }}
+      >
+        <div
+          className="absolute inset-0 rounded-full border-2 border-cyan-300/25 bg-[radial-gradient(circle,rgba(34,211,238,0.2),rgba(16,185,129,0.1)_44%,rgba(14,165,233,0.03)_70%)]"
+          style={{ transform: 'translateZ(-18px)' }}
+        />
+        {paths.map((path) => <OrganMapPath key={`${path.from.id}-${path.to.id}`} {...path} />)}
+        {zones.map((zone) => (
+          <div
+            key={zone.id}
+            className="absolute grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-3xl text-3xl text-white shadow-2xl sm:h-[88px] sm:w-[88px]"
+            style={{
+              left: `${zone.x}%`,
+              top: `${zone.y}%`,
+              transform: `translate(-50%, -50%) translateZ(${zone.z}px)`,
+              border: '1px solid rgba(255,255,255,0.35)',
+              background: `linear-gradient(145deg, ${zone.color}33, rgba(15,23,42,0.84))`,
+              boxShadow: `0 18px 45px ${zone.color}55`,
+            }}
+          >
+            <span style={{ transform: `rotateZ(${-mapTilt.y}deg) rotateX(${-mapTilt.x}deg)` }}>{zone.icon}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /* ── Shared: nút bấm chuyển ngôn ngữ Tiếng Việt / English ── */
@@ -468,7 +580,6 @@ export default function LandingPageZeroToForever({
         .zofo-gradient-brand { background: linear-gradient(135deg, #FF543C 0%, #8B4DFF 100%); }
         .zofo-gradient-blue { background: linear-gradient(135deg, #00C2FF 0%, #4B6BFF 100%); }
         .zofo-hero-glow { background: radial-gradient(circle at 50% 50%, rgba(139, 77, 255, 0.15) 0%, rgba(11, 19, 43, 0) 60%); }
-        .zofo-organ-zone-inline button[aria-label="zofo-organ-zone-inline-close"] { display: none !important; }
       `}</style>
 
       <NavBar
@@ -556,16 +667,20 @@ export default function LandingPageZeroToForever({
             </div>
           </header>
 
-          {/* ── Organ Hero Zone: restored "Hero Right: Graphic" (infinity + astronaut)
-              combined with the HERO_ZONES organ map (toggle "Chồng nội tạng theo cột
-              cơ thể" / "Sắp xếp các nút cơ quan thành dáng người thân thiện."),
-              placed right below the Hero+Iframe section as requested. ── */}
+          {/* ── Organ zone map (chỉ phần vẽ nội tạng, mode "Sắp xếp các nút cơ
+              quan thành dáng người thân thiện") bên trái + "Hero Right: Graphic"
+              (infinity + astronaut) bên phải, đặt ngay dưới Hero+Iframe. ── */}
           <section className="zofo-hero-section relative overflow-hidden px-6 lg:px-12 py-16">
             <div className="zofo-stars"></div>
             <div className="absolute inset-0 zofo-hero-glow"></div>
             <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
-              {/* Restored graphic: infinity svg + astronaut */}
-              <div className="relative h-[420px] lg:h-full lg:min-h-[520px] order-2 lg:order-1">
+              {/* Trái: bản đồ nội tạng */}
+              <div className="relative">
+                <OrganZoneMap />
+              </div>
+
+              {/* Phải: khối graphic cũ — infinity svg + astronaut */}
+              <div className="relative h-[420px] lg:h-full lg:min-h-[520px]">
                 <div className="relative w-full h-full flex items-center justify-center zofo-animate-float">
                   <svg className="zofo-infinity-svg w-[120%] h-[120%] absolute -right-10 top-0" fill="none" viewBox="0 0 200 100">
                     <path d="M 50 50 C 10 10, 10 90, 50 50 C 90 10, 90 90, 130 50 C 170 10, 170 90, 130 50 C 90 10, 90 90, 50 50 Z" fill="none" opacity="0.8" stroke="url(#zofo-neon-grad-3)" strokeWidth="2" />
@@ -597,20 +712,6 @@ export default function LandingPageZeroToForever({
                     <p className="text-[#00C2FF] font-medium">{t.home.heroGraphicTagline}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* HERO_ZONES organ map: "Sắp xếp các nút cơ quan thành dáng người thân thiện." */}
-              <div className="relative order-1 lg:order-2 zofo-organ-zone-inline">
-                <HeroZoneStackPopup
-                  open
-                  onClose={() => {}}
-                  isDark={isDark}
-                  isEn={language === 'en'}
-                  organId={DEFAULT_ORGAN_ID}
-                  wrapperClassName="relative w-full z-10 pointer-events-auto"
-                  hint=" "
-                  closeLabel="zofo-organ-zone-inline-close"
-                />
               </div>
             </div>
           </section>
