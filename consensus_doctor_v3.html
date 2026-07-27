@@ -33,7 +33,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-d);font-size:
 .auth-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);overflow-y:auto}
 .auth-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:36px 32px}
 .auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
-.logo-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--cyan2),var(--violet2));display:flex;align-items:center;justify-content:center;font-family:var(--font-m);font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.logo-icon{width:42px;height:42px;border-radius:12px;object-fit:contain;flex-shrink:0;background:rgba(255,255,255,0.04)}
 .auth-btn{width:100%;padding:11px 16px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:var(--font-d);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .2s;margin-bottom:9px}
 .auth-btn:hover{background:var(--surface2);border-color:var(--cyan)}
 .auth-divider{text-align:center;color:var(--text3);font-size:11px;font-family:var(--font-m);letter-spacing:.08em;margin:14px 0;position:relative}
@@ -190,8 +190,8 @@ let state = {
 // ============================================================
 const T = {
   vi:{
-    appName:'CONSENSUS DOCTOR',
-    appSub:'Nền tảng AI Y Tế · Đa Tác nhân',
+    appName:'ZoFo',
+    appSub:'Zero to Forever Foundation · Become The Hero Within',
     signIn:'Đăng nhập',signInWith:'Đăng nhập với',
     continueEmail:'Đăng nhập bằng Email',
     or:'hoặc',email:'Email',password:'Mật khẩu',
@@ -252,8 +252,8 @@ const T = {
     clearSearch:'Xoá tìm kiếm',
   },
   en:{
-    appName:'CONSENSUS DOCTOR',
-    appSub:'AI Medical Platform · Multi-Agent',
+    appName:'ZoFo',
+    appSub:'Zero to Forever Foundation · Become The Hero Within',
     signIn:'Sign In',signInWith:'Sign in with',
     continueEmail:'Sign in with Email',
     or:'or',email:'Email',password:'Password',
@@ -442,10 +442,10 @@ function renderAuth(){
   <div class="auth-wrap anim">
     <div class="auth-card">
       <div class="auth-logo">
-        <div class="logo-icon">Rx</div>
+        <img class="logo-icon" src="public/assets/landing/ZeroToForever_Logo.png" alt="ZoFo — Zero to Forever Foundation">
         <div>
           <div style="font-weight:800;font-size:14px;letter-spacing:.06em;color:var(--cyan)">${t('appName')}</div>
-          <div style="font-size:10px;color:var(--text3);font-family:var(--font-m)">AI MEDICAL PLATFORM v3</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--font-m)">Zero to Forever Foundation · Become The Hero Within</div>
         </div>
         <div style="margin-left:auto;display:flex;gap:4px">
           <button class="lang-btn ${state.lang==='vi'?'active':''}" onclick="setLang('vi')">VI</button>
@@ -491,7 +491,7 @@ function renderAppShell(){
   return `
   <header class="topbar">
     <div class="topbar-logo" onclick="goNav('patients')">
-      <div class="logo-icon" style="width:30px;height:30px;font-size:10px">Rx</div>
+      <img class="logo-icon" style="width:30px;height:30px" src="public/assets/landing/ZeroToForever_Logo.png" alt="ZoFo — Zero to Forever Foundation">
       <div>
         <div style="font-weight:800;font-size:11px;letter-spacing:.06em;color:var(--cyan)">${t('appName')}</div>
         <div style="font-size:9px;color:var(--text3);font-family:var(--font-m)">${t('appSub')}</div>

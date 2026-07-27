@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
+import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import BackButton from '../components/common/BackButton.jsx'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
@@ -234,10 +235,10 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
 
       <div style={s.card}>
         <div style={s.logo}>
-          <div style={s.logoIcon}>Rx</div>
+          <img src={zofoLogo} alt="ZoFo — Zero to Forever Foundation" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
           <div>
-            <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: '#00e5ff', letterSpacing: '0.08em' }}>CONSENSUS DOCTOR</div>
-            <div style={{ fontSize: 10, color: isDark ? 'rgba(232,240,248,0.35)' : '#aaa', letterSpacing: '0.1em' }}>AI MEDICAL PLATFORM</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 900, color: '#00e5ff', letterSpacing: '0.08em' }}>ZoFo</div>
+            <div style={{ fontSize: 10, color: isDark ? 'rgba(232,240,248,0.35)' : '#aaa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Zero to Forever Foundation · Become The Hero Within</div>
           </div>
         </div>
 

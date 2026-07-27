@@ -428,6 +428,14 @@ export default function LandingPageZeroToForever({
                 <p className="text-gray-400 max-w-lg text-sm md:text-base leading-relaxed">
                   {t.home.heroDesc}
                 </p>
+                {t.home.longTermMessage?.length > 0 && (
+                  <div className="max-w-xl rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 space-y-3 text-sm text-gray-300 shadow-2xl shadow-black/20">
+                    <div className="text-xs font-bold uppercase tracking-[0.24em] text-[#00C2FF]">ZoFo Roadmap</div>
+                    {t.home.longTermMessage.map((message) => (
+                      <p key={message} className="leading-relaxed m-0">{message}</p>
+                    ))}
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-4 pt-4">
                   <button
                     onClick={onGetStarted}
