@@ -5,6 +5,24 @@ import { getAnonSession, saveAnonSession, updateAnonSession, deleteAnonSession, 
 const AuthContext = createContext(null)
 const ADMIN_EMAIL = 'khanhlegood1@gmail.com'
 
+// ─── Vai trò (role) & Gói thành viên (membership) ─────────────────────────
+// role: 'admin' (Super Admin — cố định theo ADMIN_EMAIL) | 'sub_admin' | 'user'
+// membership: 'vip_pro' | 'free'
+// Lưu trực tiếp trong record user trong localStorage (cdoc_users), do
+// Super Admin gán/thu hồi qua panel Quản Trị Vai Trò & Thành Viên.
+const ROLE_SUB_ADMIN = 'sub_admin'
+const MEMBERSHIP_VIP_PRO = 'vip_pro'
+function enrichRoleFields(u) {
+  const role = u.email === ADMIN_EMAIL ? 'admin' : (u.role || 'user')
+  const membership = u.membership || 'free'
+  return {
+    role,
+    membership,
+    isSubAdmin: role === ROLE_SUB_ADMIN,
+    isVIPPro: membership === MEMBERSHIP_VIP_PRO,
+  }
+}
+
 const getUsers = () => { try { return JSON.parse(localStorage.getItem('cdoc_users') || '{}') } catch { return {} } }
 const saveUsers = (u) => localStorage.setItem('cdoc_users', JSON.stringify(u))
 const getSavedSession = () => { try { return JSON.parse(localStorage.getItem('cdoc_session') || 'null') } catch { return null } }
@@ -221,7 +239,7 @@ export function AuthProvider({ children }) {
             users[session.email] = restored
             saveUsers(users)
           }
-          setUser({ ...restored, isAdmin: session.email === ADMIN_EMAIL })
+          setUser({ ...restored, isAdmin: session.email === ADMIN_EMAIL, ...enrichRoleFields(restored) })
           setLoading(false)
           return
         }
@@ -316,7 +334,7 @@ export function AuthProvider({ children }) {
 
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
-    const enriched = { ...u, isAdmin: u.email === ADMIN_EMAIL }
+    const enriched = { ...u, isAdmin: u.email === ADMIN_EMAIL, ...enrichRoleFields(u) }
     setUser(enriched)
     saveSession({ email: u.email })
     return enriched
@@ -704,7 +722,31 @@ export function AuthProvider({ children }) {
     return id
   }
 
-  const getAllUsers = () => Object.values(getUsers()).map(u => ({ ...u, isAdmin: u.email === ADMIN_EMAIL }))
+  const getAllUsers = () => Object.values(getUsers()).map(u => ({ ...u, isAdmin: u.email === ADMIN_EMAIL, ...enrichRoleFields(u) }))
+
+  // ── Quản trị Vai trò (Sub-Admin) & Gói thành viên (VIP Pro) ─────────────
+  // Chỉ dùng bởi Super Admin (ADMIN_EMAIL) từ panel Quản Trị Vai Trò & Thành
+  // Viên trong nhóm menu Admin. Không cho phép đổi role của chính Super
+  // Admin (role của Super Admin luôn cố định = 'admin' theo ADMIN_EMAIL).
+  const setUserRole = (email, role) => {
+    if (!email || email === ADMIN_EMAIL) return false
+    const users = getUsers()
+    if (!users[email]) return false
+    users[email] = { ...users[email], role: role === ROLE_SUB_ADMIN ? ROLE_SUB_ADMIN : 'user' }
+    saveUsers(users)
+    setUser(u => (u && u.email === email) ? { ...u, ...enrichRoleFields(users[email]) } : u)
+    return true
+  }
+
+  const setUserMembership = (email, membership) => {
+    if (!email) return false
+    const users = getUsers()
+    if (!users[email]) return false
+    users[email] = { ...users[email], membership: membership === MEMBERSHIP_VIP_PRO ? MEMBERSHIP_VIP_PRO : 'free' }
+    saveUsers(users)
+    setUser(u => (u && u.email === email) ? { ...u, ...enrichRoleFields(users[email]) } : u)
+    return true
+  }
 
   return (
     <AuthContext.Provider value={{
@@ -714,6 +756,7 @@ export function AuthProvider({ children }) {
       logout, updateProfile, linkProvider, unlinkProvider, deleteAccount,
       updateUserId,
       getAllUsers,
+      setUserRole, setUserMembership,
     }}>
       {children}
     </AuthContext.Provider>

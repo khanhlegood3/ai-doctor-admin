@@ -9,7 +9,8 @@ import {
   BadgeCheck, HeartHandshake, Clock, ScanFace, Boxes, Languages, Sun, Moon, Phone,
 } from 'lucide-react'
 import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
-import zofoQRCode from '../assets/landing/KLX12-QR-Code.png'
+import zofoQRCodeVN from '../assets/landing/KLX12-QR-Code.png'
+import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
@@ -311,6 +312,26 @@ function LandingFooter({ t, setPage }) {
   )
 }
 
+// ─── Chọn QR code theo domain đang chạy ───────────────────────────────────
+// Domain tiếng Việt (vd: hienmaunhanvan.com) → dùng QR code VN
+// (KLX12-QR-Code.png). Các domain còn lại (quốc tế/mặc định) → dùng QR code
+// EN (KLX12-QR-Code-EN.png). Thêm domain tiếng Việt khác vào danh sách này
+// nếu cần.
+const VIETNAMESE_QR_DOMAINS = ['hienmaunhanvan.com']
+
+function resolveZofoQRCodeByDomain() {
+  try {
+    const hostname = String(window.location?.hostname || '').toLowerCase().replace(/^www\./, '')
+    if (!hostname) return zofoQRCodeVN
+    const isVietnameseDomain = VIETNAMESE_QR_DOMAINS.some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+    )
+    return isVietnameseDomain ? zofoQRCodeVN : zofoQRCodeEN
+  } catch {
+    return zofoQRCodeVN
+  }
+}
+
 export default function LandingPageZeroToForever({
   onGetStarted = () => {},
   onLogin = () => {},
@@ -320,6 +341,8 @@ export default function LandingPageZeroToForever({
   const [page, setPage] = useState('home')
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
+  // Domain hiện tại quyết định 1 lần khi mount — không đổi trong lúc dùng app.
+  const [zofoQRCode] = useState(resolveZofoQRCodeByDomain)
 
   // Dùng chung theme/lang với AppContext (toàn bộ app: Hero, Login, các màn
   // hình bên trong) thay vì state + localStorage riêng của trang landing —
