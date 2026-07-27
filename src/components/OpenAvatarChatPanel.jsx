@@ -228,10 +228,6 @@ export default function OpenAvatarChatPanel({ isDark, vi, border, surface, text,
         <div style={{ fontSize: 13, fontWeight: 700, color: text }}>
           {vi ? 'Trò chuyện trực tiếp với AI Avatar' : 'Live chat with your AI Avatar'}
         </div>
-        <a href="https://github.com/HumanAIGC-Engineering/OpenAvatarChat" target="_blank" rel="noopener noreferrer"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: text3, textDecoration: 'none' }}>
-          <Github size={13} /> OpenAvatarChat
-        </a>
       </div>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: text2, lineHeight: 1.55 }}>
         {vi

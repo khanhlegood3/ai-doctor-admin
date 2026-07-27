@@ -219,33 +219,14 @@ export default function MyAIAvatarPanel() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: text }}>
               <Sparkles size={14} /> {vi ? 'Cách nhanh nhất: demo chính thức (không cần tự host)' : 'Fastest option: official demo (no self-hosting needed)'}
             </div>
-            <LinkButton href={LINKS.openAvatarChatSpace} icon={<ExternalLink size={13} />} label={vi ? 'Mở trong tab mới' : 'Open in new tab'} isDark={isDark} />
           </div>
           <p style={{ margin: '0 0 10px', fontSize: 12, color: text3, lineHeight: 1.6 }}>
             {vi
               ? 'Chính team HumanAIGC-Engineering-Team tự host sẵn một bản demo đầy đủ (chọn được LiteAvatar hoặc LAM) trên Hugging Face Space — dùng thử ngay bên dưới, không cần dựng server riêng.'
               : 'The HumanAIGC-Engineering-Team itself hosts a complete demo (choice of LiteAvatar or LAM) on a Hugging Face Space — try it right below, no need to stand up your own server.'}
           </p>
-          <div style={{
-            position: 'relative', width: '100%', height: 560, borderRadius: 12, overflow: 'hidden',
-            border: `1px solid ${border}`, background: isDark ? '#05070f' : '#f4f6fa',
-          }}>
-            {!oacIframeLoaded && (
-              <div style={{
-                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', gap: 8, color: text3, fontSize: 12.5,
-              }}>
-                <Sparkles size={20} className="spin" />
-                {vi ? 'Đang tải demo OpenAvatarChat...' : 'Loading the OpenAvatarChat demo...'}
-              </div>
-            )}
-            <iframe
-              title="Open Avatar Chat - Hugging Face Space"
-              src={LINKS.openAvatarChatSpaceEmbed}
-              onLoad={() => setOacIframeLoaded(true)}
-              style={{ width: '100%', height: '100%', border: 'none', opacity: oacIframeLoaded ? 1 : 0, transition: 'opacity 0.3s' }}
-              allow="camera; microphone; autoplay; fullscreen"
-            />
+          <div style={{ border: `1px solid ${border}`, borderRadius: 12, padding: 14, color: text3, fontSize: 12, lineHeight: 1.6 }}>
+            {vi ? 'Link/iframe Hugging Face Space đã được ẩn theo cấu hình nội bộ.' : 'Hugging Face Space link/iframe is hidden by internal configuration.'}
           </div>
         </div>
 
@@ -315,53 +296,20 @@ export default function MyAIAvatarPanel() {
         </div>
         <p style={{ margin: '0 0 12px', fontSize: 12.5, color: text2, lineHeight: 1.6 }}>
           {vi
-            ? 'Khác nhánh với LAM ở trên (chuyên avatar người có thể tạo dáng/animate): Hi3DGen (github.com/Stable-X/Stable3DGen) dựng mesh 3D độ chi tiết cao từ MỘT ảnh bất kỳ — dùng normal-map làm cầu nối trung gian giữa ảnh 2D và hình học 3D, cho biên/chi tiết sắc nét hơn các phương pháp đi thẳng ảnh→3D. Phù hợp khi bạn cần mesh (OBJ/GLB/PLY/STL) cho vật thể chung (mô hình giải phẫu, dụng cụ y tế, đồ vật...) chứ không phải avatar người có thể cử động. Space demo đang chạy — nhúng trực tiếp bên dưới.'
-            : 'A different branch from LAM above: Hi3DGen (github.com/Stable-X/Stable3DGen) builds a high-detail 3D mesh from a single arbitrary image — using a normal map as an intermediate bridge between the 2D image and 3D geometry, giving sharper edges/detail than direct image→3D methods. Good fit when you need a mesh (OBJ/GLB/PLY/STL) for a general object (anatomical models, medical instruments, everyday objects...) rather than a posable human avatar. The demo Space is live — embedded directly below.'}
+            ? 'Khác nhánh với LAM ở trên (chuyên avatar người có thể tạo dáng/animate): Hi3DGen dựng mesh 3D độ chi tiết cao từ MỘT ảnh bất kỳ — dùng normal-map làm cầu nối trung gian giữa ảnh 2D và hình học 3D. Các link/iframe ngoài đã được ẩn theo cấu hình nội bộ.'
+            : 'A different branch from LAM above: Hi3DGen builds a high-detail 3D mesh from a single arbitrary image using a normal map as an intermediate bridge. External links/iframes are hidden by internal configuration.'}
         </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <LinkButton href={LINKS.stable3dgenGithub} icon={<Github size={13} />} label={vi ? 'Mã nguồn Stable3DGen' : 'Stable3DGen source'} isDark={isDark} />
-          <LinkButton href={LINKS.hi3dgenSpace} icon={<ExternalLink size={13} />} label={vi ? 'Space demo (Stable-X/Hi3DGen)' : 'Demo Space (Stable-X/Hi3DGen)'} isDark={isDark} />
-          <LinkButton href={LINKS.hi3dgenProject} icon={<ExternalLink size={13} />} label={vi ? 'Trang dự án Hi3DGen' : 'Hi3DGen project page'} isDark={isDark} />
+        <div style={{ marginBottom: 12, color: text3, fontSize: 12, lineHeight: 1.6 }}>
+          {vi ? 'Các link GitHub/Hugging Face/Project đã được ẩn theo cấu hình nội bộ.' : 'GitHub/Hugging Face/project links are hidden by internal configuration.'}
         </div>
-        <div style={{
-          position: 'relative', width: '100%', height: 640, borderRadius: 14, overflow: 'hidden',
-          border: `1px solid ${border}`, background: isDark ? '#05070f' : '#f4f6fa',
-        }}>
-          {!hi3dgenIframeLoaded && (
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 8, color: text3, fontSize: 12.5,
-            }}>
-              <Sparkles size={20} className="spin" />
-              {vi ? 'Đang tải demo Hi3DGen...' : 'Loading the Hi3DGen demo...'}
-            </div>
-          )}
-          <iframe
-            title="Hi3DGen (Stable-X) - Hugging Face Space"
-            src={LINKS.hi3dgenSpaceEmbed}
-            onLoad={() => setHi3dgenIframeLoaded(true)}
-            style={{ width: '100%', height: '100%', border: 'none', opacity: hi3dgenIframeLoaded ? 1 : 0, transition: 'opacity 0.3s' }}
-            allow="fullscreen"
-          />
+        <div style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 16, color: text3, fontSize: 12.5, lineHeight: 1.6 }}>
+          {vi ? 'Iframe Hugging Face Space đã được ẩn theo cấu hình nội bộ.' : 'Hugging Face Space iframe is hidden by internal configuration.'}
         </div>
       </div>
 
-      {/* Links & ecosystem */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-        <LinkButton href={LINKS.github} icon={<Github size={14} />} label={vi ? 'Mã nguồn GitHub' : 'GitHub repo'} isDark={isDark} primary />
-        <LinkButton href={LINKS.project} icon={<ExternalLink size={14} />} label={vi ? 'Trang dự án' : 'Project page'} isDark={isDark} />
-        <LinkButton href={LINKS.paper} icon={<FileText size={14} />} label={vi ? 'Bài báo (arXiv)' : 'Paper (arXiv)'} isDark={isDark} />
-      </div>
-
-      <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 14, padding: 16, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: text, marginBottom: 8 }}>
-          {vi ? 'Hệ sinh thái liên quan từ nhóm 3DAIGC' : 'Related tools from the 3DAIGC ecosystem'}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <LinkButton href={LINKS.audio2exp} icon={<Mic size={13} />} label="LAM_Audio2Expression" isDark={isDark} />
-          <LinkButton href={LINKS.webRender} icon={<Smartphone size={13} />} label="LAM_WebRender" isDark={isDark} />
-          <LinkButton href={LINKS.openAvatarChat} icon={<Wand2 size={13} />} label="OpenAvatarChat SDK" isDark={isDark} />
-        </div>
+      {/* External GitHub/Hugging Face/project links are intentionally hidden. */}
+      <div style={{ background: surface, border: `1px solid ${border}`, borderRadius: 14, padding: 16, marginBottom: 20, color: text2, fontSize: 12.5, fontWeight: 800 }}>
+        {vi ? 'Các link GitHub, Hugging Face Space và trang dự án ngoài đã được ẩn theo cấu hình nội bộ.' : 'GitHub, Hugging Face Space, and external project links are hidden by internal configuration.'}
       </div>
 
       {/* Citation */}

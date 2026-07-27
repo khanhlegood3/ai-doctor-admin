@@ -259,9 +259,8 @@ export default function MyAIAvatarLAMPanel() {
                   : 'A real LAM flow based on app_lam.py: upload one portrait, choose a sample motion, call the Gradio Generate API, and receive the processed image, 3D avatar video, plus an OpenAvatarChat ZIP export when Blender is enabled.'}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <a className="lam-btn" href={LAM_PROJECT_URL} target="_blank" rel="noreferrer" style={{ color: '#001018', background: palette.accent, textDecoration: 'none' }}>LAM Project ↗</a>
-              <a className="lam-btn" href={LAM_REPO_URL} target="_blank" rel="noreferrer" style={{ color: palette.text, background: palette.card, textDecoration: 'none' }}>Source Code ↗</a>
+            <div style={{ color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+              Link GitHub/trang dự án ngoài đã được ẩn theo cấu hình nội bộ.
             </div>
           </div>
         </div>

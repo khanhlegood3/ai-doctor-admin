@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { ExternalLink, Github, Sparkles, Video, Layers3 } from 'lucide-react'
+import React from 'react'
+import { Sparkles, Video, Layers3 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 
 const RECON_LINKS = {
@@ -12,29 +12,7 @@ const RECON_LINKS = {
   v05Embed: 'https://stable-x-reconviagen-v0-5.hf.space',
 }
 
-function LinkButton({ href, icon, label, primary, isDark }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '9px 14px', borderRadius: 9, fontSize: 12.5, fontWeight: 600,
-        textDecoration: 'none', cursor: 'pointer', transition: 'all 0.15s',
-        border: primary ? '1px solid transparent' : `1px solid ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)'}`,
-        background: primary ? 'linear-gradient(135deg, #00b8cc, #6b3fd4)' : 'transparent',
-        color: primary ? '#fff' : (isDark ? '#e8f0f8' : '#1a2035'),
-      }}
-    >
-      {icon}{label}
-    </a>
-  )
-}
-
-function ReconViaGenFrame({ version, badge, description, githubHref, spaceHref, embedSrc, isDark, border, surface, text, text2, text3, vi }) {
-  const [loaded, setLoaded] = useState(false)
-
+function ReconViaGenFrame({ version, badge, description, isDark, border, surface, text, text2, text3, vi }) {
   return (
     <section style={{ background: surface, border: `1px solid ${border}`, borderRadius: 16, padding: 16, marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -46,31 +24,8 @@ function ReconViaGenFrame({ version, badge, description, githubHref, spaceHref, 
         }}>{badge}</span>
       </div>
       <p style={{ margin: '0 0 12px', fontSize: 12.5, color: text2, lineHeight: 1.6 }}>{description}</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        <LinkButton href={githubHref} icon={<Github size={13} />} label={vi ? 'Mã nguồn' : 'Source'} isDark={isDark} />
-        <LinkButton href={spaceHref} icon={<ExternalLink size={13} />} label={vi ? 'Mở Space demo' : 'Open Space demo'} isDark={isDark} primary />
-        <LinkButton href={RECON_LINKS.project} icon={<ExternalLink size={13} />} label={vi ? 'Trang dự án' : 'Project page'} isDark={isDark} />
-      </div>
-      <div style={{
-        position: 'relative', width: '100%', height: 660, borderRadius: 14, overflow: 'hidden',
-        border: `1px solid ${border}`, background: isDark ? '#05070f' : '#f4f6fa',
-      }}>
-        {!loaded && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 8, color: text3, fontSize: 12.5,
-          }}>
-            <Sparkles size={20} className="spin" />
-            {vi ? `Đang tải demo ${version}...` : `Loading ${version} demo...`}
-          </div>
-        )}
-        <iframe
-          title={`${version} - Hugging Face Space`}
-          src={embedSrc}
-          onLoad={() => setLoaded(true)}
-          style={{ width: '100%', height: '100%', border: 'none', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s' }}
-          allow="fullscreen"
-        />
+      <div style={{ border: `1px solid ${border}`, borderRadius: 14, padding: 16, color: text2, fontSize: 12.5, lineHeight: 1.6 }}>
+        {vi ? 'Link/iframe GitHub và Hugging Face Space đã được ẩn theo cấu hình nội bộ.' : 'GitHub and Hugging Face Space links/iframes are hidden by internal configuration.'}
       </div>
     </section>
   )
@@ -137,9 +92,6 @@ export default function Create3DVideoFrom2DPanel() {
         description={vi
           ? 'Phiên bản demo cũ của Multi-view 3D Object Reconstruction via Generation. Giữ lại để so sánh pipeline và kết quả với bản v0.5.'
           : 'The older demo of Multi-view 3D Object Reconstruction via Generation. Kept here so you can compare its pipeline and outputs against v0.5.'}
-        githubHref={RECON_LINKS.legacyGithub}
-        spaceHref={RECON_LINKS.legacySpace}
-        embedSrc={RECON_LINKS.legacyEmbed}
         isDark={isDark}
         border={border}
         surface={surface}
@@ -153,11 +105,8 @@ export default function Create3DVideoFrom2DPanel() {
         version={vi ? 'ReconViaGen v0.5' : 'ReconViaGen v0.5'}
         badge="Stable-X/ReconViaGen-v0.5"
         description={vi
-          ? 'Bản v0.5 theo link bạn cung cấp, trỏ tới nhánh GitHub v0.5 và Hugging Face Space ReconViaGen-v0.5 để thử trực tiếp trong khung bên dưới.'
-          : 'The v0.5 build from your provided links, pointing to the v0.5 GitHub branch and the ReconViaGen-v0.5 Hugging Face Space for direct testing below.'}
-        githubHref={RECON_LINKS.v05Github}
-        spaceHref={RECON_LINKS.v05Space}
-        embedSrc={RECON_LINKS.v05Embed}
+          ? 'Bản v0.5 dùng cho quy trình tái dựng nhiều góc nhìn; các link/iframe ngoài đã được ẩn theo cấu hình nội bộ.'
+          : 'The v0.5 build for multi-view reconstruction; external links/iframes are hidden by internal configuration.'}
         isDark={isDark}
         border={border}
         surface={surface}

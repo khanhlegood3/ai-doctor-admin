@@ -541,9 +541,8 @@ export default function CameraAngle3DStudioPanel({ onNext, nextLabel, onPrev, pr
                 Kéo 3 tay cầm màu quanh mô hình <strong>.obj</strong> để chọn <strong>Azimuth</strong> (🟢 xoay ngang), <strong>Elevation</strong> (🩷 góc nghiêng), <strong>Distance</strong> (🟠 khoảng cách) — y hệt cơ chế của Space gốc, rồi gửi prompt sinh ra kèm ảnh 2D thật tới <strong>fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA</strong> để đổi góc chụp ảnh thật.
               </p>
             </div>
-            <div style={{ display: 'grid', gap: 10, minWidth: 230 }}>
-              <a href={CAMERA_SPACE_URL} target="_blank" rel="noreferrer" style={linkButton(palette.cyan, '#031018')}>HF Realtime Space ↗</a>
-              <a href={LORA_MODEL_URL} target="_blank" rel="noreferrer" style={linkButton(palette.violet, '#12071f')}>HF LoRA Model ↗</a>
+            <div style={{ minWidth: 230, color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+              Link Hugging Face ngoài đã được ẩn theo cấu hình nội bộ.
             </div>
           </div>
         </section>

@@ -247,7 +247,7 @@ export default function App() {
     cameraAngle3DStudio: '3D Camera Angle (Qwen)',
     organConnection: 'Ăn gì tốt hôm nay',
     printPortal: 'Print Portal',
-    patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
+    patientReflect: 'Patient Reflection',
     chatHistory: 'Lịch sử Chat với AI',
     myImageToVideo: 'My Image to Video',
     profile: t('profile'),

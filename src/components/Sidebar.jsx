@@ -77,7 +77,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     { id: 'stressRelief', label: t('stressRelief'), step: '32' },
     { id: 'aiInbodyPortal', label: t('aiInbodyPortal'), step: '33' },
     { id: 'printPortal', label: 'Print Portal', step: '34' },
-    { id: 'patientReflect', label: 'Hero Reflection / Phản chiếu Siêu Anh Hùng', step: '35' },
+    { id: 'patientReflect', label: 'Patient Reflection', step: '35' },
     { id: 'chatHistory', label: 'Lịch sử Chat với AI', step: '36' },
   ]
 
