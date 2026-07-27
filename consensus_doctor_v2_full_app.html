@@ -26,7 +26,7 @@ body,#app{min-height:600px;background:var(--bg);color:var(--text);font-family:va
 .auth-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:600px;padding:32px;background:var(--bg)}
 .auth-card{width:100%;max-width:420px;background:var(--bg2);border:1px solid var(--border2);border-radius:20px;padding:40px 36px}
 .auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
-.logo-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--cyan2),var(--violet2));display:flex;align-items:center;justify-content:center;font-family:var(--font-m);font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.logo-icon{width:44px;height:44px;border-radius:12px;object-fit:contain;flex-shrink:0;background:rgba(255,255,255,0.04)}
 .auth-btn{width:100%;padding:12px 16px;border-radius:10px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-family:var(--font-d);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .2s;margin-bottom:10px}
 .auth-btn:hover{background:var(--surface2);border-color:var(--cyan)}
 .auth-btn svg{flex-shrink:0}
@@ -138,13 +138,13 @@ body,#app{min-height:600px;background:var(--bg);color:var(--text);font-family:va
 </style>
 
 <div id="app" class="anim">
-<h2 class="sr-only">Consensus Doctor v2 — Nền tảng y tế AI đa người dùng với xác thực, quản lý gia đình, và dashboard quản trị</h2>
+<h2 class="sr-only">ZoFo — Zero to Forever Foundation · Become The Hero Within</h2>
 </div>
 
 <script>
 const T = {
   vi: {
-    appName:'CONSENSUS DOCTOR',appSub:'Nền tảng AI Y Tế · Phân tích Đa Tác nhân',
+    appName:'ZoFo',appSub:'Zero to Forever Foundation · Become The Hero Within',
     signIn:'Đăng nhập',signInWith:'Đăng nhập với',continueEmail:'Tiếp tục với Email',
     or:'hoặc',emailPlaceholder:'Email của bạn',passwdPlaceholder:'Mật khẩu',
     forgotPwd:'Quên mật khẩu?',noAcc:'Chưa có tài khoản?',register:'Đăng ký',
@@ -174,7 +174,7 @@ const T = {
     newPatient:'Bệnh nhân mới',editProfile:'Chỉnh sửa hồ sơ',
   },
   en: {
-    appName:'CONSENSUS DOCTOR',appSub:'AI Medical Platform · Multi-Agent Analysis',
+    appName:'ZoFo',appSub:'Zero to Forever Foundation · Become The Hero Within',
     signIn:'Sign In',signInWith:'Sign in with',continueEmail:'Continue with Email',
     or:'or',emailPlaceholder:'Your email',passwdPlaceholder:'Password',
     forgotPwd:'Forgot password?',noAcc:"Don't have an account?",register:'Register',
@@ -278,10 +278,10 @@ function renderLogin(){
   <div class="auth-wrap">
     <div class="auth-card">
       <div class="auth-logo">
-        <div class="logo-icon">Rx</div>
+        <img class="logo-icon" src="public/assets/landing/ZeroToForever_Logo.png" alt="ZoFo — Zero to Forever Foundation">
         <div>
           <div style="font-weight:800;font-size:14px;letter-spacing:.06em;color:var(--cyan)">${t('appName')}</div>
-          <div style="font-size:10px;color:var(--text3);font-family:var(--font-m)">AI MEDICAL PLATFORM</div>
+          <div style="font-size:10px;color:var(--text3);font-family:var(--font-m)">Zero to Forever Foundation · Become The Hero Within</div>
         </div>
         <div style="margin-left:auto;display:flex;gap:4px">
           <button class="lang-btn ${lang==='vi'?'active':''}" onclick="setLang('vi')">VI</button>
@@ -356,7 +356,7 @@ function renderTopbar(){
   return `
   <header class="topbar">
     <div class="topbar-logo">
-      <div class="logo-icon" style="width:32px;height:32px;font-size:10px">Rx</div>
+      <img class="logo-icon" style="width:32px;height:32px" src="public/assets/landing/ZeroToForever_Logo.png" alt="ZoFo — Zero to Forever Foundation">
       <div>
         <div style="font-weight:800;font-size:11px;letter-spacing:.08em;color:var(--cyan)">${t('appName')}</div>
         <div style="font-size:9px;color:var(--text3);font-family:var(--font-m)">${t('appSub')}</div>

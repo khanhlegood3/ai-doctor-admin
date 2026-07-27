@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { useNotifications } from '../lib/notifications.js'
+import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 
 export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin }) {
   const { user, logout } = useAuth()
@@ -31,18 +32,13 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: 'linear-gradient(135deg, #00b8cc, #6b3fd4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
-        }}>Rx</div>
+        <img src={zofoLogo} alt="ZoFo — Zero to Forever Foundation" style={{ height: 42, width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
         <div>
-          <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff' }}>
-            CONSENSUS DOCTOR
+          <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff' }}>
+            ZoFo
           </div>
-          <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace' }}>
-            AI AGENTS PLATFORM · MEDICAL DIGITAL TWIN
+          <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase' }}>
+            Zero to Forever Foundation · Become The Hero Within
           </div>
         </div>
       </div>

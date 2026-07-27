@@ -37,8 +37,13 @@ export const LANDING_I18N = {
     },
     home: {
       heroLine1: 'Sống khỏe – Sống ý nghĩa – Sống mãi giá trị.',
-      heroSub: 'Khám phá sức mạnh bên trong bạn.',
-      heroDesc: 'Từ từng tế bào đến tâm hồn, từ mỗi hành động tử tế đến những thay đổi bền vững, để mỗi ngày bạn trở thành phiên bản tốt hơn của chính mình.',
+      heroSub: 'Become The Hero Within.',
+      heroDesc: 'Không phải ai cũng có cơ hội bay vào vũ trụ. Nhưng ai cũng có thể khám phá sức mạnh vô hạn bên trong mình. Mỗi hành động tử tế là một bước tiến để trở thành Siêu Anh Hùng của chính bạn.',
+      longTermMessage: [
+        'Giai đoạn 1: Game "Hiến Máu Nhân Văn".',
+        'Giai đoạn 2: "Anh Hùng Hiến Tặng" mở rộng sang sức khỏe, tình nguyện, giáo dục và các hoạt động cộng đồng.',
+        'Giai đoạn 3: Một hệ sinh thái nơi AI hỗ trợ mỗi người xây dựng "lộ trình trở thành phiên bản tốt hơn của chính mình", còn game hóa và cộng đồng tạo động lực để duy trì hành trình đó.',
+      ],
       videoDuration: '(2:45)',
       badges: ['An toàn', 'Minh bạch', 'Cộng đồng', 'Tích cực'],
       heroGraphicTagline: 'Become The Hero Within.',
@@ -339,8 +344,13 @@ export const LANDING_I18N = {
     },
     home: {
       heroLine1: 'Live Healthy – Live Meaningfully – Live Forever.',
-      heroSub: 'Discover the strength within you.',
-      heroDesc: 'From every cell to every soul, from every act of kindness to lasting change — become a better version of yourself, one day at a time.',
+      heroSub: 'Become The Hero Within.',
+      heroDesc: 'Not everyone has the chance to fly into space. But everyone can explore the infinite strength within. Every kind action is one step toward becoming your own superhero.',
+      longTermMessage: [
+        'Phase 1: The “Humane Blood Donation” game.',
+        'Phase 2: “Donation Heroes” expands into health, volunteering, education, and community activities.',
+        'Phase 3: An ecosystem where AI helps each person build a roadmap to a better version of themselves, while gamification and community sustain the journey.',
+      ],
       videoDuration: '(2:45)',
       badges: ['Safe', 'Transparent', 'Community', 'Positive'],
       heroGraphicTagline: 'Become The Hero Within.',
