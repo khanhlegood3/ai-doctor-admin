@@ -102,6 +102,8 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
     'record',
     'familyRelationship',
     'omnidirectional3dBody',
+    'aiHealthcareVision',
+    'patientReflect',
     'stressRelief',
     'chatHistory',
   ])
@@ -204,7 +206,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
       {VIP_PRO_STEPS.length > 0 && (
         <>
-          <SectionLabel color={text3} style={{ marginTop: 16 }}>Only VIP PRO Accounts</SectionLabel>
+          <SectionLabel color={text3} style={{ marginTop: 16 }}>VIP PRO Accounts Only</SectionLabel>
           {VIP_PRO_STEPS.map(s => (
             <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: active === s.id ? '#00e5ff' : text3, flexShrink: 0, transition: 'background 0.2s' }} />
