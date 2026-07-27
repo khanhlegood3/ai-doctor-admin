@@ -671,14 +671,6 @@ function WikiPreviewModal({ url, title, onClose, isDark }) {
             }}>{title || 'Wikipedia'}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <a
-              href={url} target="_blank" rel="noreferrer"
-              style={{
-                fontSize: 12, fontWeight: 700, color: '#6366f1', textDecoration: 'none',
-                padding: '6px 10px', borderRadius: 8, background: 'rgba(99,102,241,0.12)',
-                whiteSpace: 'nowrap',
-              }}
-            >↗ Tab mới</a>
             <button
               onClick={onClose}
               style={{
@@ -728,13 +720,6 @@ function WikiPreviewModal({ url, title, onClose, isDark }) {
               <div style={{ fontSize: 12, color: isDark ? '#94a3b8' : '#64748b', maxWidth: 360 }}>
                 Trang này có thể đã chặn việc nhúng iframe. Hãy mở trực tiếp trong tab mới.
               </div>
-              <a
-                href={url} target="_blank" rel="noreferrer"
-                style={{
-                  marginTop: 6, fontSize: 13, fontWeight: 800, color: '#fff', textDecoration: 'none',
-                  padding: '10px 18px', borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-                }}
-              >↗ Mở trong tab mới</a>
             </div>
           )}
         </div>
@@ -810,13 +795,7 @@ function TileCard({ hit, idx, tileUnavailable, openDirectly, openWiki, lang, ori
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: 12, padding: 12 }}>
             <div style={{ fontSize: 28, marginBottom: 6 }}>🖼️</div>
             <div style={{ marginBottom: 4 }}>{tileUnavailable}</div>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={e => e.stopPropagation()}
-              style={{ fontSize: 10, color: '#6366f1', textDecoration: 'underline' }}
-            >{openDirectly}</a>
+
           </div>
         )}
       </div>
