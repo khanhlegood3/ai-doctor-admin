@@ -567,7 +567,6 @@ export default function StressReliefPanel({ onNext, nextLabel, onPrev, prevLabel
                 <div className="sr-game-badge">{icon}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="sr-game-caption">{lang === 'en' ? game.captionEn : game.caption}</div>
-                  <div className="sr-game-url">{game.src.replace(/^https?:\/\//, '').slice(0, 38)}{game.src.replace(/^https?:\/\//, '').length > 38 ? '…' : ''}</div>
                 </div>
                 {isActive && <div className="sr-active-dot" />}
                 {isCustom && (
@@ -599,7 +598,7 @@ export default function StressReliefPanel({ onNext, nextLabel, onPrev, prevLabel
             style={{ marginBottom: 8 }}
             value={draftLink}
             onChange={e => { setDraftLink(e.target.value); setSaveStatus(null) }}
-            placeholder="Link game (https://...)"
+            placeholder={lang === 'en' ? 'Hidden game link (https://...)' : 'Link game ẩn (https://...)'}
           />
           <button
             type="button"
@@ -614,7 +613,7 @@ export default function StressReliefPanel({ onNext, nextLabel, onPrev, prevLabel
               cursor: isDraftValid ? 'pointer' : 'not-allowed',
             }}
           >
-            + Save Caption and Link for Game
+{lang === 'en' ? '+ Save Game Caption' : '+ Lưu Caption Game'}
           </button>
           {saveStatus && (
             <div style={{ marginTop: 8, fontSize: 10, lineHeight: 1.5, color: saveStatus.type === 'success' ? 'var(--green)' : 'var(--amber)' }}>

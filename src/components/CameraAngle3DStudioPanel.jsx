@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import Camera3DAngleGizmo, { buildCameraPrompt } from './CameraAngle3DGizmo.jsx'
+import NavButtons from './NavButtons.jsx'
 
 // Camera Angle 3D Studio — nhúng tính năng "3D Camera Control" của
 // multimodalart/qwen-image-multiple-angles-3d-camera (dùng LoRA
@@ -54,7 +55,7 @@ function replaceImageToken(value, imageFile) {
   return value === IMAGE_TOKEN ? imageFile : value
 }
 
-export default function CameraAngle3DStudioPanel() {
+export default function CameraAngle3DStudioPanel({ onNext, nextLabel, onPrev, prevLabel } = {}) {
   const { theme } = useApp()
   const isDark = theme === 'dark'
   const gizmoWrapperRef = useRef(null) // khung "🎮 3D Camera Control 2D Object" (ảnh 2D)
@@ -1015,6 +1016,9 @@ export default function CameraAngle3DStudioPanel() {
             )}
           </section>
         </div>
+        {(onNext || onPrev) && (
+          <NavButtons onNext={onNext} nextLabel={nextLabel} onPrev={onPrev} prevLabel={prevLabel} />
+        )}
       </div>
     </div>
   )
