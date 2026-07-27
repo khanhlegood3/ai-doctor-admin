@@ -173,6 +173,7 @@ export default function App() {
 
   const panelLabels = {
     adminConcept: 'AI Doctor Admin Panel',
+    landingZeroToForever: 'Zero to Forever - Trang chủ',
     chooseUserRole: 'Chọn Vai Trò Anh Hùng',
     donationHero: 'Anh Hùng Hiến Tặng',
     affiliateUuidReferral: 'Đăng Ký Affiliate Marketing',
@@ -621,6 +622,14 @@ export default function App() {
             {active === 'myImageToVideo' && user?.isAdmin && <MyImageToVideoPanel onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'myImageToVideo' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
+            )}
+            {active === 'landingZeroToForever' && (
+              <LandingPageZeroToForever
+                onGetStarted={() => setActive('chooseUserRole')}
+                onLogin={() => setActive('chooseUserRole')}
+                onWatchVideo={() => setActive('chooseUserRole')}
+                onDownloadApp={() => setActive('chooseUserRole')}
+              />
             )}
             {active === 'chooseUserRole' && (
               <ChooseUserRolePanel
