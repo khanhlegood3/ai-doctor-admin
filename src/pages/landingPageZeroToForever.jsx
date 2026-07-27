@@ -487,38 +487,17 @@ export default function LandingPageZeroToForever({
                 </div>
               </div>
 
-              {/* Hero Right: Graphic */}
+              {/* Hero Right: Embedded Framer iframe — level with the big "Zero to Forever" heading */}
               <div className="hidden lg:block relative h-full min-h-[500px]">
-                <div className="relative w-full h-full flex items-center justify-center zofo-animate-float">
-                  <svg className="zofo-infinity-svg w-[120%] h-[120%] absolute -right-10 top-0" fill="none" viewBox="0 0 200 100">
-                    <path d="M 50 50 C 10 10, 10 90, 50 50 C 90 10, 90 90, 130 50 C 170 10, 170 90, 130 50 C 90 10, 90 90, 50 50 Z" fill="none" opacity="0.8" stroke="url(#zofo-neon-grad)" strokeWidth="2" />
-                    <path d="M 50 50 C 10 10, 10 90, 50 50 C 90 10, 90 90, 130 50 C 170 10, 170 90, 130 50 C 90 10, 90 90, 50 50 Z" fill="none" style={{ filter: 'blur(8px)' }} opacity="0.4" stroke="url(#zofo-neon-grad-2)" strokeWidth="6" />
-                    <defs>
-                      <linearGradient id="zofo-neon-grad" x1="0%" x2="100%" y1="0%" y2="0%">
-                        <stop offset="0%" stopColor="#FF543C" />
-                        <stop offset="50%" stopColor="#8B4DFF" />
-                        <stop offset="100%" stopColor="#00C2FF" />
-                      </linearGradient>
-                      <linearGradient id="zofo-neon-grad-2" x1="0%" x2="100%" y1="0%" y2="0%">
-                        <stop offset="0%" stopColor="#FF543C" />
-                        <stop offset="50%" stopColor="#8B4DFF" />
-                        <stop offset="100%" stopColor="#00C2FF" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <img
-                    alt="Astronaut looking at space"
-                    className="absolute right-10 bottom-0 h-64 object-cover object-top opacity-80"
-                    src="https://images.unsplash.com/photo-1614729939124-03290b5509ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
-                    style={{
-                      maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                      WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
-                    }}
+                <div className="relative w-full h-full rounded-3xl overflow-hidden border border-white/10 zofo-shadow-neon-purple bg-white/5 backdrop-blur-sm">
+                  <iframe
+                    src="https://strange-tenure-258776.framer.app/"
+                    title="Zero to Forever - Framer Embed"
+                    className="absolute inset-0 w-full h-full"
+                    style={{ border: 'none' }}
+                    loading="lazy"
+                    allow="clipboard-write; encrypted-media; picture-in-picture"
                   />
-                  <div className="absolute bottom-12 right-0 text-right z-20">
-                    <h4 className="text-2xl font-bold text-white">Zero to Forever</h4>
-                    <p className="text-[#00C2FF] font-medium">{t.home.heroGraphicTagline}</p>
-                  </div>
                 </div>
               </div>
             </div>
