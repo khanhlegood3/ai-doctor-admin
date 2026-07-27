@@ -200,33 +200,60 @@ export async function markRewardFailed(id, errorMessage) {
   await tx('rewards', 'readwrite', s => s.put({ ...row, chainStatus: 'failed', error: errorMessage }))
 }
 
-// Ghi thưởng cho người chơi (uuid) và, nếu người này là F1 của ai đó (đã
-// vào game qua link giới thiệu), tự động cộng thêm hoa hồng cho người giới
-// thiệu (referrerUuid) — đây chính là phần "nhận thưởng" của Affiliate.
+// Ghi thưởng cho người chơi (uuid) và, nếu người này có tuyến trên (đã vào
+// game qua link giới thiệu), tự động cộng thêm hoa hồng cho NGƯỜI GIỚI
+// THIỆU TRỰC TIẾP (F1) và, nếu có, NGƯỜI GIỚI THIỆU CỦA NGƯỜI ĐÓ (F2) — đây
+// chính là phần "nhận thưởng" của Affiliate: người giới thiệu được ăn hoa
+// hồng cả từ F1 lẫn F2 chơi game, không chỉ F1.
+//
+// commissionRates: mảng tỉ lệ theo cấp — mặc định [10%, 5%] khớp với
+// levelRates trên smart-contract HienMauAffiliate.sol (level 1 = 10%,
+// level 2 = 5%; level 3 = 2% đã có sẵn on-chain nhưng chưa cần hiển thị ở
+// đây theo yêu cầu hiện tại — chỉ F1/F2).
 //
 // LƯU Ý ON-CHAIN: contract HienMauAffiliate.rewardTask() đã tự động chia
-// hoa hồng lên toàn bộ tuyến trên NGAY TRONG CÙNG 1 giao dịch của người
-// chơi (uuid) — dòng "commission" trả về bên dưới CHỈ để hiển thị local,
-// KHÔNG được gửi thành 1 giao dịch on-chain riêng. Sau khi giao dịch
-// rewardTask() của `primaryId` thành công, gọi markRewardSynced(commissionId,
-// cùng txHash đó) — xem gameAffiliateChain.js.
-export async function addRewardWithReferralCommission({ uuid, kind, amount, currency = 'VIET', gameId = null, note = null, commissionRate = 0.1 }) {
+// hoa hồng lên toàn bộ tuyến trên (F1, F2, F3...) NGAY TRONG CÙNG 1 giao
+// dịch của người chơi (uuid) — các dòng "commission" trả về bên dưới CHỈ để
+// hiển thị local, KHÔNG được gửi thành giao dịch on-chain riêng. Sau khi
+// giao dịch rewardTask() của `primaryId` thành công, gọi
+// markRewardSynced(commissionId, cùng txHash đó) cho MỌI commissionId trong
+// mảng `commissions` — xem gameAffiliateChain.js.
+export async function addRewardWithReferralCommission({ uuid, kind, amount, currency = 'VIET', gameId = null, note = null, commissionRates = [0.1, 0.05] }) {
   const primaryId = await addReward({ uuid, kind, amount, currency, gameId, note })
-  const referral = await getReferralFor(uuid)
-  if (!referral) return { primaryId, primaryUuid: uuid, commissionId: null, commissionReferrerUuid: null }
+  const commissions = []
 
-  const commissionAmount = Math.round(amount * commissionRate)
-  if (commissionAmount <= 0) return { primaryId, primaryUuid: uuid, commissionId: null, commissionReferrerUuid: null }
+  let currentUuid = uuid
+  for (let level = 1; level <= commissionRates.length; level += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const referral = await getReferralFor(currentUuid)
+    if (!referral) break // hết tuyến trên (VD: F1 không có ai giới thiệu nữa thì không có F2)
 
-  const commissionId = await addReward({
-    uuid: referral.referrerUuid,
-    kind: 'referral_commission',
-    amount: commissionAmount,
-    currency,
-    gameId,
-    refereeUuid: uuid,
-    level: 1,
-    note: `Hoa hồng F1 chơi game (${note || kind})`,
-  })
-  return { primaryId, primaryUuid: uuid, commissionId, commissionReferrerUuid: referral.referrerUuid }
+    const rate = commissionRates[level - 1]
+    const commissionAmount = Math.round(amount * rate)
+    if (commissionAmount > 0) {
+      // eslint-disable-next-line no-await-in-loop
+      const commissionId = await addReward({
+        uuid: referral.referrerUuid,
+        kind: 'referral_commission',
+        amount: commissionAmount,
+        currency,
+        gameId,
+        refereeUuid: currentUuid,
+        level,
+        note: `Hoa hồng F${level} chơi game (${note || kind})`,
+      })
+      commissions.push({ commissionId, level, referrerUuid: referral.referrerUuid, amount: commissionAmount })
+    }
+    currentUuid = referral.referrerUuid
+  }
+
+  return {
+    primaryId,
+    primaryUuid: uuid,
+    commissions,
+    // Giữ lại 2 field cũ để tương thích ngược với code gọi trước đây chỉ
+    // đọc commissionId/commissionReferrerUuid (tương ứng hoa hồng F1).
+    commissionId: commissions[0]?.commissionId || null,
+    commissionReferrerUuid: commissions[0]?.referrerUuid || null,
+  }
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Gift, Users, Copy, CheckCircle2, Loader2, PlayCircle, RefreshCw, Trophy } from 'lucide-react'
+import { Gift, Users, Copy, CheckCircle2, Loader2, PlayCircle, RefreshCw, Trophy, Coins } from 'lucide-react'
 import {
   getOrCreateReferralCode,
   getReferralsByReferrer,
@@ -9,6 +9,8 @@ import {
   markRewardFailed,
 } from '../lib/gameAffiliateDB'
 import { recordRewardOnChain } from '../lib/gameAffiliateChain'
+import { submitBossWin, fetchBossLeaderboard, getRankBonus } from '../lib/gameLeaderboardApi'
+import { fetchTokenUsdPrices, convertPointsToValues, formatTokenAmount, POINT_TO_USD } from '../lib/pointsTokenConversion'
 
 // Thời gian "xem quảng cáo" giả lập (giây) khi chưa gắn SDK Google Ads
 // rewarded thật. Thay handleWatchAd bên dưới bằng lệnh gọi SDK thật
@@ -16,23 +18,26 @@ import { recordRewardOnChain } from '../lib/gameAffiliateChain'
 const AD_WATCH_SECONDS = 15
 const AD_REWARD = { amount: 5000, currency: 'VIET' }
 
-// Ghi 1 khoản thưởng cho `uuid` + hoa hồng local cho tuyến trên (nếu có),
-// rồi gửi ĐÚNG 1 giao dịch rewardTask() lên chain — vì contract đã tự chia
-// hoa hồng ngược lên toàn bộ tuyến trên trong CÙNG giao dịch đó, dòng hoa
-// hồng local chỉ cần "ăn theo" cùng 1 txHash, không gửi giao dịch riêng.
+// Ghi 1 khoản thưởng cho `uuid` + hoa hồng local cho tuyến trên F1/F2 (nếu
+// có), rồi gửi ĐÚNG 1 giao dịch rewardTask() lên chain — vì contract đã tự
+// chia hoa hồng ngược lên toàn bộ tuyến trên trong CÙNG giao dịch đó, các
+// dòng hoa hồng local chỉ cần "ăn theo" cùng 1 txHash, không gửi giao dịch
+// riêng cho từng cấp F1/F2.
 async function submitReward({ uuid, kind, amount, currency, gameId, note }) {
-  const { primaryId, commissionId } = await addRewardWithReferralCommission({
+  const { primaryId, commissions } = await addRewardWithReferralCommission({
     uuid, kind, amount, currency, gameId, note,
   })
   const result = await recordRewardOnChain({ id: primaryId, uuid, amount })
-  if (commissionId) {
-    if (result.ok) await markRewardSynced(commissionId, result.txHash)
-    else await markRewardFailed(commissionId, result.cooldown ? 'Chưa đồng bộ — chờ giao dịch chính của người được giới thiệu.' : (result.error || 'Lỗi không xác định'))
+  for (const c of commissions) {
+    // eslint-disable-next-line no-await-in-loop
+    if (result.ok) await markRewardSynced(c.commissionId, result.txHash)
+    // eslint-disable-next-line no-await-in-loop
+    else await markRewardFailed(c.commissionId, result.cooldown ? `Chưa đồng bộ F${c.level} — chờ giao dịch chính của người được giới thiệu.` : (result.error || 'Lỗi không xác định'))
   }
   return result
 }
 
-export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
+export default function GameAffiliateRewardWidget({ uuid, lastGameResult, playerName }) {
   const [code, setCode] = useState('')
   const [referralCount, setReferralCount] = useState(0)
   const [rewards, setRewards] = useState([])
@@ -41,6 +46,17 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
   const [adSecondsLeft, setAdSecondsLeft] = useState(0)
   const [claiming, setClaiming] = useState(false)
   const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState('reward') // 'reward' | 'leaderboard' | 'exchange'
+
+  // Bảng xếp hạng "thắng BOSS nhanh nhất" (dùng chung mọi thiết bị qua Mongo)
+  const [leaderboard, setLeaderboard] = useState([])
+  const [myRank, setMyRank] = useState(null)
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
+
+  // Quy đổi tổng điểm thưởng hiện có ra USD + tất cả token dự án hỗ trợ
+  const [tokenPrices, setTokenPrices] = useState(null)
+
+  const [totalPoints, setTotalPoints] = useState(0)
 
   const refresh = useCallback(async () => {
     if (!uuid) return
@@ -52,11 +68,17 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
     setCode(c)
     setReferralCount(refs.length)
     setRewards(rws.slice(0, 8))
+    // Tổng điểm nội bộ tích luỹ (chỉ tính currency VIET — dùng để quy đổi
+    // ra USD + các token dự án hỗ trợ ở tab "Quy đổi").
+    setTotalPoints(rws.filter((r) => r.currency === 'VIET').reduce((sum, r) => sum + (Number(r.amount) || 0), 0))
   }, [uuid])
 
   useEffect(() => { refresh() }, [refresh])
 
-  // Ghi nhận thưởng "hoàn thành game" khi có kết quả mới từ iframe
+  // Ghi nhận thưởng "hoàn thành game" khi có kết quả mới từ iframe. Nếu là
+  // THẮNG BOSS (status === 'win') thì đồng thời ghi thời gian lên leaderboard
+  // dùng chung (mọi thiết bị) và cộng thêm thưởng THEO HẠNG — thắng BOSS
+  // càng nhanh, hạng càng cao, thưởng càng lớn.
   useEffect(() => {
     if (!uuid || !lastGameResult) return
     if (lastGameResult.status !== 'win' && lastGameResult.status !== 'freeplay') return
@@ -69,10 +91,54 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
         gameId: lastGameResult.gameId,
         note: `Hoàn thành ${lastGameResult.gameTitle || lastGameResult.gameId}`,
       })
+
+      if (lastGameResult.status === 'win') {
+        const lb = await submitBossWin({
+          uuid,
+          name: playerName || '',
+          gameId: lastGameResult.gameId,
+          gameTitle: lastGameResult.gameTitle,
+          status: lastGameResult.status,
+          score: lastGameResult.score,
+          timeSec: lastGameResult.timeSec,
+        })
+        if (lb?.rank) {
+          setMyRank(lb.rank)
+          const { bonus, label } = getRankBonus(lb.rank)
+          if (bonus > 0) {
+            await submitReward({
+              uuid,
+              kind: 'boss_rank_bonus',
+              amount: bonus,
+              currency: 'VIET',
+              gameId: lastGameResult.gameId,
+              note: `${label} · ${lastGameResult.timeSec}s (hạng ${lb.rank}/${lb.totalPlayers})`,
+            })
+          }
+          setTab('leaderboard')
+          fetchBossLeaderboard(lastGameResult.gameId).then(setLeaderboard)
+        }
+      }
+
       await refresh()
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uuid, lastGameResult])
+
+  // Tải bảng xếp hạng của game hiện tại khi mở panel / đổi game
+  useEffect(() => {
+    if (!open || !lastGameResult?.gameId) return
+    setLoadingLeaderboard(true)
+    fetchBossLeaderboard(lastGameResult.gameId)
+      .then(setLeaderboard)
+      .finally(() => setLoadingLeaderboard(false))
+  }, [open, lastGameResult?.gameId])
+
+  // Tải giá quy đổi (USD) cho tất cả token dự án hỗ trợ khi mở panel
+  useEffect(() => {
+    if (!open) return
+    fetchTokenUsdPrices().then(setTokenPrices)
+  }, [open])
 
   useEffect(() => {
     if (!watchingAd || adSecondsLeft <= 0) return
@@ -128,7 +194,7 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
       )}
 
       {open && (
-        <div className="w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#101418] text-white shadow-2xl">
+        <div className="w-96 overflow-hidden rounded-2xl border border-white/10 bg-[#101418] text-white shadow-2xl">
           <div className="flex items-center justify-between bg-gradient-to-r from-amber-500/20 to-rose-500/20 px-4 py-3">
             <div className="flex items-center gap-2 font-bold">
               <Gift size={16} className="text-amber-300" /> Affiliate Game
@@ -136,6 +202,26 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
             <button type="button" onClick={() => setOpen(false)} className="text-white/60 hover:text-white">✕</button>
           </div>
 
+          <div className="flex border-b border-white/10 text-xs font-semibold">
+            {[
+              { id: 'reward', label: 'Thưởng', icon: Gift },
+              { id: 'leaderboard', label: 'Xếp hạng BOSS', icon: Trophy },
+              { id: 'exchange', label: 'Quy đổi', icon: Coins },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 transition ${
+                  tab === id ? 'border-b-2 border-amber-400 text-amber-300' : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'reward' && (
           <div className="space-y-4 p-4">
             <div>
               <div className="mb-1 text-xs text-white/50">Link giới thiệu của bạn</div>
@@ -199,6 +285,96 @@ export default function GameAffiliateRewardWidget({ uuid, lastGameResult }) {
               </div>
             </div>
           </div>
+          )}
+
+          {tab === 'leaderboard' && (
+          <div className="space-y-3 p-4">
+            <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+              🏆 Ai thắng BOSS <b>NHANH NHẤT</b> đứng đầu bảng — thưởng theo hạng: Hạng 1 <b>+5.000</b>, Top 3 <b>+3.000</b>, Top 10 <b>+1.500</b>, còn lại <b>+300</b> điểm/lần thắng.
+            </div>
+
+            {myRank && (
+              <div className="flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm">
+                <span className="text-emerald-200">Hạng của bạn (lần thắng gần nhất)</span>
+                <b className="text-emerald-300">#{myRank}</b>
+              </div>
+            )}
+
+            <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+              {loadingLeaderboard && (
+                <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/40">
+                  <Loader2 size={14} className="animate-spin" /> Đang tải bảng xếp hạng…
+                </div>
+              )}
+              {!loadingLeaderboard && leaderboard.length === 0 && (
+                <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/40">
+                  Chưa có ai thắng BOSS — hãy là người đầu tiên!
+                </div>
+              )}
+              {leaderboard.map((p) => (
+                <div
+                  key={p.uuid}
+                  className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs ${
+                    p.uuid === uuid ? 'border border-amber-400/50 bg-amber-500/10' : 'bg-black/30'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <b className={p.rank === 1 ? 'text-amber-300' : p.rank <= 3 ? 'text-slate-300' : 'text-white/50'}>
+                      #{p.rank}
+                    </b>
+                    <span className="text-white/80">{p.name}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-white/70">
+                    ⏱ {p.bestTimeSec}s
+                    <span className="text-white/30">·</span>
+                    {p.winCount} thắng
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {tab === 'exchange' && (
+          <div className="space-y-3 p-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-white/60">Tổng điểm thưởng của bạn</span>
+                <b className="text-amber-300">{totalPoints.toLocaleString()} điểm</b>
+              </div>
+              <div className="mt-1 text-[11px] text-white/40">Quy ước: 1 điểm = {POINT_TO_USD} USD</div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+              <span className="text-sm text-emerald-200">≈ Giá trị quy đổi</span>
+              <b className="text-emerald-300">
+                ${(totalPoints * POINT_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
+              </b>
+            </div>
+
+            <div>
+              <div className="mb-2 text-xs text-white/50">Quy đổi ra từng token/coin dự án hỗ trợ</div>
+              {!tokenPrices && (
+                <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/40">
+                  <Loader2 size={14} className="animate-spin" /> Đang lấy giá thị trường…
+                </div>
+              )}
+              {tokenPrices && (
+                <div className="space-y-1.5">
+                  {Object.entries(convertPointsToValues(totalPoints, tokenPrices).tokens).map(([symbol, amount]) => (
+                    <div key={symbol} className="flex items-center justify-between rounded-lg bg-black/30 px-2.5 py-1.5 text-xs">
+                      <span className="font-bold text-white/80">{symbol}</span>
+                      <span className="font-mono text-emerald-300">{formatTokenAmount(symbol, amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 text-[10px] text-white/30">
+                Giá BTC/ETH/BNB/USDT/PI lấy theo thị trường (CoinGecko), có thể trễ vài phút. VIET là token nội bộ, neo cố định 1 VIET = 0.01 USD.
+              </div>
+            </div>
+          </div>
+          )}
         </div>
       )}
     </div>
