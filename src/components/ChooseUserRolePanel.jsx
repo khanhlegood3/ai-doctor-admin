@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ShieldCheck, Lock, BookOpen, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ShieldCheck, Lock, BookOpen, CheckCircle2 } from 'lucide-react';
 import useHeroPanelPrefs from './heroPanels/useHeroPanelPrefs.js';
 import HeroPanelPrefsToggle from './heroPanels/HeroPanelPrefsToggle.jsx';
 import useHeroSelection from './heroPanels/useHeroSelection.js';
@@ -46,6 +46,7 @@ const TEXT = {
     continueSub: 'Học kiến thức · Hiểu quy trình · Chuẩn bị cho tương lai',
     privacy: 'Dữ liệu bạn cung cấp đều nằm ở máy của bạn, không bao giờ lưu vào server của chúng tôi. ',
     privacyBold: 'Tất cả dữ liệu là của bạn.',
+    backToLanding: 'Landing Page',
   },
   en: {
     subtitleTop: 'Choose your health journey',
@@ -73,6 +74,7 @@ const TEXT = {
     continueSub: 'Learn · Understand the process · Prepare for the future',
     privacy: 'The data you provide stays on your device and is never stored on our servers. ',
     privacyBold: 'All your data belongs to you.',
+    backToLanding: 'Landing Page',
   },
 };
 
@@ -116,7 +118,7 @@ function buildRoleCards(t) {
 
 const NO_DONATION_ROLE_ID = 'notDonate';
 
-export default function ChooseUserRolePanel({ mode = 'guest', onSelectRole, onEnterAction }) {
+export default function ChooseUserRolePanel({ mode = 'guest', onSelectRole, onEnterAction, onBackToLanding }) {
   // selectedRole / selectedOrgan được đọc + ghi vào IndexedDB (thay vì chỉ
   // useState nội bộ) để trang sau (DonationHeroPanel) load lại đúng lựa
   // chọn, và để quay lại màn hình này sau cũng thấy đúng lựa chọn cũ.
@@ -352,6 +354,23 @@ export default function ChooseUserRolePanel({ mode = 'guest', onSelectRole, onEn
             <span className={`font-bold ${isDark ? 'text-gray-100' : 'text-[#16241c]'}`}>{t.privacyBold}</span>
           </span>
         </div>
+
+        {/* Quay lại Landing Page */}
+        {onBackToLanding && (
+          <div className="mt-6 flex justify-start">
+            <button
+              onClick={onBackToLanding}
+              className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full transition-colors ${
+                isDark
+                  ? 'text-gray-300 hover:text-white hover:bg-white/10'
+                  : 'text-gray-600 hover:text-[#16241c] hover:bg-black/5'
+              }`}
+            >
+              <ArrowLeft size={16} />
+              {t.backToLanding}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
