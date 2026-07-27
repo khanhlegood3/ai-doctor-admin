@@ -74,6 +74,28 @@ import { useTTS } from './lib/groqAiClient.js'
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
 const PANELS = ['bodyProtectionJourney', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
+const VIP_PRO_PANEL_IDS = new Set([
+  'myPainPathBody',
+  'myPainPathBodyPixel',
+  'myPainPathNoiTang',
+  'myPainPathNoiTangPixel',
+  'medicalVisualPlayground',
+  'myRewardHealth',
+  'checkin',
+  'matrix3dBody',
+  'twin',
+  'telemedicine',
+  'statAnalysis',
+  'swarm',
+  'consensus',
+  'varCheck',
+  'protein3d',
+  'aiInbodyPortal',
+])
+
+const VIP_PRO_LOCK_MESSAGE = 'Bạn phải hoạt động mạnh mẽ và hữu ích thì VIP PRO Account sẽ là của bạn toàn quyền'
+
+
 export default function App() {
   const { user, loading } = useAuth()
   const { theme, t } = useApp()
@@ -538,6 +560,18 @@ export default function App() {
   const isDark = theme === 'dark'
   const mainBg = isDark ? 'var(--bg2)' : '#f4f7fb'
   const familyStorageOwnerId = user?.uuid || 'guest'
+  const isVipProAccount = Boolean(
+    user?.isAdmin ||
+    user?.isVipPro ||
+    user?.vipPro ||
+    user?.accountType === 'vip_pro' ||
+    user?.accountType === 'VIP_PRO' ||
+    user?.plan === 'vip_pro' ||
+    user?.plan === 'VIP_PRO' ||
+    user?.tier === 'vip_pro' ||
+    user?.tier === 'VIP_PRO'
+  )
+  const shouldLockVipProPanel = VIP_PRO_PANEL_IDS.has(active) && !isVipProAccount
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
@@ -555,6 +589,7 @@ export default function App() {
             familyStorageOwnerId={familyStorageOwnerId}
             user={user}
           >
+            <VipProGate locked={shouldLockVipProPanel} isDark={isDark}>
             {active === 'adminConcept' && user?.isAdmin && <AdminConceptPanel />}
             {active === 'adminConcept' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
@@ -669,6 +704,7 @@ export default function App() {
             {active === 'admin'     && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
             )}
+            </VipProGate>
           </PanelErrorBoundary>
           <GlobalScrollButtons
             showTop={scrollState.showTop}
@@ -690,6 +726,67 @@ export default function App() {
     </div>
   )
 }
+
+function VipProGate({ locked, isDark, children }) {
+  if (!locked) return children
+
+  return (
+    <div style={{ position: 'relative', minHeight: 'calc(100vh - 58px)' }}>
+      <div
+        aria-hidden="true"
+        inert=""
+        style={{
+          filter: 'blur(4px)',
+          opacity: 0.42,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      >
+        {children}
+      </div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="VIP PRO Accounts Only"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 30,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          padding: 'min(12vh, 96px) 18px 32px',
+          background: isDark ? 'rgba(4,6,15,0.24)' : 'rgba(244,247,251,0.28)',
+          cursor: 'not-allowed',
+        }}
+      >
+        <div style={{
+          width: 'min(560px, 100%)',
+          borderRadius: 24,
+          border: '1px solid rgba(251,191,36,0.45)',
+          background: isDark ? 'rgba(15,23,42,0.94)' : 'rgba(255,255,255,0.96)',
+          boxShadow: '0 28px 80px rgba(15,23,42,0.28)',
+          padding: '28px 30px',
+          textAlign: 'center',
+          color: isDark ? '#f8fafc' : '#172033',
+          backdropFilter: 'blur(14px)',
+        }}>
+          <div style={{ fontSize: 44, marginBottom: 10 }}>👑</div>
+          <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 12 }}>
+            VIP PRO Accounts Only
+          </div>
+          <p style={{ margin: 0, fontSize: 20, lineHeight: 1.55, fontWeight: 800 }}>
+            {VIP_PRO_LOCK_MESSAGE}
+          </p>
+          <p style={{ margin: '14px 0 0', fontSize: 13, lineHeight: 1.6, color: isDark ? 'rgba(226,232,240,0.72)' : 'rgba(71,85,105,0.82)' }}>
+            Bạn vẫn có thể xem trước bố cục phía sau, nhưng mọi nút bấm, ô nhập liệu và thao tác click đã được khóa cho đến khi tài khoản được nâng cấp.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 function getReadablePageText(root) {
   if (typeof document === 'undefined') return ''
