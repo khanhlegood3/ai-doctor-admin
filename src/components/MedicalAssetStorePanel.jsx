@@ -1680,11 +1680,7 @@ export default function MedicalAssetStorePanel() {
                       ? 'Mục này đến từ tập dữ liệu JSON mở (gobjaverse/Objaverse), không có model 3D xem trực tiếp được.'
                       : 'Tài nguyên là hệ thống trò chơi và danh sách nhiệm vụ, không bao gồm cấu trúc hình học tĩnh.'}
                   </p>
-                  {previewAsset.isExternal && previewAsset.sourceUrl && (
-                    <a href={previewAsset.sourceUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-[11px] font-bold text-[#00e5ff] hover:underline">
-                      Xem nguồn JSON gốc ↗
-                    </a>
-                  )}
+
                 </div>
               )}
             </div>
