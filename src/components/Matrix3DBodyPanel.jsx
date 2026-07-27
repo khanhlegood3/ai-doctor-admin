@@ -189,9 +189,6 @@ export default function Matrix3DBodyPanel({ onNext, nextLabel, onPrev, prevLabel
           </p>
           <div className="matrix3d-hero-actions">
             <button type="button" onClick={() => inputRef.current?.click()}>Upload X-ray image</button>
-            <a href="https://matrix-3d.github.io/" target="_blank" rel="noreferrer">Project ↗</a>
-            <a href="https://arxiv.org/pdf/2508.08086" target="_blank" rel="noreferrer">Paper ↗</a>
-            <a href="https://github.com/SkyworkAI/Matrix-3D" target="_blank" rel="noreferrer">GitHub ↗</a>
           </div>
         </div>
 

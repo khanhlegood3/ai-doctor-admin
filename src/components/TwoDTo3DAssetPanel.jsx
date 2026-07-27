@@ -142,10 +142,8 @@ export default function TwoDTo3DAssetPanel({ onNext, nextLabel, onPrev, prevLabe
                 Panel này kết nối <strong>official inference code</strong> của VAST-AI Research với model weights <strong>VAST-AI/TripoSplat</strong> và Hugging Face Space realtime để xuất asset dạng <strong>.ply</strong> / <strong>.splat</strong> có thể mở bằng Gaussian Splat viewer.
               </p>
             </div>
-            <div style={{ display: 'grid', gap: 10, minWidth: 230 }}>
-              <a href={TRIPOSPLAT_GITHUB_URL} target="_blank" rel="noreferrer" style={linkButton(palette.cyan, '#031018')}>GitHub Official Code ↗</a>
-              <a href={TRIPOSPLAT_MODEL_README_URL} target="_blank" rel="noreferrer" style={linkButton(palette.violet, '#12071f')}>HF Model README ↗</a>
-              <a href={TRIPOSPLAT_SPACE_URL} target="_blank" rel="noreferrer" style={linkButton(palette.green, '#03140b')}>HF Realtime Space ↗</a>
+            <div style={{ minWidth: 230, color: palette.text2, fontSize: 12, fontWeight: 800, lineHeight: 1.6 }}>
+              External GitHub/Hugging Face project links are hidden from the admin menu UI.
             </div>
           </div>
         </section>
@@ -210,11 +208,10 @@ export default function TwoDTo3DAssetPanel({ onNext, nextLabel, onPrev, prevLabe
         </div>
 
         <section style={{ ...cardStyle(palette), marginTop: 18 }}>
-          <h2 style={{ margin: '0 0 10px', fontSize: 20 }}>🖥️ Hugging Face Space realtime nhúng</h2>
+          <h2 style={{ margin: '0 0 10px', fontSize: 20 }}>🖥️ Không hiển thị Space ngoài</h2>
           <p style={{ marginTop: 0, color: palette.text2, fontSize: 13, lineHeight: 1.6 }}>
-            Nếu Space đổi endpoint hoặc browser bị giới hạn CORS/token, hãy dùng UI chính thức nhúng bên dưới để chạy realtime trực tiếp.
+            Các link/iframe GitHub và Hugging Face Space đã được ẩn theo cấu hình nội bộ.
           </p>
-          <iframe title="VAST-AI TripoSplat Hugging Face Space" src={TRIPOSPLAT_SPACE_EMBED_URL} style={{ width: '100%', height: 760, border: `1px solid ${palette.border}`, borderRadius: 18, background: palette.card2 }} allow="camera; microphone; clipboard-read; clipboard-write; fullscreen" />
           {(apiSchema || rawResponse) && (
             <details open style={{ marginTop: 14 }}>
               <summary style={{ cursor: 'pointer', fontWeight: 900 }}>API schema / Raw response</summary>

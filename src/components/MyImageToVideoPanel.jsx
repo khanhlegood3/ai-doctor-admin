@@ -203,13 +203,8 @@ export default function MyImageToVideoPanel({ onPrev, prevLabel }) {
             <p style={{ margin: '8px 0 0', fontSize: 13.5, color: text2, lineHeight: 1.7, maxWidth: 820 }}>{vi ? 'Tạo video thật từ ảnh bằng Wan image-to-video qua server proxy /api/wan-image-to-video. Bạn có thể nhập DASHSCOPE/Wan key hoặc MuleRouter key ngay trên màn hình, chọn nhà cung cấp, rồi tạo video thật.' : 'Generate real image-to-video output through the server-side /api/wan-image-to-video proxy. You can enter a DASHSCOPE/Wan key or MuleRouter key on this screen, choose a provider, and generate a real video.'}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
-          <LinkButton href={WAN_LINKS.api} icon={<ExternalLink size={14} />} label={vi ? 'Wan API' : 'Wan API'} isDark={isDark} primary />
-          <LinkButton href={WAN_LINKS.longCatSpace} icon={<ExternalLink size={14} />} label="LongCat Video Avatar 1.5" isDark={isDark} />
-          <LinkButton href={WAN_LINKS.longCatBlog} icon={<Sparkles size={14} />} label="ZeroGPU guide" isDark={isDark} />
-          <LinkButton href={WAN_LINKS.muleRouter} icon={<ExternalLink size={14} />} label="MuleRouter Wan 2.2 I2V Flash" isDark={isDark} />
-          <LinkButton href={WAN_LINKS.modelStudio} icon={<Sparkles size={14} />} label={vi ? 'Model Studio I2V' : 'Model Studio I2V'} isDark={isDark} />
-          <LinkButton href={WAN_LINKS.github} icon={<Github size={14} />} label="Wan2.1 GitHub" isDark={isDark} />
+        <div style={{ marginTop: 18, color: text2, fontSize: 12.5, fontWeight: 800 }}>
+          {vi ? 'Các link dự án ngoài đã được ẩn theo cấu hình nội bộ.' : 'External project links are hidden by internal configuration.'}
         </div>
       </div>
 
