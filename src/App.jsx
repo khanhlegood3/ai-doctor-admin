@@ -362,13 +362,19 @@ export default function App() {
   // là hoa hồng/tuyến dưới thật của họ (xem thêm Sidebar.jsx — đã tách sang
   // nhóm menu riêng "Mô Phỏng (Nội Bộ)" ngay sau nhóm Admin).
   const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
-  const visiblePanels = user?.isAdmin ? PANELS : PANELS.filter(id => !ADMIN_ONLY_PANELS.includes(id))
+  const ADMIN_MENU_PANELS = ['myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'aiHealthcareVisionControl', 'admin', 'affiliateAdmin', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'create3DVideoFrom2D', 'adminConcept']
+  const SIMULATION_MENU_PANELS = ['affiliateControl']
+  const visiblePanels = user?.isAdmin ? [...ADMIN_MENU_PANELS, ...SIMULATION_MENU_PANELS] : []
 
   useEffect(() => {
-    if (ADMIN_ONLY_PANELS.includes(active) && !user?.isAdmin) {
-      setActive('bodyProtectionJourney')
+    if (!user?.isAdmin) {
+      if (ADMIN_ONLY_PANELS.includes(active)) setActive('bodyProtectionJourney')
+      return
     }
-  }, [active, user?.isAdmin])
+    if (!visiblePanels.includes(active)) {
+      setActive('admin')
+    }
+  }, [active, user?.isAdmin, visiblePanels])
 
   const goNext = () => {
     const idx = visiblePanels.indexOf(active)
@@ -714,13 +720,6 @@ export default function App() {
           />
           <GlobalPageReader readRootRef={mainRef} activeKey={active} />
         </main>
-        {!hideSidebarForFocus && (
-          <GlobalBottomNav
-            active={active}
-            onOpenMainMenu={openMainMenu}
-            onNavigate={(id) => setActive(id)}
-          />
-        )}
         <GlobalAIChatbot activePanelLabel={panelLabels[active] || active} />
       </div>
     </div>
