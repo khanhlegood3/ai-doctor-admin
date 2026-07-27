@@ -519,7 +519,19 @@ export default function LandingPageZeroToForever({
             {/* Center: Content */}
             <div className="col-span-12 lg:col-span-5 text-center flex flex-col justify-center">
               <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4 leading-tight">
-                Sẵn sàng trở thành phiên bản <span className="text-transparent bg-clip-text zofo-gradient-brand">tốt hơn</span> của chính mình?
+                Sẵn sàng trở thành phiên bản{' '}
+                <span
+                  style={{
+                    backgroundImage: 'linear-gradient(135deg, #FF543C 0%, #8B4DFF 100%)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    color: 'transparent',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  tốt hơn
+                </span>{' '}
+                của chính mình?
               </h2>
               <p className="text-gray-700 font-medium mb-8">
                 Bắt đầu ngay hôm nay – Hành trình chỉ thuộc về bạn.
