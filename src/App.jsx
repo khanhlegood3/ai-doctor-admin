@@ -496,6 +496,7 @@ export default function App() {
             onSelectRole={() => setPreLoginView('hero')}
             onEnterAction={() => setPreLoginView('hero')}
             onCreateAccount={() => setPreLoginView('login')}
+            onBackToLanding={() => setPreLoginView('landing')}
           />
           <GlobalPageReader readRootRef={mainRef} activeKey={preLoginView} />
           {/* Mount GlobalAIChatbot NGAY TẠI ĐÂY để popup chat vẫn truy cập
@@ -636,6 +637,7 @@ export default function App() {
                 mode="member"
                 onSelectRole={() => setActive('donationHero')}
                 onEnterAction={() => setActive('donationHero')}
+                onBackToLanding={() => setActive('landingZeroToForever')}
               />
             )}
             {active === 'donationHero' && (
