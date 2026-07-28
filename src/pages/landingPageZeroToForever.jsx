@@ -671,11 +671,11 @@ export default function LandingPageZeroToForever({
                       để tránh vỡ ảnh). pointer-events-none để không chặn thao
                       tác của người dùng với nội dung Framer bên dưới nếu badge
                       không nằm đúng góc đó ở vài breakpoint. */}
-                  <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 z-20 pointer-events-none">
+                  <div className="absolute bottom-1 right-1 z-20 pointer-events-none">
                     <img
                       src={zofoLogo}
                       alt="Zero to Forever"
-                      className="h-[220px] sm:h-[280px] w-auto max-w-[85%] rounded-md bg-[#0B0F1A]/90 backdrop-blur-sm px-3 py-2 shadow-lg"
+                      className="h-[73px] sm:h-[93px] w-auto rounded-md bg-[#0B0F1A]/90 backdrop-blur-sm px-1.5 py-1 shadow-lg"
                     />
                   </div>
                 </div>
@@ -717,15 +717,15 @@ export default function LandingPageZeroToForever({
                   {/* Avatar trợ lý bác sĩ — tái tạo y hệt bong bóng gradient +
                       emoji 🧑‍⚕️ dùng ở trang "Anh Hùng Hiến Tặng"
                       (DonationHeroPanel.jsx), phóng to cho khối graphic lớn. */}
-                  <div className="absolute right-6 sm:right-10 top-1/2 -translate-y-1/2 h-64 w-64 sm:h-72 sm:w-72 lg:h-80 lg:w-80">
-                    <Sparkles className="absolute -top-2 -left-6 text-emerald-400" size={36} />
-                    <Sparkles className="absolute -bottom-1 -right-5 text-emerald-400" size={26} />
-                    <div className="absolute inset-2 rounded-full bg-white shadow-[0_0_0_10px_rgba(255,255,255,0.9),0_0_50px_rgba(16,185,129,0.35)]" />
-                    <div className="absolute inset-[22px] rounded-full bg-gradient-to-br from-slate-800 via-indigo-700 to-slate-900 flex items-center justify-center overflow-hidden">
+                  <div className="absolute right-6 sm:right-10 top-1/2 -translate-y-1/2 h-[85px] w-[85px] sm:h-24 sm:w-24 lg:h-[107px] lg:w-[107px]">
+                    <Sparkles className="absolute -top-1 -left-2 text-emerald-400" size={12} />
+                    <Sparkles className="absolute -bottom-0.5 -right-1.5 text-emerald-400" size={9} />
+                    <div className="absolute inset-[3px] rounded-full bg-white shadow-[0_0_0_3px_rgba(255,255,255,0.9),0_0_16px_rgba(16,185,129,0.35)]" />
+                    <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-800 via-indigo-700 to-slate-900 flex items-center justify-center overflow-hidden">
                       <div className="absolute inset-0 opacity-40" style={{
                         backgroundImage: 'radial-gradient(circle at 30% 30%, rgba(255,180,80,0.5), transparent 55%), radial-gradient(circle at 70% 70%, rgba(56,189,248,0.5), transparent 55%)'
                       }} />
-                      <span className="text-[110px] sm:text-[130px] relative">🧑‍⚕️</span>
+                      <span className="text-[36px] sm:text-[42px] relative">🧑‍⚕️</span>
                     </div>
                   </div>
                   <div className="absolute bottom-12 right-0 text-right z-20">
