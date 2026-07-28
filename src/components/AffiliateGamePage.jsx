@@ -70,6 +70,7 @@ export default function AffiliateGamePage({ onNext, nextLabel, onPrev, prevLabel
               userId={user.userId}
               playerName={user.name}
               gameId={null}
+              isDark={isDark}
             />
           </div>
         </div>

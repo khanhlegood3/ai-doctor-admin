@@ -28,7 +28,7 @@ const AD_REWARD = { amount: 5000, currency: 'VIET' }
 // khỏi hệ thống affiliate chung của dự án). Nhờ vậy điểm/tiền của user này
 // và hoa hồng F1/F2 của tuyến trên luôn quy về ĐÚNG 1 UUID duy nhất, dùng
 // chung với mọi màn hình Affiliate khác trong app.
-export default function AffiliateGameContent({ uuid, userId, playerName, gameId, initialTab = 'reward' }) {
+export default function AffiliateGameContent({ uuid, userId, playerName, gameId, initialTab = 'reward', isDark = true }) {
   const [referralCount, setReferralCount] = useState(0)
   const [rewards, setRewards] = useState([])
   const [copied, setCopied] = useState(false)
@@ -36,6 +36,28 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
   const [adSecondsLeft, setAdSecondsLeft] = useState(0)
   const [claiming, setClaiming] = useState(false)
   const [tab, setTab] = useState(initialTab) // 'reward' | 'leaderboard' | 'exchange'
+
+  // ── Token màu theo theme ─────────────────────────────────────────────────
+  // Component này dùng chung ở 2 nơi: popup nổi trong game (luôn nền tối
+  // cố định — GameAffiliateRewardWidget.jsx, KHÔNG truyền isDark nên vẫn giữ
+  // mặc định true/hành vi cũ) và trang riêng (AffiliateGamePage.jsx, nền đổi
+  // theo theme sáng/tối của app). Trước đây toàn bộ chữ/viền hardcode màu
+  // trắng (text-white/*, border-white/10, bg-black/*) nên ở trang riêng khi
+  // chuyển sang Mode sáng (thẻ nền trắng), phần lớn chữ mờ trắng-trên-trắng
+  // gần như vô hình (2 tab "Xếp hạng BOSS" / "Quy đổi" biến mất). Định nghĩa
+  // token màu theo isDark để dùng lại xuyên suốt thay vì hardcode nữa.
+  const borderSoft = isDark ? 'border-white/10' : 'border-gray-200'
+  const bgSoft = isDark ? 'bg-black/30' : 'bg-gray-100'
+  const bgSoftStrong = isDark ? 'bg-black/40' : 'bg-gray-100'
+  const text30 = isDark ? 'text-white/30' : 'text-gray-300'
+  const text40 = isDark ? 'text-white/40' : 'text-gray-400'
+  const text50 = isDark ? 'text-white/50' : 'text-gray-500'
+  const text60 = isDark ? 'text-white/60' : 'text-gray-500'
+  const text70 = isDark ? 'text-white/70' : 'text-gray-600'
+  const text80 = isDark ? 'text-white/80' : 'text-gray-700'
+  const hoverText = isDark ? 'hover:text-white/80' : 'hover:text-gray-800'
+  const hoverTextStrong = isDark ? 'hover:text-white' : 'hover:text-gray-900'
+  const chipBg = isDark ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'
 
   // Bảng xếp hạng "thắng BOSS nhanh nhất" (dùng chung mọi thiết bị qua Mongo)
   const [leaderboard, setLeaderboard] = useState([])
@@ -135,7 +157,7 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex border-b border-white/10 text-xs font-semibold">
+      <div className={`flex border-b ${borderSoft} text-xs font-semibold`}>
         {[
           { id: 'reward', label: 'Thưởng', icon: Gift },
           { id: 'leaderboard', label: 'Xếp hạng BOSS', icon: Trophy },
@@ -146,7 +168,7 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
             type="button"
             onClick={() => setTab(id)}
             className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 transition ${
-              tab === id ? 'border-b-2 border-amber-400 text-amber-300' : 'text-white/50 hover:text-white/80'
+              tab === id ? 'border-b-2 border-amber-400 text-amber-500' : `${text50} ${hoverText}`
             }`}
           >
             <Icon size={13} /> {label}
@@ -158,18 +180,18 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
         {tab === 'reward' && (
         <div className="space-y-4 p-4">
           <div>
-            <div className="mb-1 text-xs text-white/50">Link giới thiệu của bạn</div>
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2">
-              <input readOnly value={referralLink} className="w-full truncate bg-transparent text-xs outline-none" />
-              <button type="button" onClick={handleCopy} className="shrink-0 rounded-lg bg-white/10 p-1.5 hover:bg-white/20">
-                {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+            <div className={`mb-1 text-xs ${text50}`}>Link giới thiệu của bạn</div>
+            <div className={`flex items-center gap-2 rounded-xl border ${borderSoft} ${bgSoftStrong} px-3 py-2`}>
+              <input readOnly value={referralLink} className={`w-full truncate bg-transparent text-xs outline-none ${isDark ? 'text-white' : 'text-gray-900'}`} />
+              <button type="button" onClick={handleCopy} className={`shrink-0 rounded-lg ${chipBg} p-1.5`}>
+                {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} className={isDark ? 'text-white' : 'text-gray-700'} />}
               </button>
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm">
-            <span className="flex items-center gap-2 text-white/70"><Users size={14} /> Đã giới thiệu</span>
-            <b>{referralCount} người</b>
+          <div className={`flex items-center justify-between rounded-xl border ${borderSoft} ${bgSoft} px-3 py-2 text-sm`}>
+            <span className={`flex items-center gap-2 ${text70}`}><Users size={14} /> Đã giới thiệu</span>
+            <b className={isDark ? 'text-white' : 'text-gray-900'}>{referralCount} người</b>
           </div>
 
           <button
@@ -188,26 +210,26 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
           </button>
 
           <div>
-            <div className="mb-2 flex items-center justify-between text-xs text-white/50">
+            <div className={`mb-2 flex items-center justify-between text-xs ${text50}`}>
               <span className="flex items-center gap-1"><Trophy size={12} /> Lịch sử thưởng gần đây</span>
-              <button type="button" onClick={refresh} className="hover:text-white"><RefreshCw size={12} /></button>
+              <button type="button" onClick={refresh} className={hoverTextStrong}><RefreshCw size={12} /></button>
             </div>
             <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
               {rewards.length === 0 && (
-                <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/40">
+                <div className={`rounded-lg border border-dashed ${borderSoft} p-3 text-center text-xs ${text40}`}>
                   Chưa có thưởng nào.
                 </div>
               )}
               {rewards.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-lg bg-black/30 px-2.5 py-1.5 text-xs">
-                  <span className="text-white/70">{r.note || r.kind}</span>
+                <div key={r.id} className={`flex items-center justify-between rounded-lg ${bgSoft} px-2.5 py-1.5 text-xs`}>
+                  <span className={text70}>{r.note || r.kind}</span>
                   <span className="flex items-center gap-1.5">
                     <b className="text-emerald-400">+{r.amount.toLocaleString()} {r.currency}</b>
                     <span
                       className={`rounded px-1 py-0.5 text-[9px] font-bold ${
-                        r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-300'
-                        : r.chainStatus === 'failed' ? 'bg-red-500/20 text-red-300'
-                        : 'bg-amber-500/20 text-amber-300'
+                        r.chainStatus === 'synced' ? 'bg-emerald-500/20 text-emerald-500'
+                        : r.chainStatus === 'failed' ? 'bg-red-500/20 text-red-500'
+                        : 'bg-amber-500/20 text-amber-500'
                       }`}
                       title={r.chainStatus === 'synced' ? (r.txHash || '') : r.chainStatus === 'failed' ? (r.error || '') : ''}
                     >
@@ -223,32 +245,32 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
 
         {tab === 'leaderboard' && (
         <div className="space-y-3 p-4">
-          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-600">
             🏆 Ai thắng BOSS <b>NHANH NHẤT</b> đứng đầu bảng — thưởng theo hạng: Hạng 1 <b>+5.000</b>, Top 3 <b>+3.000</b>, Top 10 <b>+1.500</b>, còn lại <b>+300</b> điểm/lần thắng.
           </div>
 
           {!gameId && (
-            <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/40">
+            <div className={`rounded-lg border border-dashed ${borderSoft} p-3 text-center text-xs ${text40}`}>
               Hãy chơi ít nhất 1 ván trong "Hành Trình Bảo Vệ Cơ Thể" để xem bảng xếp hạng theo game.
             </div>
           )}
 
           {myRank && (
             <div className="flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm">
-              <span className="text-emerald-200">Hạng của bạn (lần thắng gần nhất)</span>
-              <b className="text-emerald-300">#{myRank}</b>
+              <span className="text-emerald-600">Hạng của bạn (lần thắng gần nhất)</span>
+              <b className="text-emerald-500">#{myRank}</b>
             </div>
           )}
 
           {gameId && (
           <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
             {loadingLeaderboard && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/40">
+              <div className={`flex items-center justify-center gap-2 py-6 text-xs ${text40}`}>
                 <Loader2 size={14} className="animate-spin" /> Đang tải bảng xếp hạng…
               </div>
             )}
             {!loadingLeaderboard && leaderboard.length === 0 && (
-              <div className="rounded-lg border border-dashed border-white/10 p-3 text-center text-xs text-white/40">
+              <div className={`rounded-lg border border-dashed ${borderSoft} p-3 text-center text-xs ${text40}`}>
                 Chưa có ai thắng BOSS — hãy là người đầu tiên!
               </div>
             )}
@@ -256,18 +278,18 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
               <div
                 key={p.uuid}
                 className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs ${
-                  p.uuid === uuid ? 'border border-amber-400/50 bg-amber-500/10' : 'bg-black/30'
+                  p.uuid === uuid ? 'border border-amber-400/50 bg-amber-500/10' : bgSoft
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <b className={p.rank === 1 ? 'text-amber-300' : p.rank <= 3 ? 'text-slate-300' : 'text-white/50'}>
+                  <b className={p.rank === 1 ? 'text-amber-500' : p.rank <= 3 ? (isDark ? 'text-slate-300' : 'text-slate-600') : text50}>
                     #{p.rank}
                   </b>
-                  <span className="text-white/80">{p.name}</span>
+                  <span className={text80}>{p.name}</span>
                 </span>
-                <span className="flex items-center gap-1.5 text-white/70">
+                <span className={`flex items-center gap-1.5 ${text70}`}>
                   ⏱ {p.bestTimeSec}s
-                  <span className="text-white/30">·</span>
+                  <span className={text30}>·</span>
                   {p.winCount} thắng
                 </span>
               </div>
@@ -279,39 +301,39 @@ export default function AffiliateGameContent({ uuid, userId, playerName, gameId,
 
         {tab === 'exchange' && (
         <div className="space-y-3 p-4">
-          <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm">
+          <div className={`rounded-xl border ${borderSoft} ${bgSoft} px-3 py-2 text-sm`}>
             <div className="flex items-center justify-between">
-              <span className="text-white/60">Tổng điểm thưởng của bạn</span>
-              <b className="text-amber-300">{totalPoints.toLocaleString()} điểm</b>
+              <span className={text60}>Tổng điểm thưởng của bạn</span>
+              <b className="text-amber-500">{totalPoints.toLocaleString()} điểm</b>
             </div>
-            <div className="mt-1 text-[11px] text-white/40">Quy ước: 1 điểm = {POINT_TO_USD} USD</div>
+            <div className={`mt-1 text-[11px] ${text40}`}>Quy ước: 1 điểm = {POINT_TO_USD} USD</div>
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
-            <span className="text-sm text-emerald-200">≈ Giá trị quy đổi</span>
-            <b className="text-emerald-300">
+            <span className="text-sm text-emerald-600">≈ Giá trị quy đổi</span>
+            <b className="text-emerald-500">
               ${(totalPoints * POINT_TO_USD).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
             </b>
           </div>
 
           <div>
-            <div className="mb-2 text-xs text-white/50">Quy đổi ra từng token/coin dự án hỗ trợ</div>
+            <div className={`mb-2 text-xs ${text50}`}>Quy đổi ra từng token/coin dự án hỗ trợ</div>
             {!tokenPrices && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-white/40">
+              <div className={`flex items-center justify-center gap-2 py-6 text-xs ${text40}`}>
                 <Loader2 size={14} className="animate-spin" /> Đang lấy giá thị trường…
               </div>
             )}
             {tokenPrices && (
               <div className="space-y-1.5">
                 {Object.entries(convertPointsToValues(totalPoints, tokenPrices).tokens).map(([symbol, amount]) => (
-                  <div key={symbol} className="flex items-center justify-between rounded-lg bg-black/30 px-2.5 py-1.5 text-xs">
-                    <span className="font-bold text-white/80">{symbol}</span>
-                    <span className="font-mono text-emerald-300">{formatTokenAmount(symbol, amount)}</span>
+                  <div key={symbol} className={`flex items-center justify-between rounded-lg ${bgSoft} px-2.5 py-1.5 text-xs`}>
+                    <span className={`font-bold ${text80}`}>{symbol}</span>
+                    <span className="font-mono text-emerald-500">{formatTokenAmount(symbol, amount)}</span>
                   </div>
                 ))}
               </div>
             )}
-            <div className="mt-2 text-[10px] text-white/30">
+            <div className={`mt-2 text-[10px] ${text30}`}>
               Giá BTC/ETH/BNB/USDT/PI lấy theo thị trường (CoinGecko), có thể trễ vài phút. VIET là token nội bộ, neo cố định 1 VIET = 0.01 USD.
             </div>
           </div>

@@ -44,7 +44,7 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
   return (
     <header style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      flexWrap: 'wrap', rowGap: 8, columnGap: 8,
+      flexWrap: 'nowrap', columnGap: 8,
       padding: isMobile ? '8px 12px' : '10px 24px', borderBottom: `1px solid ${borderColor}`,
       background: headerBg, backdropFilter: 'blur(12px)',
       position: 'sticky', top: 0, zIndex: 100,
@@ -90,7 +90,7 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
           riêng trên mobile để không bị lệch trái (space-between chỉ tự canh
           phải khi CÒN chỗ chung dòng với khối Logo, nếu bị đẩy xuống dòng
           riêng thì phải tự ép justify-content ngay trên chính khối này). */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end', flex: isMobile ? '1 1 100%' : '0 1 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 14, flexWrap: 'nowrap', justifyContent: 'flex-end', flex: '0 1 auto', minWidth: 0 }}>
         {/* Live agents indicator — trên mobile chỉ còn chấm xanh + số, bỏ nhãn chữ dài để không bị wrap từng chữ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 8px #00e676', flexShrink: 0 }} />
@@ -111,7 +111,7 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
 
         {/* Lang toggle */}
         <button onClick={() => setLang(l => l === 'vi' ? 'en' : 'vi')} style={{
-          padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+          padding: isMobile ? '4px 8px' : '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: isMobile ? 11 : 12, fontWeight: 600,
           border: `1px solid ${borderColor}`, background: 'none', color: textColor, flexShrink: 0, whiteSpace: 'nowrap',
         }}>
           {lang === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
@@ -126,11 +126,11 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
               onClick={() => { setShowNotifications(v => !v); if (!showNotifications) markAllRead() }}
               title={lang === 'vi' ? 'Thông báo' : 'Notifications'}
               style={{
-                width: 38, height: 38, borderRadius: 19, cursor: 'pointer', position: 'relative',
+                width: isMobile ? 32 : 38, height: isMobile ? 32 : 38, borderRadius: isMobile ? 16 : 19, cursor: 'pointer', position: 'relative',
                 border: `1px solid ${borderColor}`,
                 background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(246,247,249,0.95)',
                 color: textColor, boxShadow: isDark ? 'inset 0 1px rgba(255,255,255,0.08)' : '0 2px 10px rgba(0,0,0,0.06)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? 14 : 17, flexShrink: 0,
               }}
               aria-label={lang === 'vi' ? `Thông báo, ${unreadCount} chưa đọc` : `Notifications, ${unreadCount} unread`}
             >
@@ -196,9 +196,9 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
 
         {/* Theme toggle */}
         <button onClick={toggleTheme} style={{
-          width: 34, height: 34, borderRadius: 8, cursor: 'pointer', fontSize: 16,
+          width: isMobile ? 30 : 34, height: isMobile ? 30 : 34, borderRadius: 8, cursor: 'pointer', fontSize: isMobile ? 14 : 16,
           border: `1px solid ${borderColor}`, background: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
           {isDark ? '☀️' : '🌙'}
         </button>
