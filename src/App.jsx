@@ -61,7 +61,6 @@ import Create3DVideoFrom2DPanel from './components/Create3DVideoFrom2DPanel.jsx'
 import OrganConnectionPanel from './components/OrganConnectionPanel.jsx'
 import ChatHistoryPanel from './components/ChatHistoryPanel.jsx'
 import PatientReflectPanel from './components/PatientReflectPanel.jsx'
-import MyImageToVideoPanel from './components/MyImageToVideoPanel.jsx'
 import AffiliateSystemControlPanel from './components/AffiliateSystemControlPanel.jsx'
 import AffiliateSystemPanel from './components/AffiliateSystemPanel.jsx'
 import AffiliateWebhookAdmin from './components/admin/AffiliateWebhookAdmin.jsx'
@@ -74,7 +73,7 @@ import { addNotification } from './lib/notifications.js'
 import { useTTS } from './lib/groqAiClient.js'
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -256,7 +255,6 @@ export default function App() {
     printPortal: 'Print Portal',
     patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
     chatHistory: 'Lịch sử Chat với AI',
-    myImageToVideo: 'My Image to Video',
     profile: t('profile'),
     avatarCreator: 'Tạo Avatar',
     make3DModel: 'Make 3D Model',
@@ -368,7 +366,7 @@ export default function App() {
   // của người dùng. Đưa vào ADMIN_ONLY_PANELS để tránh user thật nhầm lẫn đây
   // là hoa hồng/tuyến dưới thật của họ (xem thêm Sidebar.jsx — đã tách sang
   // nhóm menu riêng "Mô Phỏng (Nội Bộ)" ngay sau nhóm Admin).
-  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'roleMembershipAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'roleMembershipAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
   const visiblePanels = user?.isAdmin ? PANELS : PANELS.filter(id => !ADMIN_ONLY_PANELS.includes(id))
 
   useEffect(() => {
@@ -666,10 +664,6 @@ export default function App() {
             {active === 'printPortal' && <PrintCenter onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'patientReflect' && <PatientReflectPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'chatHistory' && <ChatHistoryPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} activePanelLabel={panelLabels[active] || active} />}
-            {active === 'myImageToVideo' && user?.isAdmin && <MyImageToVideoPanel onPrev={goPrev} prevLabel={prevLabel} />}
-            {active === 'myImageToVideo' && !user?.isAdmin && (
-              <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
-            )}
             {active === 'landingZeroToForever' && (
               <LandingPageZeroToForever
                 onGetStarted={() => setActive('chooseUserRole')}

@@ -113,7 +113,6 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
   const VIP_PRO_STEPS = STEPS.filter((step) => !VIP_PRO_EXCLUDED_STEP_IDS.has(step.id))
 
   const ADMIN_STEPS = user?.isAdmin ? [
-    { id: 'myImageToVideo', label: t('admin_myImageToVideo'), step: 'LAST', icon: '🎞️' },
     { id: 'make3DModel', label: t('admin_make3DModel'), step: 'CULTS', icon: '🧙‍♀️' },
     { id: 'my3dAsset', label: t('admin_my3dAsset'), step: 'GLB', icon: '🧊' },
     { id: 'twoDTo3DAsset', label: t('admin_twoDTo3DAsset'), step: '05b', icon: '🖼️' },
