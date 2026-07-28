@@ -44,6 +44,7 @@ import UserProfilePanel from './components/UserProfilePanel.jsx'
 import DonationHeroPanel from './components/DonationHeroPanel.jsx'
 import AffiliateUUIDReferralPanel from './components/AffiliateUUIDReferralPanel.jsx'
 import BodyProtectionJourneyPanel from './components/BodyProtectionJourneyPanel.jsx'
+import AffiliateGamePage from './components/AffiliateGamePage.jsx'
 import Hero3DMapPanel from './components/Hero3DMapPanel.jsx'
 import MyPainPathBodyPanel from './components/MyPainPathBodyPanel.jsx'
 import MyPainPathBodyPixelPanel from './components/MyPainPathBodyPixelPanel.jsx'
@@ -73,7 +74,7 @@ import { addNotification } from './lib/notifications.js'
 import { useTTS } from './lib/groqAiClient.js'
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'myImageToVideo', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -204,6 +205,7 @@ export default function App() {
     donationHero: 'Anh Hùng Hiến Tặng',
     affiliateUuidReferral: 'Đăng Ký Affiliate Marketing',
     bodyProtectionJourney: 'Hành Trình Bảo Vệ Cơ Thể',
+    affiliateGame: '🎁 Affiliate Game',
     hero3DMap: '3D Map for Hero',
     myPainPathBody: 'My Pain Path Body',
     myPainPathBodyPixel: 'My Pain Path Body Pixel',
@@ -695,6 +697,14 @@ export default function App() {
                 onFullscreenChange={setHideSidebarForFocus}
               />
             )}
+            {active === 'affiliateGame' && (
+              <AffiliateGamePage
+                onNext={goNext}
+                nextLabel={nextLabel}
+                onPrev={goPrev}
+                prevLabel={prevLabel}
+              />
+            )}
             {active === 'profile'   && <UserProfilePanel />}
             {active === 'create3DVideoFrom2D' && user?.isAdmin && <Create3DVideoFrom2DPanel />}
             {active === 'create3DVideoFrom2D' && !user?.isAdmin && (
@@ -1114,7 +1124,7 @@ function GlobalBottomNav({ active, onOpenMainMenu, onNavigate }) {
   const { theme } = useApp()
   const isDark = theme === 'dark'
   const items = [
-    { id: 'health', label: 'Health', icon: '♿', action: onOpenMainMenu, active: ['bodyProtectionJourney', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'healthJourney', 'lunchJourney', 'dinnerJourney'].includes(active) },
+    { id: 'health', label: 'Health', icon: '♿', action: onOpenMainMenu, active: ['bodyProtectionJourney', 'affiliateGame', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'healthJourney', 'lunchJourney', 'dinnerJourney'].includes(active) },
     { id: 'family', label: 'Community', icon: '👥', action: () => onNavigate('family'), active: active === 'family' },
     { id: 'aiHealthcareVision', label: 'AI Scan', icon: '🧬', action: () => onNavigate('aiHealthcareVision'), active: active === 'aiHealthcareVision' || active === 'aiHealthcareVisionControl' },
     { id: 'upload', label: 'Record', icon: '📄', action: () => onNavigate('upload'), active: active === 'upload' },

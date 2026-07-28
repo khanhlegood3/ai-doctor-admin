@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ShieldCheck, Maximize2, Minimize2, Hand } from 'lucide-react'
+import { ShieldCheck, Maximize2, Minimize2, Hand, Gift } from 'lucide-react'
 import NavButtons from './NavButtons.jsx'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import TouchlessHandCam from './webcam/TouchlessHandCam.jsx'
 import { classifyGestureKey, expandUser1GestureKeys, GESTURE_KEY_LABELS } from './webcam/gestureToKey.js'
 import GameAffiliateRewardWidget from './GameAffiliateRewardWidget.jsx'
-import { getReferralFor, resolveReferrerByCode, saveReferral, recordGameProgress } from '../lib/gameAffiliateDB'
-import { registerReferralOnChain } from '../lib/gameAffiliateChain'
+import { recordGameProgress } from '../lib/gameAffiliateDB'
 
 // ============================================================================
 // DANH SÁCH GAME & CẤU HÌNH CAMERA
@@ -38,6 +37,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
   const [gestureOn, setGestureOn] = useState(false)
   const [activeGestureKey, setActiveGestureKey] = useState(null)
   const [lastGameResult, setLastGameResult] = useState(null)
+  const [affiliateOpen, setAffiliateOpen] = useState(false)
   // true khi user đang mở 1 trong các game "camera" bên trong portal-index.html
   // (game đó đã tự chạy MediaPipe Camera riêng) — dùng để ẩn/khoá nút
   // "Bật Camera AI (Portal)" của chính React app, tránh 2 luồng getUserMedia()
@@ -185,28 +185,6 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
   useEffect(() => () => releaseActiveKey(), [releaseActiveKey])
 
   // ============================================================================
-  // AFFILIATE: bắt mã giới thiệu ?ref=CODE trên URL (đúng 1 lần / thiết bị)
-  // ============================================================================
-  useEffect(() => {
-    if (!user?.uuid) return
-    const params = new URLSearchParams(window.location.search)
-    const refCode = params.get('ref')
-    if (!refCode) return
-    ;(async () => {
-      const already = await getReferralFor(user.uuid)
-      if (already) return
-      const referrerUuid = await resolveReferrerByCode(refCode)
-      if (!referrerUuid || referrerUuid === user.uuid) return
-      const saved = await saveReferral({ referrerUuid, refereeUuid: user.uuid, code: refCode, source: 'games' })
-      if (saved?.id) {
-        registerReferralOnChain({ id: saved.id, referrerUuid, refereeUuid: user.uuid }).catch((err) =>
-          console.warn('[BodyProtectionJourneyPanel] Không thể ghi referral lên chain ngay, sẽ thử lại sau:', err)
-        )
-      }
-    })()
-  }, [user?.uuid])
-
-  // ============================================================================
   // AFFILIATE: nhận kết quả chơi game (PORTAL_GAME_RESULT) từ iframe cùng gốc
   // và forward từ portal-index.html (game không camera, nhúng game ngoài)
   // ============================================================================
@@ -307,6 +285,14 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
                 {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 {fullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
               </button>
+
+              <button
+                type="button"
+                onClick={() => setAffiliateOpen(true)}
+                className="inline-flex w-fit items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-rose-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <Gift size={16} /> Giới thiệu & Thưởng
+              </button>
             </div>
           </div>
         )}
@@ -347,6 +333,14 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
               >
                 <Minimize2 size={14} />
                 <span className="hidden sm:inline">Thu nhỏ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAffiliateOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-rose-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all hover:-translate-y-0.5"
+              >
+                <Gift size={14} />
+                <span className="hidden sm:inline">Giới thiệu & Thưởng</span>
               </button>
             </div>
           )}
@@ -396,7 +390,14 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
         )}
       </div>
 
-      <GameAffiliateRewardWidget uuid={user?.uuid} lastGameResult={lastGameResult} playerName={user?.name} cameraOpen={gestureOn} />
+      <GameAffiliateRewardWidget
+        uuid={user?.uuid}
+        userId={user?.userId}
+        lastGameResult={lastGameResult}
+        playerName={user?.name}
+        open={affiliateOpen}
+        onClose={() => setAffiliateOpen(false)}
+      />
     </div>
   )
 }

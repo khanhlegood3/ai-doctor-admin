@@ -37,6 +37,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
   const STEPS = [
     { id: 'bodyProtectionJourney', label: t('nav_bodyProtectionJourney'), step: '01' },
+    { id: 'affiliateGame', label: t('nav_affiliateGame'), step: '01f' },
     { id: 'hero3DMap', label: t('nav_hero3DMap'), step: '01a' },
     { id: 'myPainPathBody', label: t('nav_myPainPathBody'), step: '01b' },
     { id: 'myPainPathBodyPixel', label: t('nav_myPainPathBodyPixel'), step: '01c' },
@@ -83,6 +84,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
 
   const VIP_PRO_EXCLUDED_STEP_IDS = new Set([
     'bodyProtectionJourney',
+    'affiliateGame',
     'hero3DMap',
     'healthJourneyGame',
     'medicalAssetStore',
