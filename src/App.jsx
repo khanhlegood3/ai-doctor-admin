@@ -115,6 +115,10 @@ export default function App() {
     showEnd: false,
   })
   const [sidebarOpenSignal, setSidebarOpenSignal] = useState(0)
+  // Trạng thái mở/đóng Sidebar trên mobile — được nâng lên App để nút menu 3
+  // gạch ngang (giờ nằm trong Topbar, luôn ngay dưới chữ "ZoFo") có thể điều
+  // khiển Sidebar dù 2 component này là anh em (không lồng nhau).
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // Bấm "Toàn màn hình" trong BodyProtectionJourneyPanel (trang "Hành Trình
   // Bảo Vệ Cơ Thể") -> ẩn hẳn Sidebar bên trái để nhường chỗ cho khung game.
   // Luôn trả lại true (hiện Sidebar) mỗi khi rời khỏi panel đó, tránh việc
@@ -357,7 +361,10 @@ export default function App() {
 
   const openMainMenu = useCallback(() => {
     setActive('bodyProtectionJourney')
-    window.setTimeout(() => setSidebarOpenSignal(signal => signal + 1), 0)
+    window.setTimeout(() => {
+      setSidebarOpenSignal(signal => signal + 1)
+      setMobileMenuOpen(true)
+    }, 0)
   }, [])
 
   // affiliateControl = "Affiliate Control Panel" chỉ là màn MÔ PHỎNG/DEMO nội
@@ -580,10 +587,22 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <Topbar activePanel={active} onNavigateProfile={() => setActive('profile')} onNavigateAdmin={() => setActive('admin')} />
+      <Topbar
+        activePanel={active}
+        onNavigateProfile={() => setActive('profile')}
+        onNavigateAdmin={() => setActive('admin')}
+        mobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen(v => !v)}
+      />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {!hideSidebarForFocus && (
-          <Sidebar active={active} onNavigate={(id) => setActive(id)} openSignal={sidebarOpenSignal} />
+          <Sidebar
+            active={active}
+            onNavigate={(id) => setActive(id)}
+            openSignal={sidebarOpenSignal}
+            mobileOpen={mobileMenuOpen}
+            onMobileOpenChange={setMobileMenuOpen}
+          />
         )}
         <main ref={mainRef} style={{ flex: 1, overflowY: 'auto', background: mainBg, paddingBottom: hideSidebarForFocus ? 0 : 104 }}>
           <PanelErrorBoundary
