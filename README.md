@@ -1,103 +1,55 @@
-# Consensus Doctor v2.0 — Full Source Code
+# ai-doctor-admin (hợp nhất — public/games + api/ + src/ cùng 1 project)
 
-## Tính năng mới / New Features
+Đây là TOÀN BỘ repo `ai-doctor-admin` gốc (đã bỏ `archive/` và `.env` thật),
+giữ nguyên kiến trúc app React cha nhúng game qua iframe. Không còn tách
+riêng `bao-ve-co-the` thành 1 project/deploy khác — mọi thứ (React app,
+game tĩnh, API) nằm chung 1 repo, 1 Vercel project, cùng origin.
 
-### 🔐 Authentication
-- Đăng nhập / Đăng ký bằng Google (demo), Apple (demo), Email
-- Admin account: khanhlegood1@gmail.com / password: admin123
-- Tự động lưu session, logout sạch
-- Avatar tự động từ email (DiceBear API)
+## Kiến trúc / luồng dữ liệu
 
-### 🌙 Dark / Light Mode
-- Toggle góc phải topbar (☀️/🌙)
-- Lưu trạng thái vào localStorage
-- Tất cả component đều responsive theo theme
-
-### 🌐 Đa ngôn ngữ (i18n)
-- Tiếng Việt (mặc định) / English
-- Toggle 🇻🇳/🇬🇧 trong topbar
-- Lưu preference vào localStorage
-
-### 📤 Upload Hồ sơ y tế
-- Drag & drop hoặc click để chọn file
-- Hỗ trợ: DICOM, PDF, JPEG, PNG, DOCX
-- Phân loại: Hình ảnh, Xét nghiệm, Báo cáo, Đơn thuốc
-- Gợi ý AI xét nghiệm thêm (ví dụ: PET-CT toàn thân tìm ổ gốc ung thư)
-- Lưu vào localStorage theo patient
-
-### 🧬 Gia phả bệnh lý
-- Hiển thị cây gia phả theo 4 thế hệ
-- Thêm thành viên với quan hệ, tuổi, bệnh lý
-- AI phân tích nguy cơ di truyền
-- Gợi ý tầm soát cho gia đình
-
-### 🛡️ Admin Dashboard (khanhlegood1@gmail.com)
-- Xem tất cả người dùng
-- Xem tất cả hồ sơ y tế
-- Nhật ký hoạt động
-- Thống kê tổng quan
-
-## Setup
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-## Cấu trúc thư mục
-\`\`\`
-src/
-├── context/
-│   ├── AuthContext.jsx    # Authentication (Google/Apple/Email)
-│   └── AppContext.jsx     # Theme + i18n
-├── pages/
-│   └── LoginPage.jsx      # Login/Register UI
-├── components/
-│   ├── admin/
-│   │   └── AdminPanel.jsx # Admin dashboard
-│   ├── family/
-│   │   └── FamilyTreePanel.jsx # Gia phả bệnh lý
-│   ├── upload/
-│   │   └── UploadPanel.jsx # Upload hồ sơ + AI gợi ý
-│   ├── Topbar.jsx         # Header + theme/lang toggle
-│   ├── Sidebar.jsx        # Navigation
-│   ├── ImagingPanel.jsx   # Chẩn đoán hình ảnh
-│   ├── CheckinPanel.jsx   # Triệu chứng
-│   ├── TwinPanel.jsx      # Digital Twin
-│   ├── SimulationPanel.jsx # Mô phỏng điều trị
-│   └── ConsensusPanel.jsx  # AI Consensus
-├── data/
-│   └── mockData.js
-└── App.jsx
-
-\`\`\`
-
-## Production Notes
-- Thay thế localStorage bằng Supabase/Firebase cho production
-- Google OAuth: dùng Firebase Auth hoặc NextAuth.js
-- Apple Sign In: dùng Firebase Auth
-- File upload: dùng Supabase Storage hoặc AWS S3
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-
-## Zep Memory Integration
-
-This project now includes:
-- Long-term AI memory
-- Multi-agent medical memory
-- Temporal patient graph concepts
-- AI consensus memory
-- Example API route for Zep integration
-
-### Setup
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
 ```
+src/components/BodyProtectionJourneyPanel.jsx
+  └─ nhúng <iframe src="/games/portal-index.html"> (same-origin)
+       └─ public/games/portal-index.html (game portal, file tĩnh)
+            ├─ localStorage: leaderboard, tên, UUID người chơi (không đổi)
+            ├─ [MỚI] tự sinh UUID nếu chạy standalone (ensureOwnUUID)
+            ├─ [MỚI] bắt ?ref=<uuid|userId> trên URL, lưu 1 lần (captureReferrerFromUrl)
+            ├─ Khi thắng game:
+            │    ├─ postMessage(data) lên window.parent (CŨ — app cha xử lý thưởng on-chain)
+            │    └─ [MỚI] fetch POST /api/affiliate-referral (đăng ký quan hệ giới thiệu)
+            └─ api/user-profile.js, api/affiliate-referral.js, api/game-leaderboard.js
+                 └─ MongoDB Atlas (MONGODB_URI)
+```
+
+**Vì sao vẫn giữ cả 2 đường (postMessage VÀ fetch trực tiếp):**
+- `postMessage` → app cha (`BodyProtectionJourneyPanel.jsx`) vẫn là nơi xử
+  lý **thưởng on-chain thật** (gọi `src/lib/gameAffiliateChain.js` →
+  smart contract BSC Testnet) — phần này KHÔNG có trong `api/`, không đổi.
+- `fetch('/api/affiliate-referral')` mới thêm để **portal vẫn ghi được quan
+  hệ giới thiệu dù chạy standalone** (không bị nhúng iframe) — 2 đường không
+  xung đột vì endpoint đã idempotent (gọi 2 lần không tạo trùng bản ghi).
+
+## 3 chỗ đã sửa trong `public/games/portal-index.html`
+
+1. `ensureOwnUUID()` — tự sinh UUID bằng `crypto.randomUUID()` nếu chưa có,
+   thay vì chỉ chờ app cha gán qua `window.setPlayerIdentity`.
+2. `captureReferrerFromUrl()` — đọc `?ref=` trên URL, tra UUID qua
+   `GET /api/user-profile?userId=...` nếu cần, lưu 1 lần duy nhất.
+3. `maybeRegisterAffiliateReferral()` — gọi `POST /api/affiliate-referral`
+   khi thắng game, có cờ tránh gọi lặp.
+
+## Việc cần làm trước khi deploy
+
+1. Copy `.env.example` → `.env`, điền:
+   - `MONGODB_URI` (bắt buộc — dùng chung cho user-profile, affiliate-referral,
+     game-leaderboard, moralis, affiliate-admin-stats)
+   - `ANTHROPIC_API_KEY` — **key cũ trong repo gốc đã bị lộ công khai, đã
+     revoke/rotate key mới rồi mới điền vào đây.**
+   - Các biến `VITE_*`, `MORALIS_STREAM_SECRET` theo nhu cầu thực tế.
+2. `npm install`
+3. `npm run dev` (Vite) để chạy local — hoặc deploy thẳng lên Vercel
+   (1 project duy nhất, không cần rewrite/proxy sang domain khác nữa).
+4. Test: mở `/games/portal-index.html?ref=<userId>` rồi thắng 1 ván, kiểm
+   tra Network tab thấy `POST /api/affiliate-referral` chạy đúng, đồng thời
+   nếu nhúng trong `BodyProtectionJourneyPanel.jsx` thì luồng thưởng on-chain
+   cũ vẫn chạy như trước (không bị ảnh hưởng).

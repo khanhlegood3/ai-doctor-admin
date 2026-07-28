@@ -729,6 +729,8 @@
   const LB_KEY = "gamePortalLeaderboard_v1";
   const NAME_KEY = "gamePortalPlayerName_v1";
   const UUID_KEY = "gamePortalPlayerUuid_v1";
+  const REF_KEY = "gamePortalReferrerUuid_v1";
+  const AFFILIATE_REGISTERED_KEY = "gamePortalAffiliateRegistered_v1";
   const MAX_ENTRIES = 500;
 
   // ===================== STATE / STORAGE =====================
@@ -738,6 +740,95 @@
   function setPlayerName(n){ try{ localStorage.setItem(NAME_KEY, n); }catch(e){} }
   function getPlayerUUID(){ return (localStorage.getItem(UUID_KEY) || "").trim(); }
   function setPlayerUUID(u){ try{ localStorage.setItem(UUID_KEY, u || ""); }catch(e){} }
+
+  // Người chơi standalone (chưa được app cha gán UUID qua
+  // window.setPlayerIdentity) vẫn cần 1 UUID ổn định để đăng ký affiliate.
+  // Chỉ tự sinh nếu CHƯA có sẵn — không ghi đè UUID app cha đã gán.
+  function ensureOwnUUID(){
+    let uuid = getPlayerUUID();
+    if(!uuid){
+      uuid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+        return v.toString(16);
+      }));
+      setPlayerUUID(uuid);
+    }
+    return uuid;
+  }
+
+  function getReferrerUuid(){ return (localStorage.getItem(REF_KEY) || "").trim(); }
+  function setReferrerUuid(u){ try{ localStorage.setItem(REF_KEY, u || ""); }catch(e){} }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  // Bắt ?ref=<uuid hoặc userId> từ URL (vd link chia sẻ ?ref=KhanhLX1).
+  // Lưu 1 LẦN DUY NHẤT theo kiểu "first-touch" — không ghi đè nếu đã có
+  // referrer từ trước.
+  async function captureReferrerFromUrl(){
+    try{
+      const params = new URLSearchParams(window.location.search);
+      const refParam = (params.get('ref') || '').trim();
+      if(!refParam) return;
+      if(getReferrerUuid()) return;
+
+      let referrerUuid = null;
+      if(UUID_RE.test(refParam)){
+        referrerUuid = refParam;
+      } else {
+        const res = await fetch('/api/user-profile?userId=' + encodeURIComponent(refParam));
+        if(res.ok){
+          const json = await res.json();
+          referrerUuid = json?.uuid || null;
+        }
+      }
+
+      if(referrerUuid && referrerUuid !== getPlayerUUID()){
+        setReferrerUuid(referrerUuid);
+      }
+    } catch(e){
+      console.warn('[affiliate] Không đọc được ?ref= từ URL:', e);
+    } finally {
+      try{
+        const url = new URL(window.location.href);
+        if(url.searchParams.has('ref')){
+          url.searchParams.delete('ref');
+          window.history.replaceState({}, '', url.toString());
+        }
+      } catch(e){}
+    }
+  }
+
+  let affiliateAttemptedThisSession = false;
+  // Đăng ký quan hệ referral khi thắng game — gọi thẳng /api/affiliate-referral
+  // vì giờ api/ và public/games cùng 1 project/origin. Bổ sung cho (không thay
+  // thế) đường postMessage lên app cha bên dưới.
+  async function maybeRegisterAffiliateReferral(){
+    if(affiliateAttemptedThisSession) return;
+    if(localStorage.getItem(AFFILIATE_REGISTERED_KEY) === '1') return;
+
+    const referrerUuid = getReferrerUuid();
+    if(!referrerUuid) return;
+
+    const refereeUuid = ensureOwnUUID();
+    if(referrerUuid === refereeUuid) return;
+
+    affiliateAttemptedThisSession = true;
+    try{
+      const res = await fetch('/api/affiliate-referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referrerUuid, refereeUuid, source: 'game_portal_win' })
+      });
+      if(res.ok){
+        localStorage.setItem(AFFILIATE_REGISTERED_KEY, '1');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.warn('[affiliate] Đăng ký referral thất bại:', res.status, err?.error);
+      }
+    } catch(e){
+      console.warn('[affiliate] Lỗi mạng khi đăng ký referral:', e);
+    }
+  }
 
   const playerInput = document.getElementById('playerNameInput');
   const playerUuidBadge = document.getElementById('playerUuidBadge');
@@ -750,7 +841,9 @@
     playerUuidBadge.textContent = '🆔 ' + uuid.slice(0, 8) + '…';
     playerUuidBadge.title = uuid;
   }
+  ensureOwnUUID();
   renderPlayerUuidBadge();
+  captureReferrerFromUrl();
 
   // ===================== ĐỒNG BỘ VỚI PROFILE (APP CHA) =====================
   // Trang portal này là file tĩnh, độc lập với React app — trước đây tên
@@ -1667,6 +1760,13 @@
       setTimeout(() => resultToast.classList.remove('show'), 4200);
 
       renderStats();
+
+      if(entry.status === 'win'){
+        // Bổ sung: đăng ký thẳng referral nếu portal đang chạy standalone
+        // (không có app cha nhận postMessage bên dưới) — an toàn để gọi
+        // song song vì endpoint idempotent (không tạo trùng bản ghi).
+        maybeRegisterAffiliateReferral();
+      }
 
       // Forward lên app cha (nếu portal này đang được nhúng trong 1 iframe
       // khác, vd BodyProtectionJourneyPanel.jsx của ai-doctor-admin) để hệ
