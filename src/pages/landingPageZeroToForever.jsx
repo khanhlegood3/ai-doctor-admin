@@ -177,11 +177,11 @@ function OrganZoneMap({ language }) {
   }
 
   // Bấm 1 nội tạng: focus/ghi caption đúng nội tạng đó + tự đổi mode bố cục
-  // ngay lập tức, đồng thời mở popup chi tiết của nội tạng vừa bấm.
+  // ngay lập tức. Popup chi tiết KHÔNG tự mở nữa — chỉ mở khi user bấm nút
+  // "Xem chi tiết" trong caption bên dưới.
   const handleZoneClick = (zoneId) => {
     setSelectedOrganId(zoneId)
     setStackAsHuman((prev) => !prev)
-    setOrganPopupOpen(true)
   }
 
   return (
@@ -233,7 +233,16 @@ function OrganZoneMap({ language }) {
               <span className="shrink-0 text-2xl sm:text-3xl">{selectedZone.icon}</span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-extrabold text-white sm:text-base">{selectedZone.title}</p>
-                <p className="truncate text-[11px] text-cyan-200/80 sm:text-xs">{selectedZone.subtitle}</p>
+                <div className="mt-0.5 flex items-center justify-start gap-2">
+                  <p className="min-w-0 truncate text-[11px] text-cyan-200/80 sm:text-xs">{selectedZone.subtitle}</p>
+                  <button
+                    type="button"
+                    onClick={() => setOrganPopupOpen(true)}
+                    className="shrink-0 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-400/20 sm:text-[11px]"
+                  >
+                    {isEn ? 'View details' : 'Xem chi tiết'}
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
