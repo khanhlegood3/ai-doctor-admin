@@ -668,17 +668,30 @@ export default function LandingPageZeroToForever({
                   />
                   {/* Che badge "Made in Framer" ở góc phải-dưới iframe bằng logo
                       thật của app (asset local trong repo — không hotlink ngoài
-                      để tránh vỡ ảnh). pointer-events-none để không chặn thao
-                      tác của người dùng với nội dung Framer bên dưới. Đặt ĐÚNG
-                      góc phải-dưới (bottom-0 right-0, không lệch % nữa) và
-                      logo to hơn hẳn kèm nền đặc để phủ kín toàn bộ badge ở
-                      mọi breakpoint. */}
-                  <div className="absolute bottom-0 right-0 z-20 pointer-events-none p-1.5 sm:p-2">
-                    <img
-                      src={zofoLogo}
-                      alt="Zero to Forever"
-                      className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl"
-                    />
+                      để tránh vỡ ảnh). Đặt ĐÚNG góc phải-dưới (bottom-0 right-0,
+                      không lệch % nữa) và logo to hơn hẳn kèm nền đặc để phủ kín
+                      toàn bộ badge ở mọi breakpoint. Logo bấm được (onClick =
+                      onGetStarted) để đưa user sang màn "Chọn Vai Trò Anh Hùng"
+                      — nên KHÔNG còn pointer-events-none trên wrapper nữa. */}
+                  <div className="absolute bottom-0 right-0 z-20 p-1.5 sm:p-2">
+                    {/* Box nền được kéo rộng gấp đôi theo chiều ngang (scale-x-[2],
+                        origin bên phải nên chỉ "nở" sang trái, mép phải-dưới vẫn
+                        neo cố định đúng góc iframe) để phủ kín hết chữ "Made in
+                        Framer" trên mobile. Ảnh logo bên trong được scale-x-[0.5]
+                        ngược lại để không bị kéo méo hình. Trên lg (laptop) giữ
+                        nguyên như cũ vì đã OK. */}
+                    <button
+                      type="button"
+                      onClick={onGetStarted}
+                      aria-label="Chọn Vai Trò Anh Hùng"
+                      className="origin-right scale-x-[2] lg:scale-x-100 rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl cursor-pointer block"
+                    >
+                      <img
+                        src={zofoLogo}
+                        alt="Zero to Forever"
+                        className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto object-contain origin-right scale-x-[0.5] lg:scale-x-100"
+                      />
+                    </button>
                   </div>
                 </div>
               </div>
