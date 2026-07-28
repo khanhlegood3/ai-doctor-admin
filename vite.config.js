@@ -2,30 +2,6 @@ import { resolve } from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
-import { wanImageToVideoHandler } from './api/wan-image-to-video.js'
-
-function wanImageToVideoDevMiddleware() {
-  return {
-    name: 'wan-image-to-video-dev-middleware',
-    configureServer(server) {
-      server.middlewares.use('/api/wan-image-to-video', (req, res) => {
-        const wrappedRes = res
-        wrappedRes.status = (code) => { res.statusCode = code; return wrappedRes }
-        wrappedRes.json = (obj) => {
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify(obj))
-          return wrappedRes
-        }
-        wanImageToVideoHandler(req, wrappedRes).catch((err) => {
-          console.error('[wan-image-to-video-dev-middleware]', err)
-          res.statusCode = 500
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ error: err?.message || 'Internal error' }))
-        })
-      })
-    },
-  }
-}
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -79,7 +55,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), inbodyOcrDevMiddleware(env), wanImageToVideoDevMiddleware()],
+    plugins: [react(), inbodyOcrDevMiddleware(env)],
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
     build: {
