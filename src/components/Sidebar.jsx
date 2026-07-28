@@ -20,12 +20,18 @@ function useIsMobile() {
   return isMobile
 }
 
-export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
+export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen, onMobileOpenChange }) {
   const { user, logout } = useAuth()
   const { t, theme } = useApp()
   const isDark = theme === 'dark'
   const isMobile = useIsMobile()
-  const [open, setOpen] = useState(false)
+  // Trạng thái mở/đóng trên mobile giờ được điều khiển từ App.jsx (qua nút
+  // hamburger nằm trong Topbar, luôn nằm dưới chữ "ZoFo") — dùng
+  // mobileOpen/onMobileOpenChange nếu được truyền vào, fallback về state nội
+  // bộ để phòng trường hợp component được dùng mà không truyền 2 prop này.
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = mobileOpen !== undefined ? mobileOpen : internalOpen
+  const setOpen = onMobileOpenChange || setInternalOpen
 
   const border   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)'
   const bg       = isDark ? 'rgba(4,6,15,0.97)'      : 'rgba(255,255,255,0.97)'
@@ -297,25 +303,6 @@ export default function Sidebar({ active, onNavigate, openSignal = 0 }) {
   if (isMobile) {
     return (
       <>
-        <button
-          onClick={() => setOpen(o => !o)}
-          style={{
-            position: 'fixed', top: 12, left: 12, zIndex: 300,
-            width: 40, height: 40, borderRadius: 10,
-            background: isDark ? 'rgba(4,6,15,0.92)' : 'rgba(255,255,255,0.92)',
-            border: `1px solid ${border}`,
-            backdropFilter: 'blur(8px)',
-            cursor: 'pointer',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 5,
-            padding: 0,
-          }}
-          aria-label="Toggle menu"
-        >
-          <span style={{ display: 'block', width: 18, height: 2, borderRadius: 2, background: open ? '#00e5ff' : text, transition: 'all 0.2s', transform: open ? 'translateY(7px) rotate(45deg)' : 'none' }} />
-          <span style={{ display: 'block', width: 18, height: 2, borderRadius: 2, background: open ? '#00e5ff' : text, transition: 'all 0.2s', opacity: open ? 0 : 1 }} />
-          <span style={{ display: 'block', width: 18, height: 2, borderRadius: 2, background: open ? '#00e5ff' : text, transition: 'all 0.2s', transform: open ? 'translateY(-7px) rotate(-45deg)' : 'none' }} />
-        </button>
         {open && (
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }} />
         )}

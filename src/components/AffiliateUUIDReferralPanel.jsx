@@ -667,11 +667,11 @@ export default function AffiliateUUIDReferralPanel() {
       {/* Banner hoa hồng — tham khảo cách refearnapp hiển thị ngay đầu trang Links: "Share your links and earn X% commission" */}
       <div className={`mb-6 rounded-2xl border p-5 ${card}`}>
         <div className="flex items-center gap-2 mb-3"><Gift size={18} className="text-emerald-400" /><span className="font-bold text-sm">Chia sẻ UUID và nhận hoa hồng 3 tầng</span></div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {LEVELS.map((l) => (
-            <div key={l.level} className={`rounded-xl border p-3 text-center ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
-              <div className="text-2xl font-black text-emerald-400">{l.rate}%</div>
-              <div className={`text-xs font-bold ${textDim}`}>{l.label} · tầng {l.level}</div>
+            <div key={l.level} className={`rounded-xl border p-2 text-center sm:p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
+              <div className="text-lg font-black text-emerald-400 sm:text-2xl">{l.rate}%</div>
+              <div className={`text-[10px] font-bold sm:text-xs ${textDim}`}>{l.label} · tầng {l.level}</div>
             </div>
           ))}
         </div>
@@ -831,10 +831,10 @@ export default function AffiliateUUIDReferralPanel() {
       <div className={`mt-5 rounded-2xl border p-5 ${card}`}>
         <div className="flex items-center gap-2 mb-3"><Radio size={18} className="text-emerald-400" /><span className="font-bold text-sm">Giám sát On-chain (BscScan Testnet)</span></div>
         <div className="space-y-2 text-xs">
-          <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
-            <div>
+          <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
+            <div className="min-w-0">
               <div className={textDim}>Ví on-chain của bạn</div>
-              <div className="font-mono mt-0.5">{myWalletAddress ? shortUuid(myWalletAddress) : '—'}</div>
+              <div className="font-mono mt-0.5 truncate">{myWalletAddress ? shortUuid(myWalletAddress) : '—'}</div>
             </div>
             {myWalletAddress && (
               <a href={getBscScanAddressUrl(myWalletAddress)} target="_blank" rel="noreferrer" className="shrink-0 flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 font-bold text-emerald-400 hover:bg-emerald-500/25">
@@ -842,10 +842,10 @@ export default function AffiliateUUIDReferralPanel() {
               </a>
             )}
           </div>
-          <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
-            <div>
+          <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 ${isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-black/[0.02]'}`}>
+            <div className="min-w-0">
               <div className={textDim}>Smart contract HienMauAffiliate</div>
-              <div className="font-mono mt-0.5">{shortUuid(AFFILIATE_CONTRACT_ADDRESS)}</div>
+              <div className="font-mono mt-0.5 truncate">{shortUuid(AFFILIATE_CONTRACT_ADDRESS)}</div>
             </div>
             <a href={getBscScanAddressUrl(AFFILIATE_CONTRACT_ADDRESS)} target="_blank" rel="noreferrer" className="shrink-0 flex items-center gap-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-1.5 font-bold text-cyan-400 hover:bg-cyan-500/25">
               <ExternalLink size={12} /> Xem
@@ -882,15 +882,15 @@ export default function AffiliateUUIDReferralPanel() {
                     href={getBscScanTxUrl(row.hash)}
                     target="_blank"
                     rel="noreferrer"
-                    className={`flex items-center justify-between text-[11px] rounded-lg px-2.5 py-1.5 hover:bg-cyan-500/10 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}
+                    className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] rounded-lg px-2.5 py-1.5 hover:bg-cyan-500/10 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}
                   >
-                    <span className="flex items-center gap-1.5">
-                      <span className={`rounded px-1.5 py-0.5 font-bold ${row.type === 'sent' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className={`shrink-0 rounded px-1.5 py-0.5 font-bold ${row.type === 'sent' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
                         {row.type === 'sent' ? 'Gửi' : 'Nhận'}
                       </span>
-                      <span className="font-mono">{shortUuid(row.hash)}</span>
+                      <span className="truncate font-mono">{shortUuid(row.hash)}</span>
                     </span>
-                    <span className="flex items-center gap-1 text-cyan-400 font-bold">
+                    <span className="flex shrink-0 items-center gap-1 text-cyan-400 font-bold">
                       {row.valueEth} {row.name || 'BNB'} <ExternalLink size={10} />
                     </span>
                   </a>
@@ -925,9 +925,9 @@ export default function AffiliateUUIDReferralPanel() {
             ) : (
               <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {tier.rows.map((r) => (
-                  <div key={r.id || r._id || r.refereeUuid} className={`flex items-center justify-between text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
-                    <UuidIdentityLabel uuid={r.refereeUuid} textDim={textDim} />
-                    <span className="flex items-center gap-1.5">
+                  <div key={r.id || r._id || r.refereeUuid} className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs rounded-lg px-2.5 py-1.5 ${isDark ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`}>
+                    <span className="min-w-0 truncate"><UuidIdentityLabel uuid={r.refereeUuid} textDim={textDim} /></span>
+                    <span className="flex shrink-0 items-center gap-1.5">
                       {r.txHash && (
                         <a href={getBscScanTxUrl(r.txHash)} target="_blank" rel="noreferrer" title="Xem giao dịch trên BscScan Testnet" className="text-cyan-400 hover:text-cyan-300">
                           <ExternalLink size={11} />

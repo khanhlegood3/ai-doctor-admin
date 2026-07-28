@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useNotifications } from '../lib/notifications.js'
 import zofoLogo from '../assets/landing/ZeroToForever_Logo.png'
 
-export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin }) {
+export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin, mobileMenuOpen, onToggleMobileMenu }) {
   const { user, logout } = useAuth()
   const { t, theme, toggleTheme, lang, setLang } = useApp()
   const [showMenu, setShowMenu] = useState(false)
@@ -60,6 +60,29 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
           <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
             Zero to Forever Foundation · Become The Hero Within
           </div>
+        )}
+        {/* Menu 3 gạch ngang — nằm TRONG khối logo, luôn ngay dưới chữ "ZoFo"
+            (vị trí cố định trong luồng, không đè lên nội dung trang) thay vì
+            dùng position:fixed nổi ở góc màn hình như trước (từng đè lên
+            badge/tiêu đề đầu trang, vd trang Affiliate Marketing). Chỉ hiện
+            trên mobile — desktop luôn hiển thị sẵn Sidebar nên không cần nút này. */}
+        {isMobile && onToggleMobileMenu && (
+          <button
+            type="button"
+            onClick={onToggleMobileMenu}
+            aria-label="Toggle menu"
+            style={{
+              marginTop: 4, width: 32, height: 26, borderRadius: 8, cursor: 'pointer', padding: 0,
+              border: `1px solid ${borderColor}`,
+              background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ display: 'block', width: 15, height: 2, borderRadius: 2, background: mobileMenuOpen ? '#00e5ff' : textColor, transition: 'all 0.2s', transform: mobileMenuOpen ? 'translateY(6px) rotate(45deg)' : 'none' }} />
+            <span style={{ display: 'block', width: 15, height: 2, borderRadius: 2, background: mobileMenuOpen ? '#00e5ff' : textColor, transition: 'all 0.2s', opacity: mobileMenuOpen ? 0 : 1 }} />
+            <span style={{ display: 'block', width: 15, height: 2, borderRadius: 2, background: mobileMenuOpen ? '#00e5ff' : textColor, transition: 'all 0.2s', transform: mobileMenuOpen ? 'translateY(-6px) rotate(-45deg)' : 'none' }} />
+          </button>
         )}
       </div>
 
