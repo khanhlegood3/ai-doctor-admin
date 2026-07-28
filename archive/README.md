@@ -44,3 +44,54 @@ Hugging Face Space")
    dùng đúng 11/12 (sau khi gỡ file này) + 1 file mới `affiliate-admin-stats.js`
    coi như dùng lại đúng 12/12 (xem ghi chú kèm theo repo).
 
+---
+
+# My Image to Video (Wan 2.x) — ĐÃ ARCHIVE, chưa xoá hẳn
+
+```
+archive/
+├── api/
+│   └── wan-image-to-video.js        -> đặt lại vào api/wan-image-to-video.js
+└── src/components/
+    └── MyImageToVideoPanel.jsx      -> đặt lại vào src/components/MyImageToVideoPanel.jsx
+```
+
+Bộ 2 file này bị gỡ khỏi luồng chạy chính vào 2026-07-28 vì repo lại chạm mốc
+13/12 serverless functions (Vercel Hobby chỉ cho 12) sau khi có thêm
+`affiliate-admin-stats.js`. Đây là tính năng admin-only (`myImageToVideo`,
+`ADMIN_ONLY_PANELS`), tần suất dùng thấp, nên được ưu tiên gỡ trước.
+
+## Chức năng (để nhớ lại khi cần dùng lại)
+- `api/wan-image-to-video.js`: Vercel serverless function, nhận ảnh + prompt
+  từ `MyImageToVideoPanel.jsx`, gọi model Wan image-to-video (qua Hugging
+  Face / provider tương ứng — xem lại API key/env var cụ thể trong file khi
+  khôi phục) để tạo video ngắn từ 1 ảnh tĩnh.
+- `src/components/MyImageToVideoPanel.jsx`: panel React admin-only cho phép
+  upload ảnh, nhập prompt, gọi endpoint trên, hiển thị tiến trình + video kết
+  quả (bilingual VI/EN, theo đúng convention chung của app).
+
+## Cách khôi phục khi cần
+1. Copy `archive/api/wan-image-to-video.js` → `api/wan-image-to-video.js`
+   (đúng path, không đổi tên).
+2. Copy `archive/src/components/MyImageToVideoPanel.jsx` →
+   `src/components/MyImageToVideoPanel.jsx`.
+3. Trong `src/App.jsx`:
+   - Thêm lại `import MyImageToVideoPanel from './components/MyImageToVideoPanel.jsx'`.
+   - Thêm lại `'myImageToVideo'` vào mảng `PANELS` và `ADMIN_ONLY_PANELS`.
+   - Thêm lại `myImageToVideo: 'My Image to Video',` vào `panelLabels`.
+   - Thêm lại khối render:
+     ```jsx
+     {active === 'myImageToVideo' && user?.isAdmin && <MyImageToVideoPanel onPrev={goPrev} prevLabel={prevLabel} />}
+     {active === 'myImageToVideo' && !user?.isAdmin && (
+       <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
+     )}
+     ```
+4. Trong `src/components/Sidebar.jsx`, thêm lại:
+   `{ id: 'myImageToVideo', label: t('admin_myImageToVideo'), step: 'LAST', icon: '🎞️' },`
+5. Trong `src/context/AppContext.jsx`, thêm lại 2 dòng dịch:
+   - VI: `admin_myImageToVideo: 'Ảnh Sang Video Của Tôi',`
+   - EN: `admin_myImageToVideo: 'My Image to Video',`
+6. Kiểm tra lại quota 12 function của Vercel trước khi thêm lại (đang đúng
+   12/12 sau khi gỡ file này — cần gỡ bớt 1 function khác nếu muốn khôi phục
+   tính năng này).
+
