@@ -671,7 +671,7 @@ export default function LandingPageZeroToForever({
                       để tránh vỡ ảnh). pointer-events-none để không chặn thao
                       tác của người dùng với nội dung Framer bên dưới nếu badge
                       không nằm đúng góc đó ở vài breakpoint. */}
-                  <div className="absolute bottom-1 right-1 z-20 pointer-events-none">
+                  <div className="absolute bottom-1 right-[28%] z-20 pointer-events-none">
                     <img
                       src={zofoLogo}
                       alt="Zero to Forever"
