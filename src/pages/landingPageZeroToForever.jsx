@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowRight, ArrowUpRight, Play, CheckCircle2, Users, Users2, Heart, Droplet, HeartPulse,
   Brain, Trophy, Award, ShoppingBag, Gamepad2, Handshake, CalendarDays,
@@ -14,9 +15,11 @@ import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
-import { ORGANS, lowerFirst } from '../data/organs.js'
+import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
+import AnatomyHoverOverlay from '../components/AnatomyHoverOverlay.jsx'
+import HeroPopupCornerCloseButtons from '../components/heroPanels/HeroPopupCornerCloseButtons.jsx'
 
 /**
  * landingPageZeroToForever.jsx
@@ -156,10 +159,15 @@ function OrganZoneMap({ language }) {
   // đảo ngược (rải rác 3D <-> chồng theo cột cơ thể) NGAY trong lúc đó.
   const [stackAsHuman, setStackAsHuman] = useState(true)
   const [selectedOrganId, setSelectedOrganId] = useState(null)
+  // Popup chi tiết nội tạng — mở ngay khi bấm vào 1 nội tạng, giống popup
+  // nội tạng của trang "Anh Hùng lựa chọn Role" (ChooseUserRolePanel), có
+  // 4 nút X ở 4 góc (HeroPopupCornerCloseButtons) để đóng cho nhanh.
+  const [organPopupOpen, setOrganPopupOpen] = useState(false)
 
   const zones = buildOrganZones(stackAsHuman, isEn)
   const paths = zones.slice(0, -1).map((zone, index) => ({ from: zone, to: zones[index + 1] }))
   const selectedZone = zones.find((zone) => zone.id === selectedOrganId) || null
+  const selectedOrganAnnotationId = selectedZone ? getOrganAnatomyAnnotationId(selectedZone.id) : null
 
   const handlePointerMove = (event) => {
     const rect = event.currentTarget.getBoundingClientRect()
@@ -169,10 +177,11 @@ function OrganZoneMap({ language }) {
   }
 
   // Bấm 1 nội tạng: focus/ghi caption đúng nội tạng đó + tự đổi mode bố cục
-  // ngay lập tức (không chờ nút toggle nào khác).
+  // ngay lập tức, đồng thời mở popup chi tiết của nội tạng vừa bấm.
   const handleZoneClick = (zoneId) => {
     setSelectedOrganId(zoneId)
     setStackAsHuman((prev) => !prev)
+    setOrganPopupOpen(true)
   }
 
   return (
@@ -234,6 +243,46 @@ function OrganZoneMap({ language }) {
           )}
         </div>
       </div>
+
+      {/* Popup chi tiết nội tạng — mở khi bấm vào 1 nội tạng trong bản đồ ở
+      trên, cùng kiểu popup với trang "Anh Hùng lựa chọn Role"
+      (ChooseUserRolePanel): thẻ nổi + AnatomyHoverOverlay focus đúng nội
+      tạng + 4 nút X ở 4 góc để đóng cho nhanh (HeroPopupCornerCloseButtons).
+      Bấm ra ngoài lớp phủ tối cũng đóng luôn, cho tiện trên mọi thiết bị. */}
+      {organPopupOpen && selectedZone && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          onClick={() => setOrganPopupOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-cyan-400/20 bg-[#0f172a] p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <HeroPopupCornerCloseButtons
+              onClose={() => setOrganPopupOpen(false)}
+              isDark
+              label={isEn ? 'Close popup' : 'Đóng popup'}
+            />
+            <div className="px-10 text-center">
+              <div className="text-4xl">{selectedZone.icon}</div>
+              <h3 className="mt-2 text-lg font-extrabold text-white">{selectedZone.title}</h3>
+              <p className="mt-1 text-sm leading-6 text-cyan-200/80">{selectedZone.subtitle}</p>
+            </div>
+            {selectedOrganAnnotationId ? (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                <AnatomyHoverOverlay focusAnnotationId={selectedOrganAnnotationId} showOnlyFocus />
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-6 text-center text-sm text-gray-300">
+                {isEn
+                  ? 'This choice represents all donation opportunities after death.'
+                  : 'Lựa chọn này đại diện cho tất cả cơ hội hiến tặng sau khi mất.'}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
