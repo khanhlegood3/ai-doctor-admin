@@ -14,7 +14,7 @@ import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
-import { ORGANS } from '../data/organs.js'
+import { ORGANS, lowerFirst } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
 
@@ -71,11 +71,13 @@ function getNavItems(t) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
- * Organ map visual — chỉ phần "vẽ lại nội tạng" của HeroZoneStackPopup
- * (heroPanels/HeroZoneStackPopup.jsx), luôn ở mode "Sắp xếp các nút cơ
- * quan thành dáng người thân thiện" (stack-as-human), KHÔNG kèm card
- * tiêu đề/mô tả, KHÔNG toggle, KHÔNG ảnh anatomy — chỉ khối bản đồ 3D
- * nổi để đặt cạnh "Hero Right: Graphic" trên landing page.
+ * Organ map visual — phần "vẽ lại nội tạng" của HeroZoneStackPopup
+ * (heroPanels/HeroZoneStackPopup.jsx), dùng trên landing page. Giờ có thể
+ * bấm vào TỪNG nội tạng để: (1) focus/highlight (viền phát sáng) đúng nút
+ * vừa bấm, (2) hiện caption tên + mô tả ngắn của nội tạng đó ngay trong
+ * khung 3D, (3) tự đảo mode bố cục (rải rác 3D <-> chồng theo cột cơ thể)
+ * mỗi lần bấm — KHÔNG có nút toggle riêng như popup gốc, đổi mode luôn xảy
+ * ra mỗi khi user chọn 1 nội tạng khác.
  * ══════════════════════════════════════════════════════════════════════ */
 const ORGAN_MAP_BASE_LAYOUT = [
   { x: 15, y: 55, z: 18, color: '#38bdf8' },
@@ -105,13 +107,25 @@ const ORGAN_MAP_HUMAN_LAYOUT = {
   'all-after-death': { x: 74, y: 40, z: 66 },
 }
 
-function buildHumanOrganZones() {
-  return ORGANS.map((organ, index) => ({
-    ...ORGAN_MAP_BASE_LAYOUT[index % ORGAN_MAP_BASE_LAYOUT.length],
-    ...(ORGAN_MAP_HUMAN_LAYOUT[organ.id] || {}),
-    id: organ.id,
-    icon: organ.emoji,
-  }))
+// stackAsHuman=false -> bố cục rải rác 3D gốc (ORGAN_MAP_BASE_LAYOUT);
+// stackAsHuman=true -> chồng theo cột cơ thể (ORGAN_MAP_HUMAN_LAYOUT đè lên).
+// Kèm title/subtitle theo ngôn ngữ để hiện caption khi user bấm chọn.
+function buildOrganZones(stackAsHuman, isEn) {
+  return ORGANS.map((organ, index) => {
+    const layout = stackAsHuman
+      ? { ...ORGAN_MAP_BASE_LAYOUT[index % ORGAN_MAP_BASE_LAYOUT.length], ...(ORGAN_MAP_HUMAN_LAYOUT[organ.id] || {}) }
+      : ORGAN_MAP_BASE_LAYOUT[index % ORGAN_MAP_BASE_LAYOUT.length]
+    const label = isEn ? organ.en : organ.vi
+    return {
+      ...layout,
+      id: organ.id,
+      icon: organ.emoji,
+      title: label,
+      subtitle: isEn
+        ? `Focus the organ map on ${lowerFirst(label)}.`
+        : `Tập trung bản đồ vào ${lowerFirst(label)}.`,
+    }
+  })
 }
 
 function OrganMapPath({ from, to }) {
@@ -134,16 +148,31 @@ function OrganMapPath({ from, to }) {
   )
 }
 
-function OrganZoneMap() {
+function OrganZoneMap({ language }) {
+  const isEn = language === 'en'
   const [mapTilt, setMapTilt] = useState({ x: 58, y: -18 })
-  const zones = buildHumanOrganZones()
+  // Mặc định giữ đúng hành vi cũ (mở đầu ở mode "chồng theo cột cơ thể").
+  // KHÔNG có nút toggle riêng — mỗi lần user bấm vào 1 nội tạng, mode tự
+  // đảo ngược (rải rác 3D <-> chồng theo cột cơ thể) NGAY trong lúc đó.
+  const [stackAsHuman, setStackAsHuman] = useState(true)
+  const [selectedOrganId, setSelectedOrganId] = useState(null)
+
+  const zones = buildOrganZones(stackAsHuman, isEn)
   const paths = zones.slice(0, -1).map((zone, index) => ({ from: zone, to: zones[index + 1] }))
+  const selectedZone = zones.find((zone) => zone.id === selectedOrganId) || null
 
   const handlePointerMove = (event) => {
     const rect = event.currentTarget.getBoundingClientRect()
     const px = (event.clientX - rect.left) / rect.width - 0.5
     const py = (event.clientY - rect.top) / rect.height - 0.5
     setMapTilt({ x: 58 - py * 10, y: -18 + px * 14 })
+  }
+
+  // Bấm 1 nội tạng: focus/ghi caption đúng nội tạng đó + tự đổi mode bố cục
+  // ngay lập tức (không chờ nút toggle nào khác).
+  const handleZoneClick = (zoneId) => {
+    setSelectedOrganId(zoneId)
+    setStackAsHuman((prev) => !prev)
   }
 
   return (
@@ -162,22 +191,48 @@ function OrganZoneMap() {
           style={{ transform: 'translateZ(-18px)' }}
         />
         {paths.map((path) => <OrganMapPath key={`${path.from.id}-${path.to.id}`} {...path} />)}
-        {zones.map((zone) => (
-          <div
-            key={zone.id}
-            className="absolute grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-3xl text-3xl text-white shadow-2xl sm:h-[88px] sm:w-[88px]"
-            style={{
-              left: `${zone.x}%`,
-              top: `${zone.y}%`,
-              transform: `translate(-50%, -50%) translateZ(${zone.z}px)`,
-              border: '1px solid rgba(255,255,255,0.35)',
-              background: `linear-gradient(145deg, ${zone.color}33, rgba(15,23,42,0.84))`,
-              boxShadow: `0 18px 45px ${zone.color}55`,
-            }}
-          >
-            <span style={{ transform: `rotateZ(${-mapTilt.y}deg) rotateX(${-mapTilt.x}deg)` }}>{zone.icon}</span>
-          </div>
-        ))}
+        {zones.map((zone) => {
+          const isSelected = selectedZone?.id === zone.id
+          return (
+            <button
+              key={zone.id}
+              type="button"
+              onClick={() => handleZoneClick(zone.id)}
+              aria-label={zone.title}
+              aria-pressed={isSelected}
+              className="absolute grid h-[74px] w-[74px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-3xl p-0 text-3xl leading-none text-white shadow-2xl transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 cursor-pointer sm:h-[88px] sm:w-[88px]"
+              style={{
+                left: `${zone.x}%`,
+                top: `${zone.y}%`,
+                transform: `translate(-50%, -50%) translateZ(${zone.z}px)`,
+                border: isSelected ? `3px solid ${zone.color}` : '1px solid rgba(255,255,255,0.35)',
+                background: `linear-gradient(145deg, ${zone.color}33, rgba(15,23,42,0.84))`,
+                boxShadow: isSelected ? `0 0 0 4px ${zone.color}55, 0 18px 45px ${zone.color}88` : `0 18px 45px ${zone.color}55`,
+              }}
+            >
+              <span style={{ transform: `rotateZ(${-mapTilt.y}deg) rotateX(${-mapTilt.x}deg)` }}>{zone.icon}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Caption nội tạng đang được focus — hiện ngay khi user bấm chọn */}
+      <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 sm:inset-x-4 sm:bottom-4">
+        <div className="pointer-events-auto rounded-2xl border border-cyan-400/25 bg-slate-950/80 px-4 py-3 shadow-xl backdrop-blur">
+          {selectedZone ? (
+            <div className="flex items-center gap-3">
+              <span className="shrink-0 text-2xl sm:text-3xl">{selectedZone.icon}</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold text-white sm:text-base">{selectedZone.title}</p>
+                <p className="truncate text-[11px] text-cyan-200/80 sm:text-xs">{selectedZone.subtitle}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-[11px] text-cyan-200/70 sm:text-xs">
+              {isEn ? '👆 Tap an organ above to focus & see details' : '👆 Bấm vào 1 nội tạng phía trên để focus & xem chi tiết'}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -713,7 +768,7 @@ export default function LandingPageZeroToForever({
             <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
               {/* Trái: bản đồ nội tạng */}
               <div className="relative">
-                <OrganZoneMap />
+                <OrganZoneMap language={language} />
               </div>
 
               {/* Phải: khối graphic cũ — infinity svg + astronaut */}
