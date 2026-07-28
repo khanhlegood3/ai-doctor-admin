@@ -264,7 +264,9 @@ function OrganZoneMap({ language }) {
           onClick={() => setOrganPopupOpen(false)}
         >
           <div
-            className="relative w-full max-w-md rounded-2xl border border-cyan-400/20 bg-[#0f172a] p-4 shadow-2xl"
+            className={`relative max-h-[85vh] w-full overflow-y-auto rounded-2xl border border-cyan-400/20 bg-[#0f172a] p-4 shadow-2xl ${
+              selectedZone.id === 'all-after-death' ? 'max-w-xl' : 'max-w-md'
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
             <HeroPopupCornerCloseButtons
@@ -277,7 +279,20 @@ function OrganZoneMap({ language }) {
               <h3 className="mt-2 text-lg font-extrabold text-white">{selectedZone.title}</h3>
               <p className="mt-1 text-sm leading-6 text-cyan-200/80">{selectedZone.subtitle}</p>
             </div>
-            {selectedOrganAnnotationId ? (
+            {selectedZone.id === 'all-after-death' ? (
+              // Cùng popup với thẻ Cấp 0 "Zero" của trang Anh Hùng Hiến Tặng
+              // (DonationHeroPanel.jsx): bản đồ giải phẫu ĐẦY ĐỦ, không focus
+              // riêng 1 bộ phận nào — vì lựa chọn này đại diện cho TẤT CẢ nội
+              // tạng, nên cho xem hết mọi điểm chú thích trên cơ thể.
+              <>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                  <AnatomyHoverOverlay />
+                </div>
+                <p className="mt-2 px-1 text-center text-[10px] text-gray-400">
+                  {isEn ? 'Tap each annotation point to see details' : 'Bấm vào từng điểm chú thích để xem chi tiết'}
+                </p>
+              </>
+            ) : selectedOrganAnnotationId ? (
               <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
                 <AnatomyHoverOverlay focusAnnotationId={selectedOrganAnnotationId} showOnlyFocus />
               </div>
