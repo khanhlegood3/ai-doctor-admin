@@ -666,6 +666,18 @@ export default function LandingPageZeroToForever({
                     loading="lazy"
                     allow="clipboard-write; encrypted-media; picture-in-picture"
                   />
+                  {/* Che badge "Made in Framer" ở góc phải-dưới iframe bằng logo
+                      thật của app (asset local trong repo — không hotlink ngoài
+                      để tránh vỡ ảnh). pointer-events-none để không chặn thao
+                      tác của người dùng với nội dung Framer bên dưới nếu badge
+                      không nằm đúng góc đó ở vài breakpoint. */}
+                  <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 z-20 pointer-events-none">
+                    <img
+                      src={zofoLogo}
+                      alt="Zero to Forever"
+                      className="h-7 sm:h-8 w-auto rounded-md bg-[#0B0F1A]/90 backdrop-blur-sm px-2 py-1 shadow-lg"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -703,9 +715,9 @@ export default function LandingPageZeroToForever({
                     </defs>
                   </svg>
                   <img
-                    alt="Astronaut looking at space"
-                    className="absolute right-10 bottom-0 h-64 object-cover object-top opacity-80"
-                    src="https://images.unsplash.com/photo-1614729939124-03290b5509ce?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80"
+                    alt="Zero to Forever"
+                    className="absolute right-10 bottom-0 h-64 w-auto object-contain object-bottom opacity-90"
+                    src={zofoLogo}
                     style={{
                       maskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
                       WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 100%)',
