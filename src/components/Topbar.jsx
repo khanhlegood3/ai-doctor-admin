@@ -50,23 +50,24 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
       position: 'sticky', top: 0, zIndex: 100,
     }}>
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0, flexShrink: 0 }}>
         <img src={zofoLogo} alt="ZoFo — Zero to Forever Foundation" style={{ height: isMobile ? 28 : 42, width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff', whiteSpace: 'nowrap' }}>
-            ZoFo
-          </div>
-          {/* Tagline dài — ẩn hẳn trên mobile thay vì để nó tự xuống dòng đè lên khối bên phải */}
-          {!isMobile && (
-            <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Zero to Forever Foundation · Become The Hero Within
-            </div>
-          )}
+        <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff', whiteSpace: 'nowrap' }}>
+          ZoFo
         </div>
+        {/* Tagline dài — ẩn hẳn trên mobile thay vì để nó tự xuống dòng đè lên khối bên phải */}
+        {!isMobile && (
+          <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
+            Zero to Forever Foundation · Become The Hero Within
+          </div>
+        )}
       </div>
 
-      {/* Right controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      {/* Right controls — luôn canh phải; flexBasis 100% khi wrap xuống dòng
+          riêng trên mobile để không bị lệch trái (space-between chỉ tự canh
+          phải khi CÒN chỗ chung dòng với khối Logo, nếu bị đẩy xuống dòng
+          riêng thì phải tự ép justify-content ngay trên chính khối này). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end', flex: isMobile ? '1 1 100%' : '0 1 auto' }}>
         {/* Live agents indicator — trên mobile chỉ còn chấm xanh + số, bỏ nhãn chữ dài để không bị wrap từng chữ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 8px #00e676', flexShrink: 0 }} />

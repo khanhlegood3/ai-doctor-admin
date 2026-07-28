@@ -655,13 +655,13 @@ export default function UserProfilePanel() {
   }
 
   return (
-    <div className="animate-fade" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, color: text }}>
+    <div className="animate-fade px-3 py-4 sm:px-6 sm:py-6" style={{ display: 'flex', flexDirection: 'column', gap: 20, color: text }}>
       <div style={{ borderRadius: 24, overflow: 'hidden', border: `1px solid ${border}`, background: surface, boxShadow: isDark ? '0 24px 70px rgba(0,0,0,0.35)' : '0 24px 70px rgba(35,45,80,0.08)' }}>
         {/* Header */}
-        <div style={{ padding: '24px 28px', background: providerMeta.gradient, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div className="px-4 py-5 sm:px-7 sm:py-6" style={{ background: providerMeta.gradient, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.78)', fontFamily: 'var(--font-mono)' }}>{vi ? 'Tài khoản cá nhân' : 'User account'}</div>
-            <h2 style={{ margin: '6px 0 4px', fontSize: 28, fontWeight: 900, color: '#fff' }}>{t('profile')}</h2>
+            <h2 style={{ margin: '6px 0 4px', fontSize: 'clamp(20px, 6vw, 28px)', fontWeight: 900, color: '#fff' }}>{t('profile')}</h2>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>{vi ? `Đồng bộ hồ sơ từ ${providerMeta.label}, tùy chỉnh avatar và thông tin hiển thị.` : `Sync from ${providerMeta.label}, customize your avatar and display information.`}</div>
             {user?.upgradedFromUUID && (
               <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>
@@ -675,7 +675,7 @@ export default function UserProfilePanel() {
           </div>
         </div>
 
-        <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'minmax(260px, 360px) 1fr', gap: 22 }}>
+        <div className="grid grid-cols-1 gap-4 p-4 sm:gap-[22px] sm:p-6 md:grid-cols-[minmax(260px,360px)_1fr]">
           {/* Avatar column */}
           <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
             <div style={{ textAlign: 'center' }}>
@@ -918,7 +918,7 @@ export default function UserProfilePanel() {
           }}
         />
       )}
-      <style>{`@keyframes profile-uuid-avatar-float { 0%, 100% { transform: rotateY(-18deg) translateY(0); } 50% { transform: rotateY(18deg) translateY(-8px); } } @media (max-width: 900px) { .animate-fade > div > div:nth-child(2) { grid-template-columns: 1fr !important; } }`}</style>
+      <style>{`@keyframes profile-uuid-avatar-float { 0%, 100% { transform: rotateY(-18deg) translateY(0); } 50% { transform: rotateY(18deg) translateY(-8px); } }`}</style>
       {/* Profile banner image */}
       <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${border}` }}>
         <img
@@ -1077,16 +1077,16 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
   const createdTime = user.createdAt ? new Date(user.createdAt).toLocaleTimeString(vi ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : ''
 
   return (
-    <div className="animate-fade" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, color: text }}>
+    <div className="animate-fade px-3 py-4 sm:px-6 sm:py-6" style={{ display: 'flex', flexDirection: 'column', gap: 20, color: text }}>
       {/* Single unified Guest Profile card: identity, editable info, UUID, and upgrade — all in one place */}
       <div style={{ borderRadius: 24, overflow: 'hidden', border: `1px solid ${border}`, background: surface, boxShadow: isDark ? '0 24px 70px rgba(0,0,0,0.35)' : '0 24px 70px rgba(35,45,80,0.08)' }}>
         {/* Header */}
-        <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg,#1a6640,#2d8a5e,#00b8cc)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div className="px-4 py-5 sm:px-7 sm:py-6" style={{ background: 'linear-gradient(135deg,#1a6640,#2d8a5e,#00b8cc)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--font-mono)' }}>
               {vi ? 'Hồ sơ ẩn danh (Khách)' : 'Anonymous Profile (Guest)'}
             </div>
-            <h2 style={{ margin: '6px 0 4px', fontSize: 26, fontWeight: 900, color: '#fff' }}>{name || user.name}</h2>
+            <h2 style={{ margin: '6px 0 4px', fontSize: 'clamp(19px, 6vw, 26px)', fontWeight: 900, color: '#fff', wordBreak: 'break-word' }}>{name || user.name}</h2>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>
               {vi ? 'Bạn có thể cập nhật thông tin này dần và tiến trình được lưu trên thiết bị này.' : 'You can fill this in gradually — your progress is saved on this device.'}
             </div>
@@ -1109,7 +1109,7 @@ function AnonymousProfilePanel({ user, isDark, vi, lang, t, loginWithGoogle, log
           </div>
         </div>
 
-        <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 22 }}>
+        <div className="grid grid-cols-1 gap-4 p-4 sm:gap-[22px] sm:p-6 md:grid-cols-[minmax(260px,340px)_1fr]">
           {/* Left column: avatar + UUID + level progress */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ border: `1px solid ${border}`, borderRadius: 20, padding: 20, background: surface2 }}>
