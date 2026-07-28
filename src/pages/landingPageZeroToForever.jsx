@@ -509,9 +509,9 @@ export default function LandingPageZeroToForever({
   // Feature Pillars — cùng 1 trò chơi (/games/bao-ve-co-the-auto.html) mở khi
   // bấm Cấp 1 "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel).
   const [showGamePopup, setShowGamePopup] = useState(false)
-  // Popup Captain Khánh Game — mở khi bấm logo che badge Framer ở Hero iframe.
-  // Cùng nội dung/kiểu popup với thẻ Cấp 2 "Explorer" ở trang "Anh Hùng Hiến
-  // Tặng" (DonationHeroPanel.jsx: showCaptainKhanhPreview, iframe
+  // Popup Super Hero Captain  Game — mở khi bấm logo che badge Framer ở Hero
+  // iframe. Cùng nội dung/kiểu popup với thẻ Cấp 2 "Explorer" ở trang "Anh
+  // Hùng Hiến Tặng" (DonationHeroPanel.jsx: showCaptainKhanhPreview, iframe
   // captain-khanh-game.vercel.app).
   const [showCaptainKhanhGamePopup, setShowCaptainKhanhGamePopup] = useState(false)
   // Domain hiện tại quyết định 1 lần khi mount — không đổi trong lúc dùng app.
@@ -675,27 +675,27 @@ export default function LandingPageZeroToForever({
                       thật của app (asset local trong repo — không hotlink ngoài
                       để tránh vỡ ảnh). Đặt ĐÚNG góc phải-dưới (bottom-0 right-0,
                       không lệch % nữa). Logo bấm được (onClick = mở popup
-                      Captain Khánh Game, giống thẻ Cấp 2 "Explorer" ở trang
-                      "Anh Hùng Hiến Tặng") — nên KHÔNG còn pointer-events-none
-                      trên wrapper nữa. */}
+                      Super Hero Captain  Game, giống thẻ Cấp 2 "Explorer" ở
+                      trang "Anh Hùng Hiến Tặng") — nên KHÔNG còn
+                      pointer-events-none trên wrapper nữa. */}
                   <div className="absolute bottom-0 right-0 z-20 p-1.5 sm:p-2">
-                    {/* Box nền được kéo rộng theo chiều ngang (scale-x-[1.3333] =
-                        còn 2/3 so với mức gấp đôi trước đó, origin bên phải nên
-                        chỉ "nở" sang trái, mép phải-dưới vẫn neo cố định đúng góc
-                        iframe) để che phần lớn chữ "Made in Framer" trên mobile.
-                        Ảnh logo bên trong được scale-x-[0.75] ngược lại để không
-                        bị kéo méo hình. Trên lg (laptop) giữ nguyên như cũ vì đã
-                        OK. */}
+                    {/* Box nền được kéo rộng theo chiều ngang (scale-x-[1.4667] =
+                        mức 2/3 trước đó × 1.1, tức tăng thêm 10%; origin bên
+                        phải nên chỉ "nở" sang trái, mép phải-dưới vẫn neo cố
+                        định đúng góc iframe) để che phần lớn chữ "Made in
+                        Framer" trên mobile. Ảnh logo bên trong được
+                        scale-x-[0.6818] ngược lại để không bị kéo méo hình.
+                        Trên lg (laptop) giữ nguyên như cũ vì đã OK. */}
                     <button
                       type="button"
                       onClick={() => setShowCaptainKhanhGamePopup(true)}
-                      aria-label={language === 'en' ? 'Open Captain Khánh Game' : 'Mở Captain Khánh Game'}
-                      className="origin-right scale-x-[1.3333] lg:scale-x-100 rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl cursor-pointer block"
+                      aria-label={language === 'en' ? 'Open Super Hero Captain  Game' : 'Mở Super Hero Captain  Game'}
+                      className="origin-right scale-x-[1.4667] lg:scale-x-100 rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl cursor-pointer block"
                     >
                       <img
                         src={zofoLogo}
                         alt="Zero to Forever"
-                        className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto object-contain origin-right scale-x-[0.75] lg:scale-x-100"
+                        className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto object-contain origin-right scale-x-[0.6818] lg:scale-x-100"
                       />
                     </button>
                   </div>
@@ -1626,9 +1626,9 @@ export default function LandingPageZeroToForever({
         </div>
       )}
 
-      {/* ── Popup: Captain Khánh Game — mở khi bấm logo che badge Framer ở
-          Hero iframe. Cùng trò chơi + kiểu popup với thẻ Cấp 2 "Explorer" ở
-          trang "Anh Hùng Hiến Tặng" (DonationHeroPanel.jsx). ── */}
+      {/* ── Popup: Super Hero Captain  Game — mở khi bấm logo che badge
+          Framer ở Hero iframe. Cùng trò chơi + kiểu popup với thẻ Cấp 2
+          "Explorer" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel.jsx). ── */}
       {showCaptainKhanhGamePopup && (
         <div
           onClick={() => setShowCaptainKhanhGamePopup(false)}
@@ -1660,7 +1660,7 @@ export default function LandingPageZeroToForever({
             }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>
-                  Captain Khánh Game
+                  Super Hero Captain  Game
                 </div>
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 3 }}>
                   {language === 'en' ? 'Level 2 · Explorer' : 'Cấp 2 · Explorer'}
@@ -1684,7 +1684,7 @@ export default function LandingPageZeroToForever({
               }}>
                 <iframe
                   src="https://captain-khanh-game.vercel.app/"
-                  title="Captain Khánh Game"
+                  title="Super Hero Captain  Game"
                   className="h-[min(62vh,520px)] w-full"
                   style={{ display: 'block', border: 'none' }}
                   loading="lazy"
