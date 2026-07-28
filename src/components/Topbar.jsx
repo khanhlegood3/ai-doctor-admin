@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { useNotifications } from '../lib/notifications.js'
@@ -11,6 +11,24 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
   const [showNotifications, setShowNotifications] = useState(false)
   const { notifications, unreadCount, markAllRead } = useNotifications(user)
   const isDark = theme === 'dark'
+
+  // Topbar vốn không có breakpoint nào (flex row cố định, không wrap) nên
+  // trên điện thoại: tagline dài "Zero to Forever Foundation · Become The
+  // Hero Within" tự xuống dòng, và span "4 AGENT ĐANG HOẠT ĐỘNG" cũng xuống
+  // dòng theo từng chữ — hai khối đè lên nhau ở góc trái. Dùng matchMedia để
+  // rút gọn nội dung trên màn hình hẹp thay vì để trình duyệt tự wrap lung tung.
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 640px)').matches : false
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = (e) => setIsMobile(e.matches)
+    mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange)
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange)
+    }
+  }, [])
 
   const headerBg = isDark ? 'rgba(4,6,15,0.92)' : 'rgba(255,255,255,0.92)'
   const borderColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)'
@@ -26,45 +44,51 @@ export default function Topbar({ activePanel, onNavigateProfile, onNavigateAdmin
   return (
     <header style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '10px 24px', borderBottom: `1px solid ${borderColor}`,
+      flexWrap: 'wrap', rowGap: 8, columnGap: 8,
+      padding: isMobile ? '8px 12px' : '10px 24px', borderBottom: `1px solid ${borderColor}`,
       background: headerBg, backdropFilter: 'blur(12px)',
       position: 'sticky', top: 0, zIndex: 100,
     }}>
       {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <img src={zofoLogo} alt="ZoFo — Zero to Forever Foundation" style={{ height: 42, width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
-        <div>
-          <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, minWidth: 0 }}>
+        <img src={zofoLogo} alt="ZoFo — Zero to Forever Foundation" style={{ height: isMobile ? 28 : 42, width: 'auto', objectFit: 'contain', flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, letterSpacing: '0.08em', color: '#00e5ff', whiteSpace: 'nowrap' }}>
             ZoFo
           </div>
-          <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase' }}>
-            Zero to Forever Foundation · Become The Hero Within
-          </div>
+          {/* Tagline dài — ẩn hẳn trên mobile thay vì để nó tự xuống dòng đè lên khối bên phải */}
+          {!isMobile && (
+            <div style={{ fontSize: 10, color: text3, letterSpacing: '0.12em', fontFamily: 'monospace', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Zero to Forever Foundation · Become The Hero Within
+            </div>
+          )}
         </div>
       </div>
 
       {/* Right controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        {/* Live agents indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 8px #00e676' }} />
-          <span style={{ fontSize: 11, color: '#00e676', fontFamily: 'monospace' }}>4 {t('agentsActive')}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {/* Live agents indicator — trên mobile chỉ còn chấm xanh + số, bỏ nhãn chữ dài để không bị wrap từng chữ */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 8px #00e676', flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: '#00e676', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+            {isMobile ? '4' : `4 ${t('agentsActive')}`}
+          </span>
         </div>
         {/* Guest badge */}
         {user?.isAnonymous && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8,
             background: 'rgba(45,138,94,0.15)', border: '1px solid rgba(45,138,94,0.35)', color: '#5ef5a0',
-            fontSize: 11, fontWeight: 700,
+            fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
           }}>
-            🌿 {lang === 'vi' ? 'Đang duyệt với tư cách Guest' : 'Browsing as Guest'}
+            🌿 {isMobile ? 'Guest' : (lang === 'vi' ? 'Đang duyệt với tư cách Guest' : 'Browsing as Guest')}
           </div>
         )}
 
         {/* Lang toggle */}
         <button onClick={() => setLang(l => l === 'vi' ? 'en' : 'vi')} style={{
           padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-          border: `1px solid ${borderColor}`, background: 'none', color: textColor,
+          border: `1px solid ${borderColor}`, background: 'none', color: textColor, flexShrink: 0, whiteSpace: 'nowrap',
         }}>
           {lang === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}
         </button>
