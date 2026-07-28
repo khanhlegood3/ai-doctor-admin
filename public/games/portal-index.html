@@ -798,6 +798,30 @@
     }
   }
 
+  // Ghi MỌI lượt chơi (thắng/thua, kể cả điểm 0) lên api/game-play-log.js —
+  // fire-and-forget, không chặn UI, không có điều kiện lọc nào (khác hẳn
+  // maybeRegisterAffiliateReferral chỉ chạy khi thắng).
+  async function logGamePlayToServer(entry){
+    try{
+      await fetch('/api/game-play-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uuid: ensureOwnUUID(),
+          name: entry.playerName,
+          gameId: entry.gameId,
+          gameTitle: entry.gameTitle,
+          status: entry.status,
+          score: entry.score,
+          timeSec: entry.timeSec,
+          meta: entry.meta
+        })
+      });
+    } catch(e){
+      console.warn('[game-play-log] Lỗi mạng khi ghi log lượt chơi:', e);
+    }
+  }
+
   let affiliateAttemptedThisSession = false;
   // Đăng ký quan hệ referral khi thắng game — gọi thẳng /api/affiliate-referral
   // vì giờ api/ và public/games cùng 1 project/origin. Bổ sung cho (không thay
@@ -1751,6 +1775,11 @@
       const list = loadLB();
       list.push(entry);
       saveLB(list);
+
+      // Ghi lại MỌI lượt chơi lên server (thắng lẫn thua, kể cả điểm 0) —
+      // khác với leaderboard/affiliate ở dưới (chỉ xử lý khi thắng), việc
+      // ghi log này chạy vô điều kiện, không phụ thuộc entry.status.
+      logGamePlayToServer(entry);
 
       document.getElementById('toastMedal').textContent = entry.status === 'win' ? '🏆' : '💀';
       document.getElementById('toastTitle').textContent = entry.status === 'win' ? 'Chiến thắng! Đã ghi điểm vào Leader Board' : 'Thất bại — đã ghi nhận thời gian trụ vững';
