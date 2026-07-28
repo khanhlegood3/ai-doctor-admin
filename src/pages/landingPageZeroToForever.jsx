@@ -669,13 +669,15 @@ export default function LandingPageZeroToForever({
                   {/* Che badge "Made in Framer" ở góc phải-dưới iframe bằng logo
                       thật của app (asset local trong repo — không hotlink ngoài
                       để tránh vỡ ảnh). pointer-events-none để không chặn thao
-                      tác của người dùng với nội dung Framer bên dưới nếu badge
-                      không nằm đúng góc đó ở vài breakpoint. */}
-                  <div className="absolute bottom-1 right-[28%] z-20 pointer-events-none">
+                      tác của người dùng với nội dung Framer bên dưới. Đặt ĐÚNG
+                      góc phải-dưới (bottom-0 right-0, không lệch % nữa) và
+                      logo to hơn hẳn kèm nền đặc để phủ kín toàn bộ badge ở
+                      mọi breakpoint. */}
+                  <div className="absolute bottom-0 right-0 z-20 pointer-events-none p-1.5 sm:p-2">
                     <img
                       src={zofoLogo}
                       alt="Zero to Forever"
-                      className="h-[73px] sm:h-[93px] w-auto rounded-md bg-[#0B0F1A]/90 backdrop-blur-sm px-1.5 py-1 shadow-lg"
+                      className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl"
                     />
                   </div>
                 </div>
