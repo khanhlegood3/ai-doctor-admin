@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/wan-image-to-video.js": {
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
     {
       "source": "/r/:code",

@@ -91,7 +91,16 @@ Bộ 2 file này bị gỡ khỏi luồng chạy chính vào 2026-07-28 vì repo
 5. Trong `src/context/AppContext.jsx`, thêm lại 2 dòng dịch:
    - VI: `admin_myImageToVideo: 'Ảnh Sang Video Của Tôi',`
    - EN: `admin_myImageToVideo: 'My Image to Video',`
-6. Kiểm tra lại quota 12 function của Vercel trước khi thêm lại (đang đúng
+6. Trong `vercel.json`, thêm lại config `maxDuration` cho function này (đã gỡ
+   khỏi `vercel.json` cùng lúc archive — thiếu bước này thì build sẽ lỗi
+   "unmatched function pattern" nếu quên gỡ, hoặc video generation bị timeout
+   sớm nếu quên thêm lại khi khôi phục):
+   ```json
+   "functions": {
+     "api/wan-image-to-video.js": { "maxDuration": 60 }
+   }
+   ```
+7. Kiểm tra lại quota 12 function của Vercel trước khi thêm lại (đang đúng
    12/12 sau khi gỡ file này — cần gỡ bớt 1 function khác nếu muốn khôi phục
    tính năng này).
 
