@@ -203,6 +203,11 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
         <span style={{ flex: 1 }}>{t('nav_avatarCreator')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>VRM</span>
       </NavItem>
+      <NavItem active={active === 'comicHeroGame'} onClick={() => handleNavigate('comicHeroGame')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>📖</span>
+        <span style={{ flex: 1 }}>{t('nav_comicHeroGame')}</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>NEW</span>
+      </NavItem>
       <SectionLabel color={text3} style={{ marginTop: 16 }}>{t('section_patientsJourney')}</SectionLabel>
       {PATIENT_JOURNEY_STEPS.map(s => (
         <NavItem key={s.id} active={active === s.id} onClick={() => handleNavigate(s.id)} text={text} text2={text2} isDark={isDark}>
