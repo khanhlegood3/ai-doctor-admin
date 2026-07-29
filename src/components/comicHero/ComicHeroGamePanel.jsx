@@ -2,7 +2,7 @@
 // Chuyển đổi từ infinite-heroes/App.tsx — tính năng "Tạo Game bằng Avatar
 // của Tôi": tạo 1 cuốn truyện tranh (comic) tương tác, cá nhân hoá bằng
 // avatar/ảnh của người dùng, dùng Gemini (qua proxy server, xem
-// geminiComicClient.js + api/gemini-comic-proxy.js).
+// geminiComicClient.js + api/groq-proxy.js, nhánh provider: 'gemini-comic').
 import React, { useState, useRef, useEffect } from 'react'
 import jsPDF from 'jspdf'
 import { useAuth } from '../../context/AuthContext'

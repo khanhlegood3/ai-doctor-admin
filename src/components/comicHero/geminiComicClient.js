@@ -2,18 +2,20 @@
 // Client cho tính năng "Tạo Game bằng Avatar của Tôi". Bản gốc
 // (infinite-heroes) gọi thẳng @google/genai từ trình duyệt với API key
 // nhúng vào bundle — KHÔNG an toàn để dùng trong app production này. Ở đây
-// ta gọi qua Serverless Function /api/gemini-comic-proxy.js (giữ API key
-// trên server), theo đúng pattern đã có ở api/anthropic-proxy.js.
+// ta gọi qua Serverless Function api/groq-proxy.js (giữ API key trên
+// server) — DÙNG CHUNG endpoint với Groq (không tạo file /api mới) vì
+// Vercel giới hạn 12 Serverless Functions; endpoint định tuyến dựa vào
+// field `provider: 'gemini-comic'` trong body (xem api/groq-proxy.js).
 
 const MODEL_V3 = 'gemini-3-pro-image-preview'
 export const MODEL_IMAGE_GEN_NAME = MODEL_V3
 export const MODEL_TEXT_NAME = MODEL_V3
 
 async function callGeminiProxy(payload) {
-  const res = await fetch('/api/gemini-comic-proxy', {
+  const res = await fetch('/api/groq-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ provider: 'gemini-comic', ...payload }),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {

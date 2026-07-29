@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
+import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -48,6 +49,89 @@ function inbodyOcrDevMiddleware(env) {
   }
 }
 
+// Plugin dev-server: chạy tính năng "Tạo Game bằng Avatar của Tôi" (Comic
+// Hero Game, chuyển đổi từ infinite-heroes.zip) ngay trong `npm run dev`.
+// Tính năng này DÙNG CHUNG endpoint /api/groq-proxy với Groq (không tạo
+// file /api mới vì Vercel giới hạn 12 Serverless Functions — xem
+// api/groq-proxy.js). Middleware này bắt path /api/groq-proxy, đọc body 1
+// lần để kiểm tra field `provider`:
+//   - provider === 'gemini-comic' → xử lý cục bộ bằng Gemini thật.
+//   - ngược lại (Groq bình thường) → tự forward nguyên văn body đã đọc sang
+//     backend ai-doctor-engine.vercel.app (vì stream request đã bị đọc hết
+//     nên không thể để proxy /api chung ở dưới xử lý tiếp — phải tự forward
+//     thủ công ở đây để giữ nguyên hành vi Groq cũ trong dev).
+function geminiComicDevMiddleware(env) {
+  return {
+    name: 'gemini-comic-dev-middleware',
+    configureServer(server) {
+      server.middlewares.use('/api/groq-proxy', (req, res, next) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200
+          res.end()
+          return
+        }
+        if (req.method !== 'POST') {
+          next()
+          return
+        }
+        let rawBody = ''
+        req.on('data', (chunk) => { rawBody += chunk })
+        req.on('end', async () => {
+          let parsed
+          try {
+            parsed = rawBody ? JSON.parse(rawBody) : {}
+          } catch {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+            return
+          }
+
+          if (parsed.provider === 'gemini-comic') {
+            try {
+              const payload = await runGeminiComicGenerate({
+                apiKey: env.GEMINI_API_KEY,
+                action: parsed.action,
+                model: parsed.model,
+                contents: parsed.contents,
+                config: parsed.config,
+              })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[gemini-comic-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Gemini proxy error' }))
+            }
+            return
+          }
+
+          // Groq bình thường: forward y nguyên sang backend thật (dev-server
+          // proxy chung không dùng được nữa vì stream đã bị đọc ở trên).
+          try {
+            const upstream = await fetch('https://ai-doctor-engine.vercel.app/api/groq-proxy', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: rawBody,
+            })
+            const text = await upstream.text()
+            res.setHeader('Content-Type', 'application/json')
+            res.statusCode = upstream.status
+            res.end(text)
+          } catch (error) {
+            console.error('[groq-proxy-dev-passthrough]', error?.message || error)
+            res.setHeader('Content-Type', 'application/json')
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: error?.message || 'Groq passthrough error' }))
+          }
+        })
+      })
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // loadEnv với prefix rỗng để đọc được ANTHROPIC_API_KEY (không có tiền tố
   // VITE_) từ file .env — biến này KHÔNG được đưa vào import.meta.env / bundle
@@ -55,7 +139,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), inbodyOcrDevMiddleware(env)],
+    plugins: [react(), inbodyOcrDevMiddleware(env), geminiComicDevMiddleware(env)],
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
     build: {
