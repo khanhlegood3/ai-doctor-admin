@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+/* src/components/comicHero/comicHero.css
+   Chuyển đổi từ infinite-heroes/index.html <style>. Toàn bộ selector được
+   scope trong .comic-hero-root để KHÔNG ảnh hưởng phần còn lại của app
+   (bản gốc dùng body::before / body toàn cục — không phù hợp khi nhúng vào
+   1 panel bên trong app lớn hơn). */
+
+.comic-hero-root {
+  --page-height: min(75vh, 750px);
+  --page-width: calc(var(--page-height) * 0.666);
+  position: relative;
+  min-height: 100vh;
+  font-family: 'Comic Neue', sans-serif;
+  isolation: isolate;
+}
+
+.comic-hero-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: #222;
+  background-image: radial-gradient(#333 15%, transparent 16%), radial-gradient(#333 15%, transparent 16%);
+  background-size: 60px 60px;
+  background-position: 0 0, 30px 30px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.comic-hero-root .font-comic { font-family: 'Bangers', cursive; }
+
+.comic-hero-root .comic-scene {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 0;
+  perspective: 3500px;
+  min-width: 100%;
+}
+
+.comic-hero-root .book {
+  position: relative;
+  width: var(--page-width);
+  height: var(--page-height);
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+.comic-hero-root .book.opened { transform: translateX(25%); }
+@media (min-width: 1000px) {
+  .comic-hero-root .book.opened { transform: translateX(calc(var(--page-width) / 2)); }
+}
+
+.comic-hero-root .paper {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  cursor: pointer;
+}
+
+.comic-hero-root .paper.flipped { transform: rotateY(-180deg); }
+
+.comic-hero-root .front,
+.comic-hero-root .back {
+  position: absolute;
+  width: 100%; height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  background-color: #0a0a0a;
+  transform-style: preserve-3d;
+}
+
+.comic-hero-root .front {
+  padding-left: 6px;
+  box-shadow: inset 25px 0 40px -20px rgba(0,0,0,0.6);
+}
+
+.comic-hero-root .back {
+  transform: rotateY(180deg);
+  padding-right: 6px;
+  box-shadow: inset -25px 0 40px -20px rgba(0,0,0,0.6);
+}
+
+.comic-hero-root .gloss {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.25) 45%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.25) 55%, transparent 65%),
+    linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, transparent 15%);
+  pointer-events: none;
+  z-index: 30;
+  mix-blend-mode: screen;
+  opacity: 0.8;
+}
+
+.comic-hero-root .panel-container {
+  width: 100%; height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.comic-hero-root .panel-image {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+  background-color: #fff;
+}
+
+.comic-hero-root .paper:first-child {
+  box-shadow: 25px 25px 50px rgba(0,0,0,0.8);
+}
+.comic-hero-root .paper:first-child .front {
+  padding-left: 0;
+  box-shadow: none;
+}
+.comic-hero-root .paper:first-child .front::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 14px;
+  background: linear-gradient(to right, #0a0a0a, #333 20%, #666 30%, #333 50%, #0a0a0a 100%);
+  border-right: 1px solid #000;
+  z-index: 25;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.5);
+}
+.comic-hero-root .paper:first-child .front::after {
+  content: ''; position: absolute; left: 14px; top: 0; bottom: 0; width: 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.7), transparent);
+  z-index: 25;
+}
+.comic-hero-root .paper:first-child .front .panel-container {
+  padding: 0;
+  background-color: #0a0a0a;
+  padding-left: 14px;
+}
+.comic-hero-root .paper:first-child .front .panel-image {
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: #0a0a0a;
+}
+
+.comic-hero-root .comic-btn {
+  font-family: 'Bangers', cursive;
+  letter-spacing: 1.5px;
+  border: 3px solid black;
+  box-shadow: 5px 5px 0px black;
+  transition: all 0.1s ease;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: translateZ(30px);
+}
+.comic-hero-root .comic-btn:hover:not(:disabled) {
+  transform: translateZ(30px) translate(-2px, -2px);
+  box-shadow: 7px 7px 0px black;
+}
+.comic-hero-root .comic-btn:active:not(:disabled) {
+  transform: translateZ(30px) translate(3px, 3px);
+  box-shadow: 2px 2px 0px black;
+}
+.comic-hero-root .comic-btn:disabled {
+  filter: grayscale(80%); opacity: 0.7; cursor: wait;
+}
+
+@keyframes comic-hero-pop {
+  0% { transform: translate(-50%, -50%) scale(0.2) rotate(var(--rot)); opacity: 0; }
+  20% { transform: translate(-50%, -50%) scale(1.5) rotate(var(--rot)); opacity: 1; }
+  40% { transform: translate(-50%, -50%) scale(1.0) rotate(var(--rot)); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.1) rotate(var(--rot)); opacity: 0; }
+}
+
+@keyframes comic-hero-knockout-exit {
+  0% { transform: scale(1) rotate(1deg); }
+  15% { transform: scale(1.1) rotate(-5deg); }
+  100% { transform: translateY(-200vh) rotate(1080deg) scale(0.5); opacity: 1; }
+}
+
+@keyframes comic-hero-pow-enter {
+  0% { transform: translate(-50%, -50%) scale(0) rotate(-45deg); opacity: 0; }
+  30% { transform: translate(-50%, -50%) scale(1.5) rotate(10deg); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.8) rotate(0deg); opacity: 0; }
+}
+
+@media (max-width: 768px) {
+  .comic-hero-root {
+    --page-height: min(75vh, 130vw);
+    --page-width: calc(var(--page-height) * 0.666);
+  }
+  .comic-hero-root .comic-scene {
+    perspective: 2000px;
+    align-items: center;
+    padding-top: 0;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+  .comic-hero-root .book.opened { transform: translateX(100%); }
+}
