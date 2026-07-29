@@ -15,6 +15,7 @@ import zofoQRCodeEN from '../assets/landing/KLX12-QR-Code-EN.png'
 import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
+import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
@@ -70,8 +71,11 @@ function getNavItems(t) {
     { key: 'community', label: t.nav.community },
     { key: 'technology', label: t.nav.technology },
     { key: 'partners', label: t.nav.partners },
+    { key: 'products', label: t.nav.products },
   ]
 }
+
+const HEALTH_REMIX_INTRO_VIDEO_ID = 'b00G6_D-yN0'
 
 /* ══════════════════════════════════════════════════════════════════════
  * Organ map visual — phần "vẽ lại nội tạng" của HeroZoneStackPopup
@@ -1673,6 +1677,83 @@ export default function LandingPageZeroToForever({
             onOpenQR={openQRModal}
             title={t.partners.cta.title}
             subtitle={t.partners.cta.subtitle}
+            t={t}
+          />
+        </>
+      )}
+
+      {/* ══════════════════════ SẢN PHẨM CỦA CHÚNG TÔI ══════════════════════ */}
+      {page === 'products' && (
+        <>
+          <PageHero
+            icon={Sparkles}
+            eyebrow={t.products.hero.eyebrow}
+            title={t.products.hero.title}
+            subtitle={t.products.hero.subtitle}
+          />
+
+          {/* Video giới thiệu (YouTube Shorts) */}
+          <section className="container mx-auto max-w-4xl px-4 lg:px-8 py-16">
+            <SectionHeading
+              eyebrow={t.products.video.eyebrow}
+              title={t.products.video.title}
+              subtitle={t.products.video.subtitle}
+            />
+            <div className="max-w-xs sm:max-w-sm mx-auto rounded-3xl overflow-hidden zofo-shadow-soft border border-gray-100 dark:border-white/10 bg-black">
+              <div className="relative w-full" style={{ paddingTop: '177.78%' }}>
+                <iframe
+                  className="absolute inset-0 w-full h-full"
+                  src={`https://www.youtube.com/embed/${HEALTH_REMIX_INTRO_VIDEO_ID}`}
+                  title="Remix the KOL's Health to Mine - Intro"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          </section>
+
+          {/* 4 trụ cột của Remix Sức Khỏe */}
+          <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
+            <SectionHeading eyebrow={t.products.features.eyebrow} title={t.products.features.title} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                { icon: ScanFace, color: 'text-[#4B6BFF]', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                { icon: HeartPulse, color: 'text-[#FF543C]', bg: 'bg-red-50 dark:bg-red-500/10' },
+                { icon: BadgeCheck, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-500/10' },
+                { icon: Coins, color: 'text-[#8B4DFF]', bg: 'bg-purple-50 dark:bg-purple-500/10' },
+              ].map((f, i) => (
+                <div key={i} className="bg-white dark:bg-[#141b2e] rounded-3xl zofo-shadow-soft p-8 flex gap-5">
+                  <div className={`w-14 h-14 rounded-2xl ${f.bg} flex items-center justify-center flex-shrink-0`}>
+                    <f.icon className={`w-7 h-7 ${f.color}`} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-2">{t.products.features.items[i].title}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{t.products.features.items[i].desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Trải nghiệm đầy đủ (đã convert từ health_remix_web3_ecosystem.html
+              sang component React thật: HealthRemixWeb3Ecosystem.jsx) */}
+          <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
+            <SectionHeading
+              eyebrow={t.products.embed.eyebrow}
+              title={t.products.embed.title}
+              subtitle={t.products.embed.subtitle}
+            />
+            <div className="rounded-3xl overflow-hidden zofo-shadow-soft border border-gray-100 dark:border-white/10">
+              <HealthRemixWeb3Ecosystem />
+            </div>
+          </section>
+
+          <CTABand
+            onGetStarted={onGetStarted}
+            onOpenQR={openQRModal}
+            title={t.products.cta.title}
+            subtitle={t.products.cta.subtitle}
             t={t}
           />
         </>

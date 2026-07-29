@@ -14,6 +14,7 @@ export const LANDING_I18N = {
       community: 'Cộng đồng',
       technology: 'Công nghệ',
       partners: 'Đối tác',
+      products: 'Sản phẩm',
       login: 'Đăng nhập',
       join: 'Tham gia ngay',
     },
@@ -297,6 +298,37 @@ export const LANDING_I18N = {
         subtitle: 'Trở thành một phần trong hệ sinh thái vì cộng đồng.',
       },
     },
+    products: {
+      hero: {
+        eyebrow: 'Sản phẩm của chúng tôi',
+        title: "Remix the KOL's Health to Mine",
+        subtitle: 'Đừng chỉ Remix video, hãy Remix chính sức khỏe của bạn. Hệ sinh thái Web3 kết hợp AI Pose Tracking, dữ liệu y tế InBody và Story Protocol để biến hành trình rèn luyện theo KOL yêu thích thành tài sản trí tuệ giá trị.',
+      },
+      video: {
+        eyebrow: 'GIỚI THIỆU',
+        title: 'Xem video giới thiệu nhanh',
+        subtitle: 'Case study: Anh KXL muốn "remix" theo huấn luyện viên GYM KOL yêu thích — không chỉ coaching, mà là sao chép cả lối sống và chỉ số sức khỏe, có bằng chứng blockchain và AI xác thực chất lượng.',
+      },
+      features: {
+        eyebrow: '4 TRỤ CỘT CỦA REMIX SỨC KHỎE',
+        title: 'Từ bản sao kỹ thuật số đến tài sản trí tuệ',
+        items: [
+          { title: 'AI Pose Tracking (Virtual Twin)', desc: 'MediaPipe BlazePose phân tích 33 điểm mốc chuyển động ngay trên trình duyệt, so khớp động tác của bạn với KOL bằng thuật toán Cosine Similarity, độ trễ dưới 70ms.' },
+          { title: 'Chỉ số sức khỏe thực (Clinical Data)', desc: 'Đồng bộ dữ liệu lâm sàng: huyết áp, thành phần cơ thể InBody và hồ sơ y tế để "remix" các chỉ số đời thực, không chỉ hình ảnh hay âm thanh.' },
+          { title: 'Danh tiếng & Huy hiệu Soulbound (SBT)', desc: 'Mỗi cột mốc luyện tập được xác thực và ghi nhận vĩnh viễn bằng huy hiệu Soulbound (SBT/EAS) theo triết lý "Zero to Forever".' },
+          { title: 'Kinh tế Sáng tạo (Story Protocol)', desc: 'KOL quản lý IP và kiếm tiền từ nội dung Remix của học viên thông qua Story Protocol, người dùng thì sở hữu hành trình của chính mình.' },
+        ],
+      },
+      embed: {
+        eyebrow: 'TRẢI NGHIỆM ĐẦY ĐỦ',
+        title: 'Khám phá toàn bộ hệ sinh thái Remix Sức Khỏe',
+        subtitle: 'Cuộn bên trong khung dưới đây để xem đầy đủ 4 giai đoạn: Virtual Twin, Chỉ số thực, Danh tiếng Web3 và Kinh tế sáng tạo.',
+      },
+      cta: {
+        title: 'Sẵn sàng Remix sức khỏe của chính bạn?',
+        subtitle: 'Bắt đầu hành trình cùng KOL yêu thích — từ Virtual Twin đến tài sản trí tuệ của riêng bạn.',
+      },
+    },
     videoModal: {
       title: '🌿 Hồ sơ ẩn danh (UUID) là gì?',
       subtitle: 'Bắt đầu ngay — không cần đăng ký tài khoản',
@@ -321,6 +353,7 @@ export const LANDING_I18N = {
       community: 'Community',
       technology: 'Technology',
       partners: 'Partners',
+      products: 'Our Products',
       login: 'Log In',
       join: 'Join Now',
     },
@@ -602,6 +635,37 @@ export const LANDING_I18N = {
       cta: {
         title: 'Join Zero to Forever in spreading good values',
         subtitle: 'Become part of an ecosystem built for community.',
+      },
+    },
+    products: {
+      hero: {
+        eyebrow: 'Our Products',
+        title: "Remix the KOL's Health to Mine",
+        subtitle: "Don't just remix a video — remix your own health. A Web3 ecosystem combining AI pose tracking, InBody clinical data, and Story Protocol to turn your training journey with your favorite KOL into a valuable intellectual asset.",
+      },
+      video: {
+        eyebrow: 'INTRO',
+        title: 'Watch the quick intro video',
+        subtitle: "Case study: Mr. KXL wants to remix with his favorite GYM KOL — not just coaching, but copying the lifestyle and health metrics themselves, backed by blockchain evidence and AI quality checks.",
+      },
+      features: {
+        eyebrow: 'THE 4 PILLARS OF HEALTH REMIX',
+        title: 'From digital twin to intellectual property',
+        items: [
+          { title: 'AI Pose Tracking (Virtual Twin)', desc: 'MediaPipe BlazePose analyzes 33 motion landmarks right in the browser, matching your movements against the KOL with Cosine Similarity at under 70ms latency.' },
+          { title: 'Real-life Health Metrics (Clinical Data)', desc: 'Syncs clinical data — blood pressure, InBody body composition, and medical records — to remix real-world metrics, not just images or sound.' },
+          { title: 'Reputation & Soulbound Badges (SBT)', desc: 'Every training milestone is verified and permanently recorded as a Soulbound Token (SBT/EAS) badge, following the "Zero to Forever" philosophy.' },
+          { title: 'Creator Economy (Story Protocol)', desc: 'KOLs manage their IP and earn from remixed content through Story Protocol, while users truly own their own journey.' },
+        ],
+      },
+      embed: {
+        eyebrow: 'FULL EXPERIENCE',
+        title: 'Explore the full Health Remix ecosystem',
+        subtitle: 'Scroll inside the frame below to see all 4 phases: Virtual Twin, Real Metrics, Web3 Reputation, and Creator Economy.',
+      },
+      cta: {
+        title: 'Ready to remix your own health?',
+        subtitle: 'Start the journey with your favorite KOL — from Virtual Twin to your own intellectual property.',
       },
     },
     videoModal: {
