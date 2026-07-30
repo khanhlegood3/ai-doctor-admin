@@ -18,6 +18,35 @@ import {
 } from './geminiComicClient'
 import './comicHero.css'
 
+// ---------------------------------------------------------------------------
+// Auto-retry cho lỗi 429 (giới hạn tốc độ ~1 ảnh/15 giây/IP của tier ẩn danh
+// Pollinations — xem api/_lib/geminiComic.js). Chỉ áp dụng cho nhánh ẢNH,
+// vì đây là giới hạn có thể đoán trước (cố định ~15s) và chờ rồi thử lại là
+// đủ để thành công — khác với lỗi 401/lỗi khác vốn thử lại cũng không ích
+// gì. Không đặt hàm này trong component vì không cần state/props của nó.
+// ---------------------------------------------------------------------------
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const IMAGE_RATE_LIMIT_RETRY_DELAY_MS = 16000 // hơi hơn 15s cho chắc ăn
+const IMAGE_RATE_LIMIT_MAX_RETRIES = 3 // tối đa 3 lần thử lại (4 lần gọi tổng cộng)
+
+async function withImageRateLimitRetry(fn, onRetry) {
+  let attempt = 0
+  for (;;) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (e?.status === 429 && attempt < IMAGE_RATE_LIMIT_MAX_RETRIES) {
+        attempt += 1
+        onRetry?.(attempt, IMAGE_RATE_LIMIT_MAX_RETRIES)
+        await sleep(IMAGE_RATE_LIMIT_RETRY_DELAY_MS)
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 export default function ComicHeroGamePanel() {
   const { user } = useAuth()
 
@@ -70,10 +99,21 @@ export default function ComicHeroGamePanel() {
     if (e?.status === 401) {
       showApiToast('error', 'Không thể xác thực với dịch vụ tạo nội dung. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình API key.')
     } else if (e?.status === 429) {
-      showApiToast('warning', 'Đang vẽ hơi nhanh tay! Chế độ ảnh miễn phí cần nghỉ khoảng 15 giây giữa các ảnh — trang này sẽ trống tạm, bạn quay lại thử sau chút nhé.')
+      showApiToast('warning', 'Hệ thống ảnh miễn phí vẫn đang bận dù đã tự thử lại vài lần. Trang này tạm để trống, bạn có thể thử lại sau ít phút.')
     } else {
       showApiToast('error', 'Có lỗi khi tạo nội dung. Vui lòng thử lại.')
     }
+  }
+
+  // Toast hiển thị trong lúc ĐANG chờ để tự thử lại (khác với handleAPIError,
+  // vốn chỉ gọi khi đã bỏ cuộc hẳn). Thời lượng toast = đúng thời gian chờ,
+  // để không biến mất giữa chừng rồi lại hiện lại.
+  const handleImageRetryWait = (attempt, maxRetries) => {
+    showApiToast(
+      'warning',
+      `Đang vẽ hơi nhanh tay! Chế độ ảnh miễn phí cần nghỉ ~15 giây giữa các ảnh — tự thử lại (lần ${attempt}/${maxRetries})...`,
+      IMAGE_RATE_LIMIT_RETRY_DELAY_MS
+    )
   }
 
 
@@ -197,11 +237,14 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
   const generatePersona = async (desc) => {
     const style = selectedGenre === 'Custom' ? 'Modern American comic book art' : `${selectedGenre} comic`
     try {
-      const res = await generateComicImage({
-        model: MODEL_IMAGE_GEN_NAME,
-        contents: { text: `STYLE: Masterpiece ${style} character sheet, detailed ink, neutral background. FULL BODY. Character: ${desc}` },
-        config: { imageConfig: { aspectRatio: '1:1' } },
-      })
+      const res = await withImageRateLimitRetry(
+        () => generateComicImage({
+          model: MODEL_IMAGE_GEN_NAME,
+          contents: { text: `STYLE: Masterpiece ${style} character sheet, detailed ink, neutral background. FULL BODY. Character: ${desc}` },
+          config: { imageConfig: { aspectRatio: '1:1' } },
+        }),
+        handleImageRetryWait
+      )
       const part = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)
       if (part?.inlineData?.data) return { base64: part.inlineData.data, desc }
       throw new Error('Failed')
@@ -240,11 +283,14 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
     contents.push({ text: promptText })
 
     try {
-      const res = await generateComicImage({
-        model: MODEL_IMAGE_GEN_NAME,
-        contents,
-        config: { imageConfig: { aspectRatio: '2:3' } },
-      })
+      const res = await withImageRateLimitRetry(
+        () => generateComicImage({
+          model: MODEL_IMAGE_GEN_NAME,
+          contents,
+          config: { imageConfig: { aspectRatio: '2:3' } },
+        }),
+        handleImageRetryWait
+      )
       const part = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)
       return part?.inlineData?.data ? `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` : ''
     } catch (e) {
