@@ -10,7 +10,14 @@
 // cần thêm route mới. Giữ nguyên tinh thần 2 "agent" của bản gốc:
 //   1) Combination agent: (hành động + nguyên liệu) → món/nguyên liệu mới
 //   2) Verification agent: (tên đơn hàng + món đã phục vụ) → có khớp không
-// và bổ sung thêm 1 "agent" lập kế hoạch để có tính năng "Nhờ AI tự nấu".
+// và bổ sung thêm 1 "agent" lập kế hoạch để có tính năng "Nhờ AI tự nấu",
+// cùng 1 "agent" vẽ ảnh minh hoạ "mâm cơm" khi phục vụ đơn hàng thành công
+// — TÁI SỬ DỤNG đúng hạ tầng sinh ảnh của tính năng "Tạo Game bằng Avatar
+// của Tôi" (xem src/components/comicHero/geminiComicClient.js +
+// api/_lib/geminiComic.js — nhánh ảnh gọi Pollinations.AI ẩn danh, miễn
+// phí), thay vì viết lại một đường gọi ảnh riêng.
+
+import { generateComicImage } from '../comicHero/geminiComicClient.js'
 
 const MODEL = 'llama-3.3-70b-versatile'
 
@@ -126,5 +133,57 @@ Các thao tác nấu khả dụng: ${actionOptions.join(', ')}.`
       .filter(s => s && typeof s.action === 'string')
       .map(s => ({ action: s.action, ingredients: Array.isArray(s.ingredients) ? s.ingredients : [] })),
     finalDish: String(parsed.final_dish || orderName),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent 4 — Vẽ ảnh "mâm cơm": gọi 1 LẦN khi phục vụ đơn hàng THÀNH CÔNG, để
+// minh hoạ trực quan món ăn vừa "nấu" xong dưới dạng mâm cơm Việt truyền
+// thống. Dùng chung `generateComicImage` từ comicHero (POST /api/groq-proxy
+// với provider: 'gemini-comic') — engine phía server tự định tuyến sang
+// nhánh ảnh (Pollinations.AI, model "flux", gọi ẩn danh) vì request có
+// `config.imageConfig`, không cần sửa gì ở backend.
+//
+// Auto-retry cho lỗi 429 (giới hạn ~1 ảnh/15 giây/IP của tier ẩn danh —
+// xem api/_lib/geminiComic.js) — giống hệt cơ chế trong ComicHeroGamePanel.
+// jsx, vì đây cũng là request gọi tới cùng 1 endpoint ảnh đó.
+// ---------------------------------------------------------------------------
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const IMAGE_RATE_LIMIT_RETRY_DELAY_MS = 16000 // hơi hơn 15s cho chắc ăn
+const IMAGE_RATE_LIMIT_MAX_RETRIES = 2 // chỉ 1 ảnh/đơn hàng nên không cần thử nhiều như comicHero
+
+/**
+ * @param {{ dishName: string, ingredientLabels?: string[] }} params
+ * @param {(attempt: number, maxRetries: number) => void} [onRetryWait] gọi mỗi lần chuẩn bị chờ để thử lại (để UI hiển thị tiến độ)
+ * @returns {Promise<string>} data URL (base64) của ảnh mâm cơm
+ */
+export async function generateMealTrayImage({ dishName, ingredientLabels = [] }, onRetryWait) {
+  const ingredientNote = ingredientLabels.length > 0
+    ? ` Made with: ${ingredientLabels.join(', ')}.`
+    : ''
+  const promptText = `STYLE: Professional Vietnamese home-cooking food photography, natural window light, appetizing, 3/4 top-down angle, shallow depth of field. No text, no watermark, no people, no hands, no cartoon/anime style — realistic photo only.
+SCENE: A traditional Vietnamese "mâm cơm" (round family meal tray) beautifully plated with the dish "${dishName}".${ingredientNote} Served alongside a bowl of steamed white rice and a small dish of nước chấm (dipping sauce), arranged neatly on rustic ceramic plates over a round bamboo tray or wooden table.`
+
+  let attempt = 0
+  for (;;) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await generateComicImage({
+        contents: { text: promptText },
+        config: { imageConfig: { aspectRatio: '3:2' } },
+      })
+      const part = res?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)
+      if (!part?.inlineData?.data) throw new Error('Không nhận được ảnh từ máy chủ.')
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+    } catch (e) {
+      if (e?.status === 429 && attempt < IMAGE_RATE_LIMIT_MAX_RETRIES) {
+        attempt += 1
+        onRetryWait?.(attempt, IMAGE_RATE_LIMIT_MAX_RETRIES)
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(IMAGE_RATE_LIMIT_RETRY_DELAY_MS)
+        continue
+      }
+      throw e
+    }
   }
 }
