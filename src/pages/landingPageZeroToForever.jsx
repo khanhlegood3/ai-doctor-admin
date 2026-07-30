@@ -75,7 +75,7 @@ function getNavItems(t) {
   ]
 }
 
-const HEALTH_REMIX_INTRO_VIDEO_ID = 'b00G6_D-yN0'
+const HEALTH_REMIX_INTRO_VIDEO_ID = 'q6sUo9YT3bA'
 
 /* ══════════════════════════════════════════════════════════════════════
  * Organ map visual — phần "vẽ lại nội tạng" của HeroZoneStackPopup
