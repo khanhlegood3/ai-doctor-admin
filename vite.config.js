@@ -90,9 +90,8 @@ function geminiComicDevMiddleware(env) {
           if (parsed.provider === 'gemini-comic') {
             try {
               const payload = await runGeminiComicGenerate({
-                apiKey: env.GEMINI_API_KEY,
+                apiKey: env.POLLINATIONS_API_KEY,
                 action: parsed.action,
-                model: parsed.model,
                 contents: parsed.contents,
                 config: parsed.config,
               })
@@ -100,10 +99,10 @@ function geminiComicDevMiddleware(env) {
               res.statusCode = 200
               res.end(JSON.stringify(payload))
             } catch (error) {
-              console.error('[gemini-comic-dev-middleware]', error?.message || error)
+              console.error('[gemini-comic-dev-middleware/pollinations]', error?.message || error)
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
-              res.end(JSON.stringify({ error: error?.message || 'Gemini proxy error' }))
+              res.end(JSON.stringify({ error: error?.message || 'Pollinations proxy error' }))
             }
             return
           }

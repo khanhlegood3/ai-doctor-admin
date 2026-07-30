@@ -11,8 +11,10 @@
 // Vercel (gói hiện tại) giới hạn 12 Serverless Functions, nên thay vì thêm
 // 1 file api/gemini-comic-proxy.js riêng (sẽ là function thứ 13), tính năng
 // Comic Hero Game DÙNG CHUNG endpoint này. Client gửi thêm field
-// `provider: 'gemini-comic'` trong body để định tuyến sang nhánh Gemini
-// (xem runGeminiComicGenerate ở api/_lib/geminiComic.js); nếu không có field
+// `provider: 'gemini-comic'` trong body để định tuyến sang nhánh sinh
+// text/ảnh qua Pollinations.AI (xem runGeminiComicGenerate ở
+// api/_lib/geminiComic.js — tên field/hàm giữ nguyên "gemini-comic" vì lý do
+// lịch sử, dù engine bên dưới đã đổi sang Pollinations); nếu không có field
 // này thì xử lý y hệt như trước (Groq passthrough), không đổi hành vi cũ.
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
@@ -45,22 +47,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to parse request body: ' + e.message })
   }
 
-  // --- Nhánh Gemini (Comic Hero Game) ---
+  // --- Nhánh Comic Hero (Pollinations.AI) ---
   if (body.provider === 'gemini-comic') {
-    console.log('[groq-proxy] (gemini-comic) model:', body.model)
+    console.log('[groq-proxy] (gemini-comic/pollinations) action:', body.action)
     try {
       const payload = await runGeminiComicGenerate({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: process.env.POLLINATIONS_API_KEY,
         action: body.action,
-        model: body.model,
         contents: body.contents,
         config: body.config,
       })
       return res.status(200).json(payload)
     } catch (err) {
-      console.error('[groq-proxy] (gemini-comic) error:', err?.message || err)
+      console.error('[groq-proxy] (gemini-comic/pollinations) error:', err?.message || err)
       const status = err instanceof GeminiComicError ? err.status : 500
-      return res.status(status).json({ error: err?.message || 'Gemini proxy error' })
+      return res.status(status).json({ error: err?.message || 'Pollinations proxy error' })
     }
   }
 

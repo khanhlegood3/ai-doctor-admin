@@ -53,7 +53,7 @@ export default function ComicHeroGamePanel() {
     console.error('[comicHero] API Error:', msg)
     setErrorMessage(
       e?.status === 401
-        ? 'Không thể xác thực với Gemini. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình GEMINI_API_KEY.'
+        ? 'Không thể xác thực với Pollinations.AI. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình POLLINATIONS_API_KEY.'
         : 'Có lỗi khi tạo nội dung. Vui lòng thử lại.'
     )
   }
