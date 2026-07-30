@@ -16,6 +16,7 @@ import {
   MODEL_IMAGE_GEN_NAME, MODEL_TEXT_NAME,
   generateComicText, generateComicImage, fileToBase64, imageUrlToBase64,
 } from './geminiComicClient'
+import { saveComicIssue } from './comicIssueStorage'
 import './comicHero.css'
 
 // ---------------------------------------------------------------------------
@@ -77,6 +78,7 @@ export default function ComicHeroGamePanel() {
 
   const [showSetup, setShowSetup] = useState(true)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [isSavingIssue, setIsSavingIssue] = useState(false)
 
   const generatingPages = useRef(new Set())
   const historyRef = useRef([])
@@ -413,17 +415,48 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
     setErrorMessage('')
   }
 
-  const downloadPDF = () => {
+  // Trước đây bấm "DOWNLOAD ISSUE" sẽ tải file .pdf thẳng xuống máy
+  // (doc.save(...)). Giờ đổi thành: dựng PDF trong bộ nhớ rồi LƯU vào
+  // IndexedDB (kho lưu trữ chung với trang Record/Upload) thay vì tải về.
+  // Nhờ vậy issue này sẽ:
+  //   - hiện lại trong "Thư viện truyện của tôi" (danh sách kiểu playlist
+  //     YouTube / trang RSS) để đọc lại bất cứ lúc nào, không cần tải lại;
+  //   - tự động xuất hiện trong trang Record (Hồ sơ) ở mục tài liệu PDF.
+  const downloadPDF = async () => {
+    if (isSavingIssue) return
     const PAGE_WIDTH = 480
     const PAGE_HEIGHT = 720
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_WIDTH, PAGE_HEIGHT] })
     const pagesToPrint = comicFaces.filter((face) => face.imageUrl && !face.isLoading).sort((a, b) => (a.pageIndex || 0) - (b.pageIndex || 0))
 
+    if (!pagesToPrint.length) return
+
     pagesToPrint.forEach((face, index) => {
       if (index > 0) doc.addPage([PAGE_WIDTH, PAGE_HEIGHT], 'portrait')
       if (face.imageUrl) doc.addImage(face.imageUrl, 'JPEG', 0, 0, PAGE_WIDTH, PAGE_HEIGHT)
     })
-    doc.save('Infinite-Heroes-Issue.pdf')
+
+    const pdfDataUrl = doc.output('datauristring')
+    const coverFace = comicFaces.find((f) => f.type === 'cover' && f.imageUrl)
+    const titleGenre = selectedGenre === 'Custom' ? (customPremise.slice(0, 40) || 'Custom') : selectedGenre
+    const title = `Infinite Heroes · ${titleGenre} · ${new Date().toLocaleDateString('vi-VN')}`
+
+    setIsSavingIssue(true)
+    try {
+      await saveComicIssue(pdfDataUrl, {
+        title,
+        coverImage: coverFace?.imageUrl || pagesToPrint[0]?.imageUrl || '',
+        pageCount: pagesToPrint.length,
+        genre: selectedGenre,
+        language: selectedLanguage,
+      }, { user })
+      showApiToast('warning', 'Đã lưu truyện vào "Thư viện truyện của tôi" — xem lại trong menu bên trái, hoặc trong trang Record.', 7000)
+    } catch (e) {
+      console.error('[comicHero] saveComicIssue error:', e)
+      showApiToast('error', 'Lưu truyện thất bại. Vui lòng thử lại.')
+    } finally {
+      setIsSavingIssue(false)
+    }
   }
 
   const handleHeroUpload = async (file) => {
@@ -497,6 +530,7 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
           onChoice={handleChoice}
           onOpenBook={() => setCurrentSheetIndex(1)}
           onDownload={downloadPDF}
+          isSavingIssue={isSavingIssue}
           onReset={resetApp}
         />
 

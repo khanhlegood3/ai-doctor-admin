@@ -4,7 +4,7 @@ import React from 'react'
 import { INITIAL_PAGES, GATE_PAGE } from './types'
 import { LoadingFX } from './LoadingFX'
 
-export const Panel = ({ face, allFaces, onChoice, onOpenBook, onDownload, onReset }) => {
+export const Panel = ({ face, allFaces, onChoice, onOpenBook, onDownload, isSavingIssue, onReset }) => {
   if (!face) return <div className="w-full h-full bg-gray-950" />
   if (face.isLoading && !face.imageUrl) return <LoadingFX />
 
@@ -68,9 +68,10 @@ export const Panel = ({ face, allFaces, onChoice, onOpenBook, onDownload, onRese
               e.stopPropagation()
               onDownload()
             }}
-            className="comic-btn bg-blue-500 text-white px-8 py-3 text-xl font-bold hover:scale-105"
+            disabled={isSavingIssue}
+            className="comic-btn bg-blue-500 text-white px-8 py-3 text-xl font-bold hover:scale-105 disabled:opacity-60 disabled:cursor-wait"
           >
-            DOWNLOAD ISSUE
+            {isSavingIssue ? 'SAVING...' : 'SAVE TO LIBRARY'}
           </button>
           <button
             onClick={(e) => {

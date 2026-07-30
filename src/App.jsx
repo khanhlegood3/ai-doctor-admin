@@ -54,6 +54,7 @@ import MyPainPathNoiTangPixelPanel from './components/MyPainPathNoiTangPixelPane
 import ChooseUserRolePanel from './components/ChooseUserRolePanel.jsx'
 import AvatarCreatorPanel from './components/AvatarCreatorPanel.jsx'
 import ComicHeroGamePanel from './components/comicHero/ComicHeroGamePanel.jsx'
+import ComicIssueLibraryPanel from './components/comicHero/ComicIssueLibraryPanel.jsx'
 import Make3DModelPanel from './components/Make3DModelPanel.jsx'
 import My3DAssetPanel from './components/My3DAssetPanel.jsx'
 import TwoDTo3DAssetPanel from './components/TwoDTo3DAssetPanel.jsx'
@@ -264,6 +265,7 @@ export default function App() {
     profile: t('profile'),
     avatarCreator: 'Tạo Avatar',
     comicHeroGame: 'Tạo Game bằng Avatar của Tôi',
+    comicIssueLibrary: 'Thư Viện Truyện Của Tôi',
     make3DModel: 'Make 3D Model',
     my3dAsset: 'My 3D Asset',
     create3DVideoFrom2D: 'Create 3D Video From 2D',
@@ -729,6 +731,7 @@ export default function App() {
             )}
             {active === 'avatarCreator' && <AvatarCreatorPanel />}
             {active === 'comicHeroGame' && <ComicHeroGamePanel />}
+            {active === 'comicIssueLibrary' && <ComicIssueLibraryPanel onCreateNew={() => setActive('comicHeroGame')} />}
             {active === 'make3DModel' && user?.isAdmin && <Make3DModelPanel />}
             {active === 'make3DModel' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>

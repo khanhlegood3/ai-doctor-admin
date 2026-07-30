@@ -35,10 +35,10 @@ export const Book = (props) => {
           onClick={() => props.onSheetClick(i)}
         >
           <div className="front">
-            <Panel face={sheet.front} allFaces={props.comicFaces} onChoice={props.onChoice} onOpenBook={props.onOpenBook} onDownload={props.onDownload} onReset={props.onReset} />
+            <Panel face={sheet.front} allFaces={props.comicFaces} onChoice={props.onChoice} onOpenBook={props.onOpenBook} onDownload={props.onDownload} isSavingIssue={props.isSavingIssue} onReset={props.onReset} />
           </div>
           <div className="back">
-            <Panel face={sheet.back} allFaces={props.comicFaces} onChoice={props.onChoice} onOpenBook={props.onOpenBook} onDownload={props.onDownload} onReset={props.onReset} />
+            <Panel face={sheet.back} allFaces={props.comicFaces} onChoice={props.onChoice} onOpenBook={props.onOpenBook} onDownload={props.onDownload} isSavingIssue={props.isSavingIssue} onReset={props.onReset} />
           </div>
         </div>
       ))}
