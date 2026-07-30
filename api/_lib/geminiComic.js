@@ -19,11 +19,17 @@
 //      Authorization/Bearer key. Theo tài liệu chính thức, đây là cách DUY
 //      NHẤT thật sự $0: tier "Anonymous" (không có key) không bị trừ Pollen,
 //      đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / IP.
-//   5. (BẢN NÀY) Nhánh TEXT (kịch bản): Pollinations không có chế độ ẩn danh
-//      cho text trên gen.pollinations.ai, vẫn cần POLLINATIONS_API_KEY có
-//      Pollen → đổi hẳn sang gọi Groq (api.groq.com/openai/v1/chat/
-//      completions), tái dùng GROQ_API_KEY đã cấu hình sẵn cho chatbot
-//      chính trong dự án. Miễn phí thật, không phụ thuộc ví Pollen nào cả.
+//   5. Nhánh TEXT (kịch bản): Pollinations không có chế độ ẩn danh cho text
+//      trên gen.pollinations.ai, vẫn cần POLLINATIONS_API_KEY có Pollen →
+//      đổi hẳn sang gọi Groq (api.groq.com/openai/v1/chat/completions), tái
+//      dùng GROQ_API_KEY đã cấu hình sẵn cho chatbot chính trong dự án.
+//      Miễn phí thật, không phụ thuộc ví Pollen nào cả.
+//   6. (BẢN NÀY) Nhánh ẢNH: domain "gen.pollinations.ai" (endpoint "unified"
+//      mới) bắt đầu YÊU CẦU AUTH cho MỌI request, kể cả model free "flux" —
+//      lỗi 401 dù không đổi gì phía code (Pollinations tự thay đổi chính
+//      sách). Domain CŨ "image.pollinations.ai" vẫn còn hoạt động ẩn danh,
+//      miễn phí — chuyển hẳn sang domain này, kèm tham số `referrer=<domain
+//      của app>` thay cho Bearer key.
 //
 //   TÓM LẠI (bản hiện tại):
 //   - Sinh ẢNH: hoàn toàn miễn phí, không cần API key, không phụ thuộc ví
@@ -57,7 +63,7 @@
 //     api/groq-whisper.js dùng chung biến này).
 //   - Nhánh ẢNH không cần API key nào (gọi ẩn danh tới Pollinations).
 
-const POLLINATIONS_BASE_URL = 'https://gen.pollinations.ai'
+const POLLINATIONS_IMAGE_BASE_URL = 'https://image.pollinations.ai'
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 
 // Model text: dùng Groq "llama-3.3-70b-versatile" — cùng model đang dùng
@@ -209,21 +215,29 @@ async function generateText({ apiKey, contents, config }) {
 // ---------------------------------------------------------------------------
 // Nhánh sinh ẢNH — dùng cho generateComicImage (persona + panel truyện).
 //
-// QUAN TRỌNG: gọi KHÔNG kèm Authorization/Bearer key. Tài liệu Pollinations
-// xác nhận: hễ request có gửi API key là bị trừ Pollen (kể cả model free
-// như flux) — "flux miễn phí vĩnh viễn" chỉ đúng ở tier Anonymous (không
-// gửi key), đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / địa chỉ IP. Vì mục
-// tiêu là $0 tuyệt đối (không phụ thuộc ví Pollen), ta chấp nhận đánh đổi
-// tốc độ này thay vì gửi kèm sk_ key.
+// QUAN TRỌNG (cập nhật): domain "gen.pollinations.ai" (endpoint "unified"
+// mới của Pollinations) giờ LUÔN yêu cầu auth — kể cả model free "flux" —
+// trả lỗi 401 "Authentication required..." nếu không có Bearer key. Đây là
+// thay đổi gần đây từ phía Pollinations (không liên quan gì tới việc chưa
+// cấu hình đúng ở bên mình).
+//
+// Pollinations vẫn giữ domain CŨ "image.pollinations.ai" hoạt động ẩn danh,
+// miễn phí, không cần Bearer key — chỉ cần thêm tham số `referrer=<domain>`
+// để tránh bị coi là traffic không rõ nguồn gốc. Đổi hẳn sang domain này để
+// giữ đúng mục tiêu $0 tuyệt đối, không phụ thuộc ví Pollen.
+// Giới hạn tốc độ vẫn ~1 ảnh / 15 giây / IP như trước.
 // ---------------------------------------------------------------------------
+const IMAGE_REFERRER_DOMAIN = 'hienmaunhanvan.com'
+
 async function generateImage({ contents, config }) {
   const rawPromptText = extractPromptText(contents)
   const promptText = sanitizePromptForTextToImage(rawPromptText)
   const { width, height } = aspectRatioToDims(config?.imageConfig?.aspectRatio)
 
-  const url = `${POLLINATIONS_BASE_URL}/image/${encodeURIComponent(promptText)}?model=${IMAGE_MODEL}&width=${width}&height=${height}&nologo=true`
+  const url = `${POLLINATIONS_IMAGE_BASE_URL}/prompt/${encodeURIComponent(promptText)}?model=${IMAGE_MODEL}&width=${width}&height=${height}&nologo=true&referrer=${encodeURIComponent(IMAGE_REFERRER_DOMAIN)}`
 
-  // Không set header Authorization ở đây — cố tình để request đi ẩn danh.
+  // Không set header Authorization ở đây — request đi ẩn danh, chỉ khai báo
+  // referrer để Pollinations nhận diện nguồn gọi (thay cho Bearer key).
   const res = await fetch(url)
 
   if (!res.ok) await parseUpstreamError(res, 'Pollinations')
