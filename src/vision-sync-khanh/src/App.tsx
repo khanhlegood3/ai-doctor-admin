@@ -350,15 +350,23 @@ function getVibeForObjects(objects: string[]) {
 
 const getVibeFromGemini = async (objects: string[], emotion: string): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
-    const prompt = `You are a soundscape generator. Based on the following scene, output a 3-5 word ambient soundscape description (e.g., 'tribal rhythmic drone', 'cyberpunk electronic drone' or 'melancholy acoustic ambient'). Do not include any other text. Never output 'pop', 'upbeat', or 'energetic'. Everything must be ambient, but based on the expression. Scene: A person is feeling ${emotion} and the following objects are visible: ${objects.length > 0 ? objects.join(', ') : 'none'}.`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-lite-latest',
-      contents: prompt,
+    // ĐÃ ĐỔI: bản gốc gọi thẳng @google/genai với API key nhúng client
+    // (process.env.GEMINI_API_KEY) — không an toàn để deploy thật. Ở đây gọi
+    // qua Serverless Function /api/groq-proxy (provider: 'vision-sync',
+    // action: 'vibe'), phía server dùng GROQ_API_KEY (miễn phí, đã cấu hình
+    // sẵn cho toàn bộ app) thay cho Gemini thật — xem
+    // api/_lib/visionSyncProxy.js. Model/API key thật KHÔNG bao giờ xuống
+    // trình duyệt.
+    const res = await fetch('/api/groq-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'vision-sync', action: 'vibe', objects, emotion }),
     });
-    return response.text?.trim() || "ambient drone, relaxing";
+    const data = await res.json().catch(() => ({} as any));
+    if (!res.ok) throw new Error(data?.error || `Vibe proxy error (${res.status})`);
+    return data?.text || "ambient drone, relaxing";
   } catch (e: any) {
-    console.warn("Gemini API error (falling back to local vibe map):", e.message || e);
+    console.warn("Vision Sync vibe proxy error (falling back to local vibe map):", e.message || e);
     return getVibeForObjects(objects) + `, ${emotion} mood`;
   }
 };
@@ -910,8 +918,26 @@ export default function App() {
 
       let sessionPromise;
       try {
-        const ai = new GoogleGenAI({ 
-          apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY || 'dummy-key',
+        // ĐÃ ĐỔI: bản gốc dùng thẳng process.env.API_KEY / GEMINI_API_KEY
+        // (API key thật nhúng vào bundle client) — không an toàn. Ở đây lấy
+        // một EPHEMERAL TOKEN ngắn hạn từ server (/api/groq-proxy, provider:
+        // 'vision-sync', action: 'liveToken' — xem
+        // api/_lib/visionSyncProxy.js) rồi dùng token đó như apiKey, đúng
+        // pattern bảo mật chính thức của Google cho Live API
+        // (https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens).
+        // Token chỉ sống ~30 phút, dùng 1 lần, và chỉ dùng được cho Live API.
+        const tokenRes = await fetch('/api/groq-proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'vision-sync', action: 'liveToken' }),
+        });
+        const tokenData = await tokenRes.json().catch(() => ({} as any));
+        if (!tokenRes.ok || !tokenData?.token) {
+          throw new Error(tokenData?.error || `Could not get Lyria session token (${tokenRes.status})`);
+        }
+
+        const ai = new GoogleGenAI({
+          apiKey: tokenData.token,
           apiVersion: 'v1alpha'
         });
 

@@ -20,6 +20,7 @@
 // hành vi cũ.
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
+import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -47,6 +48,32 @@ export default async function handler(req, res) {
     body = await parseBody(req)
   } catch (e) {
     return res.status(400).json({ error: 'Failed to parse request body: ' + e.message })
+  }
+
+  // --- Nhánh Vision Sync (vibe: Groq free | liveToken: Gemini ephemeral token) ---
+  if (body.provider === 'vision-sync') {
+    console.log('[groq-proxy] (vision-sync) action:', body.action)
+    try {
+      if (body.action === 'vibe') {
+        const payload = await runVisionSyncVibe({
+          groqApiKey: process.env.GROQ_API_KEY,
+          objects: body.objects,
+          emotion: body.emotion,
+        })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'liveToken') {
+        const payload = await createVisionSyncLiveToken({
+          geminiApiKey: process.env.GEMINI_API_KEY,
+        })
+        return res.status(200).json(payload)
+      }
+      return res.status(400).json({ error: 'Unknown vision-sync action' })
+    } catch (err) {
+      console.error('[groq-proxy] (vision-sync) error:', err?.message || err)
+      const status = err instanceof VisionSyncProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Vision Sync proxy error' })
+    }
   }
 
   // --- Nhánh Comic Hero (text: Groq | ảnh: Pollinations ẩn danh) ---

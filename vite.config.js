@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
 import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
+import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './api/_lib/visionSyncProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -111,6 +112,32 @@ function geminiComicDevMiddleware(env) {
             return
           }
 
+          if (parsed.provider === 'vision-sync') {
+            try {
+              let payload
+              if (parsed.action === 'vibe') {
+                payload = await runVisionSyncVibe({
+                  groqApiKey: env.GROQ_API_KEY,
+                  objects: parsed.objects,
+                  emotion: parsed.emotion,
+                })
+              } else if (parsed.action === 'liveToken') {
+                payload = await createVisionSyncLiveToken({ geminiApiKey: env.GEMINI_API_KEY })
+              } else {
+                throw new VisionSyncProxyError('Unknown vision-sync action', 400)
+              }
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[vision-sync-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Vision Sync proxy error' }))
+            }
+            return
+          }
+
           // Groq bình thường: forward y nguyên sang backend thật (dev-server
           // proxy chung không dùng được nữa vì stream đã bị đọc ở trên).
           try {
@@ -145,18 +172,6 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), inbodyOcrDevMiddleware(env), geminiComicDevMiddleware(env)],
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
-    // vision-sync-khanh (bản gốc AI Studio) gọi thẳng process.env.GEMINI_API_KEY /
-    // process.env.API_KEY ở client cho Gemini (generateContent) và Lyria Realtime
-    // Music (ai.live.music) — KHÔNG nhúng key thật trả phí vào bundle client (mất
-    // an toàn, giống lý do Pet Passport đã đổi hướng). Để trống: tính năng object
-    // detection (TensorFlow.js coco-ssd) + Face Landmarker (MediaPipe) vẫn chạy
-    // 100% phía client như bình thường; phần "vibe" từ Gemini sẽ tự rơi về local
-    // vibe map có sẵn trong code, và Lyria ambient music sẽ báo "API key missing"
-    // (đã có try/catch xử lý sẵn trong App.tsx gốc).
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(''),
-      'process.env.API_KEY': JSON.stringify(''),
-    },
     build: {
       rollupOptions: {
         input: {

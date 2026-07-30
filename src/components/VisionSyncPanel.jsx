@@ -22,8 +22,8 @@ export default function VisionSyncPanel({ onNext, nextLabel, onPrev, prevLabel }
           <h2>👁️ Vision Sync</h2>
           <p>
             {lang === 'vi'
-              ? 'Mở camera để nhận diện vật thể (TensorFlow.js) và biểu cảm khuôn mặt (MediaPipe Face Landmarker) theo thời gian thực, đồng thời tạo nhạc nền ambient theo "vibe" của khung cảnh. Tính năng nhạc Lyria cần API key Gemini riêng nên khi chưa cấu hình sẽ tự dùng vibe mặc định — phần nhận diện camera vẫn hoạt động bình thường.'
-              : 'Open the camera for realtime object detection (TensorFlow.js) and facial expression tracking (MediaPipe Face Landmarker), plus ambient background music matched to the scene\u2019s "vibe". The Lyria music feature needs its own Gemini API key, so it falls back to a default vibe until configured — camera detection keeps working either way.'}
+              ? 'Mở camera để nhận diện vật thể (TensorFlow.js) và biểu cảm khuôn mặt (MediaPipe Face Landmarker) theo thời gian thực, đồng thời tạo mô tả "vibe" âm thanh theo khung cảnh (miễn phí, qua Groq). Nhạc nền Lyria thời gian thực cần API key Gemini thật (trả phí) cấu hình riêng ở server — nếu chưa có, phần camera/vibe vẫn hoạt động bình thường, chỉ nhạc nền sẽ báo thiếu key.'
+              : 'Open the camera for realtime object detection (TensorFlow.js) and facial expression tracking (MediaPipe Face Landmarker), plus a scene "vibe" description (free, via Groq). Realtime Lyria background music needs a real (paid) Gemini API key configured on the server — without it, camera detection and the vibe text still work fine; only the music will report a missing key.'}
           </p>
         </div>
       </section>
