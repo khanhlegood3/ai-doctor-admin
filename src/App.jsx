@@ -35,6 +35,7 @@ import AIHealthcareVisionControlPanel from './components/AIHealthcareVisionContr
 import AIInbodyPortalPanel from './components/AIInbodyPortalPanel.jsx'
 import WaterDrinkChatBotPanel from './components/WaterDrinkChatBotPanel.jsx'
 import RSSPortalPanel from './components/RSSPortalPanel.jsx'
+import CookingGuidePanel from './components/CookingGuidePanel.jsx'
 import WikiMedVisionPanel from './components/WikiMedVisionPanel.jsx'
 import FullDocumentSummarizationPanel from './components/FullDocumentSummarizationPanel.jsx'
 import DocumentOCRPanel from './components/DocumentOCRPanel.jsx'
@@ -673,7 +674,8 @@ export default function App() {
             {active === 'aiHealthcareVisionControl' && <AIHealthcareVisionControlPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'stressRelief' && <StressReliefPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiInbodyPortal' && <AIInbodyPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
-            {active === 'rssPortal' && <RSSPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
+            {active === 'rssPortal' && <RSSPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onOpenCookingGuide={() => setActive('cookingGuide')} />}
+            {active === 'cookingGuide' && <CookingGuidePanel onBack={() => setActive('rssPortal')} />}
             {active === 'waterDrinkChatBot' && <WaterDrinkChatBotPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'wikiMedVision' && <WikiMedVisionPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'fullDocSummarization' && <FullDocumentSummarizationPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}

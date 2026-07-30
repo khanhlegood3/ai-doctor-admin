@@ -209,6 +209,7 @@ const FAVORITE_CHANNELS = [
   { id: 'ch4', icon: '❤️', name: 'Sức Khỏe TV', subs: '3.7M subscribers' },
   { id: 'ch5', icon: '⚕️', name: 'Consensus Doctor', subs: '1.1M subscribers' },
   { id: 'ch6', icon: '🍲', name: 'Ăn Gì Hôm Nay', subs: '2.2M subscribers' },
+  { id: 'ch_cooking_guide', icon: '👨‍🍳', name: 'Tạo menu Hướng dẫn nấu ăn ngon và khỏe mạnh', subs: 'Trò chơi nấu ăn AI', isCookingGuide: true },
   { id: 'ch7', icon: '🐱', name: 'Bé Mèo Nước', subs: '5.4M subscribers' },
   { id: 'ch8', icon: '⚖️', name: 'InBody Việt', subs: '1.8M subscribers' },
 ]
@@ -373,7 +374,7 @@ function SourceHeader({ icon, iconBg, iconColor, title, text }) {
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
-export default function RSSPortalPanel({ onNext, nextLabel, onPrev, prevLabel }) {
+export default function RSSPortalPanel({ onNext, nextLabel, onPrev, prevLabel, onOpenCookingGuide }) {
   const [current, setCurrent] = useState(FACEBOOK_ITEMS[0])
   const [currentKind, setCurrentKind] = useState('facebook')
   const [playing, setPlaying] = useState(false)
@@ -938,20 +939,20 @@ export default function RSSPortalPanel({ onNext, nextLabel, onPrev, prevLabel })
                   className="rss-channel-button"
                   key={ch.id}
                   type="button"
-                  onClick={() => { if (ch.linkOnly) { window.open(ch.url, '_blank', 'noopener,noreferrer') } else if (ch.embedUrl || ch.tiktokProfile || ch.tiktokVideoId) { select(ch, 'channel') } else if (ch.url) { window.open(ch.url, '_blank', 'noopener,noreferrer') } }}
+                  onClick={() => { if (ch.isCookingGuide) { onOpenCookingGuide && onOpenCookingGuide() } else if (ch.linkOnly) { window.open(ch.url, '_blank', 'noopener,noreferrer') } else if (ch.embedUrl || ch.tiktokProfile || ch.tiktokVideoId) { select(ch, 'channel') } else if (ch.url) { window.open(ch.url, '_blank', 'noopener,noreferrer') } }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', width: 84, flexShrink: 0,
                     textAlign: 'center', background: 'transparent', border: 'none', padding: 0,
-                    cursor: ch.url ? 'pointer' : 'default', fontFamily: 'inherit',
+                    cursor: (ch.url || ch.isCookingGuide) ? 'pointer' : 'default', fontFamily: 'inherit',
                   }}
                 >
                   <div className="rss-channel-avatar" style={{
                     position: 'relative', width: 52, height: 52, borderRadius: '50%', background: gradFor(ch.id),
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 6,
-                    border: `2px solid ${ch.url ? '#00e5ff' : border}`,
+                    border: `2px solid ${(ch.url || ch.isCookingGuide) ? '#00e5ff' : border}`,
                   }}>
                     {ch.icon}
-                    {ch.url && (
+                    {(ch.url || ch.isCookingGuide) && (
                       <span style={{
                         position: 'absolute', bottom: -2, right: -2, fontSize: 9, background: '#00e5ff',
                         color: '#04060f', borderRadius: '50%', width: 16, height: 16, display: 'flex',

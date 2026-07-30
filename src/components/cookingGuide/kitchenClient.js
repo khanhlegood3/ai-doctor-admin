@@ -1,0 +1,130 @@
+// src/components/cookingGuide/kitchenClient.js
+// Client AI cho tính năng "Hướng Dẫn Nấu Ăn Ngon Và Khỏe Mạnh".
+//
+// Bản gốc "Function Call Kitchen" (Google AI Studio) gọi thẳng Gemini
+// (@google/genai) từ trình duyệt bằng function-calling (tools) nhiều lượt.
+// Dự án này KHÔNG có Gemini API key production và bị giới hạn 12 Serverless
+// Functions trên Vercel (xem api/groq-proxy.js), nên phần "bộ não AI" của
+// trò chơi được viết lại để gọi qua endpoint /api/groq-proxy sẵn có (nhánh
+// Groq mặc định, tương thích OpenAI Chat Completions + JSON mode), KHÔNG
+// cần thêm route mới. Giữ nguyên tinh thần 2 "agent" của bản gốc:
+//   1) Combination agent: (hành động + nguyên liệu) → món/nguyên liệu mới
+//   2) Verification agent: (tên đơn hàng + món đã phục vụ) → có khớp không
+// và bổ sung thêm 1 "agent" lập kế hoạch để có tính năng "Nhờ AI tự nấu".
+
+const MODEL = 'llama-3.3-70b-versatile'
+
+async function callGroqJSON(messages, { temperature = 0.7, maxTokens = 300 } = {}) {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: MODEL,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      response_format: { type: 'json_object' },
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.error || `Lỗi máy chủ AI (${res.status})`
+    throw new Error(msg)
+  }
+  const content = data?.choices?.[0]?.message?.content
+  if (!content) throw new Error('AI không trả về nội dung hợp lệ.')
+  try {
+    return JSON.parse(content)
+  } catch {
+    // Cố gắng bóc tách JSON nếu model lỡ thêm chữ thừa quanh khối JSON
+    const match = content.match(/\{[\s\S]*\}/)
+    if (match) {
+      try { return JSON.parse(match[0]) } catch { /* rơi xuống dưới */ }
+    }
+    throw new Error('Không đọc được JSON phản hồi từ AI.')
+  }
+}
+
+/**
+ * Agent 1 — Kết hợp nguyên liệu: cho một thao tác nấu + danh sách nguyên
+ * liệu, hỏi AI xem ra món/nguyên liệu gì tiếp theo.
+ */
+export async function generateCombination(action, ingredientLabels) {
+  const system = `Bạn là bộ máy sinh kết quả nấu ăn cho một trò chơi ẩm thực Việt Nam lành mạnh.
+Cho một THAO TÁC NẤU và danh sách NGUYÊN LIỆU, hãy xác định món ăn hoặc thành phần chế biến ra được.
+Trả lời CHỈ bằng một đối tượng JSON hợp lệ, không thêm chữ nào khác, gồm đúng 2 trường:
+- "result_name": tên món/kết quả bằng tiếng Việt, ngắn gọn (1-5 từ)
+- "emoji": một emoji duy nhất đại diện cho kết quả
+Hãy sáng tạo nhưng vẫn hợp lý về ẩm thực, ưu tiên phong cách món Việt lành mạnh, ít dầu mỡ khi hợp lý.`
+  const user = `Thao tác: ${action.label} (${action.name}). Nguyên liệu đang dùng: ${ingredientLabels.join(', ')}.`
+  const parsed = await callGroqJSON(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    { temperature: 0.85, maxTokens: 150 }
+  )
+  return {
+    name: String(parsed.result_name || 'Món ăn lạ'),
+    emoji: String(parsed.emoji || '🍽️').slice(0, 4),
+  }
+}
+
+/**
+ * Agent 2 — Xác minh: kiểm tra món đã phục vụ có khớp với đơn hàng không
+ * (khớp theo nghĩa, không cần đúng chữ tuyệt đối).
+ */
+export async function verifyServedDish(orderName, servedDishName) {
+  const system = `Bạn là trợ lý thẩm định món ăn. Cho tên MỘT ĐƠN HÀNG và tên MỘT MÓN ĐÃ PHỤC VỤ,
+hãy xác định 2 tên đó có cùng chỉ một món ăn hay không (chấp nhận cách gọi khác nhau, viết hoa/thường,
+có dấu/không dấu, tên tiếng Việt hoặc tiếng Anh của cùng món).
+Trả lời CHỈ bằng JSON hợp lệ, đúng 3 trường:
+- "matches": true hoặc false
+- "confidence": số từ 0 đến 1
+- "explanation": giải thích ngắn gọn bằng tiếng Việt (1 câu)`
+  const user = `Đơn hàng: "${orderName}". Món đã phục vụ: "${servedDishName}".`
+  const parsed = await callGroqJSON(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    { temperature: 0.2, maxTokens: 200 }
+  )
+  return {
+    matches: Boolean(parsed.matches),
+    confidence: Number(parsed.confidence) || 0,
+    explanation: String(parsed.explanation || ''),
+  }
+}
+
+/**
+ * Agent 3 — Lập kế hoạch tự nấu: thay cho vòng lặp function-calling nhiều
+ * lượt của bản gốc (Gemini tools), ở đây xin AI trả về một kế hoạch các
+ * bước (thao tác + nguyên liệu) trong MỘT lượt gọi duy nhất, sau đó ứng
+ * dụng thực thi tuần tự từng bước qua generateCombination() ở trên.
+ */
+export async function planAutoCook({ orderName, inventoryLabels, actionOptions }) {
+  const system = `Bạn là đầu bếp AI trong một trò chơi nấu ăn. Bạn sẽ lập kế hoạch từng bước để
+nấu ra món khách yêu cầu, chỉ dùng nguyên liệu đang có và các thao tác nấu được liệt kê.
+Trả lời CHỈ bằng JSON hợp lệ, đúng 2 trường:
+- "steps": mảng tối đa 5 bước, mỗi bước là { "action": "<tên thao tác đúng như liệt kê>", "ingredients": ["<tên nguyên liệu đang có>", ...] }
+- "final_dish": tên món cuối cùng nên dùng khi phục vụ (tiếng Việt)
+Chỉ dùng action.name và ingredient đúng như trong danh sách được cho, không bịa thêm.`
+  const user = `Đơn hàng cần nấu: "${orderName}".
+Nguyên liệu hiện có: ${inventoryLabels.join(', ')}.
+Các thao tác nấu khả dụng: ${actionOptions.join(', ')}.`
+  const parsed = await callGroqJSON(
+    [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    { temperature: 0.6, maxTokens: 500 }
+  )
+  const steps = Array.isArray(parsed.steps) ? parsed.steps.slice(0, 5) : []
+  return {
+    steps: steps
+      .filter(s => s && typeof s.action === 'string')
+      .map(s => ({ action: s.action, ingredients: Array.isArray(s.ingredients) ? s.ingredients : [] })),
+    finalDish: String(parsed.final_dish || orderName),
+  }
+}
