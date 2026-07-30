@@ -59,10 +59,16 @@ async function callGroqJSON(messages, { temperature = 0.7, maxTokens = 300 } = {
 export async function generateCombination(action, ingredientLabels) {
   const system = `Bạn là bộ máy sinh kết quả nấu ăn cho một trò chơi ẩm thực Việt Nam lành mạnh.
 Cho một THAO TÁC NẤU và danh sách NGUYÊN LIỆU, hãy xác định món ăn hoặc thành phần chế biến ra được.
+
+QUY TẮC ĐẶT TÊN (RẤT QUAN TRỌNG — người chơi phải đoán được tên món để phục vụ đúng đơn hàng, nên tên phải QUEN THUỘC và DỄ ĐOÁN):
+- Nếu chỉ có 1 nguyên liệu + 1 thao tác đơn giản, PHẢI đặt tên đúng theo mẫu "<Tên nguyên liệu> <Tên thao tác>" (ví dụ: thao tác "Chiên" + nguyên liệu "Trứng" → "Trứng Chiên"; thao tác "Luộc" + nguyên liệu "Rau muống" → "Rau Muống Luộc"). TUYỆT ĐỐI KHÔNG đổi sang tên gọi khác/biến thể kỹ thuật (ví dụ KHÔNG dùng "Trứng ốp la" hay "Trứng bác" khi thao tác chỉ là "Chiên" chung chung).
+- Chỉ đặt tên món có sắc thái ẩm thực đặc trưng riêng (vd "Canh chua cá", "Phở bò") khi có TỪ 2 NGUYÊN LIỆU CHÍNH trở lên tạo thành một món ăn rõ ràng, phổ biến trong ẩm thực Việt — và vẫn nên giữ tên món phổ biến nhất, không sáng tạo tên lạ.
+- Không thêm tính từ mô tả (vd "thơm ngon", "giòn rụm") vào result_name.
+
 Trả lời CHỈ bằng một đối tượng JSON hợp lệ, không thêm chữ nào khác, gồm đúng 2 trường:
-- "result_name": tên món/kết quả bằng tiếng Việt, ngắn gọn (1-5 từ)
+- "result_name": tên món/kết quả bằng tiếng Việt, ngắn gọn (1-5 từ), theo đúng quy tắc đặt tên ở trên
 - "emoji": một emoji duy nhất đại diện cho kết quả
-Hãy sáng tạo nhưng vẫn hợp lý về ẩm thực, ưu tiên phong cách món Việt lành mạnh, ít dầu mỡ khi hợp lý.`
+Vẫn giữ tinh thần lành mạnh, ít dầu mỡ khi hợp lý.`
   const user = `Thao tác: ${action.label} (${action.name}). Nguyên liệu đang dùng: ${ingredientLabels.join(', ')}.`
   const parsed = await callGroqJSON(
     [
@@ -82,9 +88,14 @@ Hãy sáng tạo nhưng vẫn hợp lý về ẩm thực, ưu tiên phong cách 
  * (khớp theo nghĩa, không cần đúng chữ tuyệt đối).
  */
 export async function verifyServedDish(orderName, servedDishName) {
-  const system = `Bạn là trợ lý thẩm định món ăn. Cho tên MỘT ĐƠN HÀNG và tên MỘT MÓN ĐÃ PHỤC VỤ,
-hãy xác định 2 tên đó có cùng chỉ một món ăn hay không (chấp nhận cách gọi khác nhau, viết hoa/thường,
-có dấu/không dấu, tên tiếng Việt hoặc tiếng Anh của cùng món).
+  const system = `Bạn là trợ lý thẩm định món ăn cho một trò chơi nấu ăn — hãy CHẤM THOÁNG, không xét nét quá mức.
+Cho tên MỘT ĐƠN HÀNG và tên MỘT MÓN ĐÃ PHỤC VỤ, hãy xác định 2 tên đó có được xem là "cùng một món" hay
+không, chấp nhận:
+- cách gọi khác nhau, viết hoa/thường, có dấu/không dấu, tên tiếng Việt hoặc tiếng Anh của cùng món;
+- các biến thể kỹ thuật chế biến rất gần nhau của CÙNG nguyên liệu chính và CÙNG nhóm thao tác (vd "Trứng
+  chiên" và "Trứng ốp la" nên được coi là khớp — cả hai đều là trứng được chiên trên chảo).
+CHỈ chấm KHÔNG khớp khi nguyên liệu chính khác hẳn, hoặc nhóm thao tác chế biến khác hẳn (vd luộc vs chiên
+vs nướng), khiến hai món thực sự là 2 món khác nhau trong ẩm thực Việt Nam.
 Trả lời CHỈ bằng JSON hợp lệ, đúng 3 trường:
 - "matches": true hoặc false
 - "confidence": số từ 0 đến 1
