@@ -19,7 +19,7 @@ import {
   EXAMPLE_ORDERS,
   findAction,
 } from './cookingGuide/kitchenConstants.js'
-import { generateCombination, verifyServedDish, planAutoCook } from './cookingGuide/kitchenClient.js'
+import { generateCombination, verifyServedDish, planAutoCook, generateMealTrayImage } from './cookingGuide/kitchenClient.js'
 
 let uidCounter = 0
 const nextId = (prefix) => `${prefix}-${Date.now()}-${uidCounter++}`
@@ -49,6 +49,8 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
   const [newOrderName, setNewOrderName] = useState('')
   const [showServeBox, setShowServeBox] = useState(false)
   const [serveChoiceId, setServeChoiceId] = useState('')
+  // Ảnh "mâm cơm" xem full-size khi bấm vào thumbnail trong thẻ đơn hàng.
+  const [previewImage, setPreviewImage] = useState(null) // { url, title } | null
 
   const timelineRef = useRef(null)
   useEffect(() => {
@@ -83,6 +85,29 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
     setOrders(prev => [...prev, order])
     setNewOrderName('')
     setShowAddOrder(false)
+  }, [])
+
+  // Vẽ ảnh "mâm cơm" cho 1 đơn hàng vừa phục vụ THÀNH CÔNG — chạy nền
+  // (không await ở nơi gọi), tự cập nhật trạng thái loading/ready/error vào
+  // đúng order đó qua orderId (tránh dùng closure `activeOrder` cũ vì hàm
+  // này chạy sau khi state đã đổi).
+  const generatePlatingImage = useCallback((orderId, dishLabel) => {
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, plating: { status: 'loading', note: 'Đang vẽ mâm cơm...' } } : o))
+    generateMealTrayImage(
+      { dishName: dishLabel },
+      (attempt, maxRetries) => {
+        setOrders(prev => prev.map(o => o.id === orderId
+          ? { ...o, plating: { status: 'loading', note: `Ảnh đang bận, tự thử lại (${attempt}/${maxRetries})...` } }
+          : o))
+      }
+    )
+      .then((url) => {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, plating: { status: 'ready', url } } : o))
+      })
+      .catch((e) => {
+        console.error('[cookingGuide] Vẽ ảnh mâm cơm thất bại:', e?.message || e)
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, plating: { status: 'error' } } : o))
+      })
   }, [])
 
   // Thực thi 1 thao tác nấu lên các nguyên liệu đã chọn — dùng chung cho cả
@@ -138,6 +163,7 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
         setOrders(prev => prev.map(o => o.id === activeOrder.id ? { ...o, status: 'completed', servedDish: item.label } : o))
         pushTimeline({ text: `✅ Phục vụ "${item.emoji} ${item.label}" — Đạt! ${verdict.explanation}` })
         setActiveOrderId(null)
+        generatePlatingImage(activeOrder.id, item.label)
       } else {
         setOrders(prev => prev.map(o => o.id === activeOrder.id ? { ...o, servedDish: item.label } : o))
         pushTimeline({ text: `❌ Phục vụ "${item.emoji} ${item.label}" — Chưa khớp với "${activeOrder.name}". ${verdict.explanation}` })
@@ -148,7 +174,7 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
       setBusyAction(null)
       setServeChoiceId('')
     }
-  }, [activeOrder, serveChoiceId, inventory, pushTimeline])
+  }, [activeOrder, serveChoiceId, inventory, pushTimeline, generatePlatingImage])
 
   const handleAutoCook = useCallback(async () => {
     if (!activeOrder || isBusy) return
@@ -184,6 +210,7 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
             setOrders(prev => prev.map(o => o.id === activeOrder.id ? { ...o, status: 'completed', servedDish: lastItem.label } : o))
             pushTimeline({ text: `✅ Phục vụ "${lastItem.emoji} ${lastItem.label}" — Đạt! ${verdict.explanation}` })
             setActiveOrderId(null)
+            generatePlatingImage(activeOrder.id, lastItem.label)
           } else {
             setOrders(prev => prev.map(o => o.id === activeOrder.id ? { ...o, servedDish: lastItem.label } : o))
             pushTimeline({ text: `❌ "${lastItem.emoji} ${lastItem.label}" chưa khớp với "${activeOrder.name}". ${verdict.explanation}` })
@@ -197,7 +224,7 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
     } finally {
       setAutoCooking(false)
     }
-  }, [activeOrder, isBusy, inventory, executeAction, pushTimeline])
+  }, [activeOrder, isBusy, inventory, executeAction, pushTimeline, generatePlatingImage])
 
   const statusLabel = (status) => ({
     completed: '✅ Hoàn thành',
@@ -269,6 +296,34 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
                 )}
                 <div style={{ fontSize: 28 }}>{order.emoji}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: text, margin: '4px 0' }}>{order.name}</div>
+
+                {order.status === 'completed' && order.plating?.status === 'loading' && (
+                  <div style={{ fontSize: 10, color: accent, margin: '2px 0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <span style={{ display: 'inline-block', animation: 'cookingGuideSpin 1s linear infinite' }}>⏳</span>
+                    <span>{order.plating.note || 'Đang vẽ mâm cơm...'}</span>
+                  </div>
+                )}
+                {order.status === 'completed' && order.plating?.status === 'ready' && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({ url: order.plating.url, title: order.servedDish || order.name })}
+                    title="Xem ảnh mâm cơm cỡ lớn"
+                    style={{
+                      display: 'block', width: '100%', height: 70, margin: '2px 0 6px', padding: 0,
+                      border: `1px solid ${border}`, borderRadius: 8, overflow: 'hidden', cursor: 'zoom-in', background: 'none',
+                    }}
+                  >
+                    <img
+                      src={order.plating.url}
+                      alt={`Mâm cơm: ${order.servedDish || order.name}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  </button>
+                )}
+                {order.status === 'completed' && order.plating?.status === 'error' && (
+                  <div style={{ fontSize: 10, color: text3, margin: '2px 0 6px' }}>🖼️ Không tạo được ảnh minh hoạ.</div>
+                )}
+
                 <div style={{ fontSize: 11, color: text3, marginBottom: 8 }}>{statusLabel(order.status)}</div>
                 {order.status === 'not_started' && (
                   <button
@@ -449,10 +504,45 @@ export default function CookingGuidePanel({ onNext, nextLabel, onPrev, prevLabel
 
       <p style={{ margin: '14px 2px 0', fontSize: 10, color: text3 }}>
         Chuyển thể từ demo "Function Call Kitchen" (Google AI Studio) — phần AI ở đây chạy qua máy chủ đề xuất món ăn
-        có sẵn của dự án (không cần cấu hình thêm), thay cho Gemini function-calling gốc.
+        có sẵn của dự án (không cần cấu hình thêm), thay cho Gemini function-calling gốc. Ảnh "mâm cơm" minh hoạ dùng
+        chung hạ tầng sinh ảnh của tính năng "Tạo Game bằng Avatar của Tôi".
       </p>
 
       <NavButtons onNext={onNext} nextLabel={nextLabel} onPrev={onPrev} prevLabel={prevLabel} style={{ marginTop: 24 }} />
+
+      {previewImage && (
+        <div
+          role="presentation"
+          onClick={() => setPreviewImage(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(4,6,15,0.86)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-label={`Mâm cơm: ${previewImage.title}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 'min(92vw, 560px)', width: '100%' }}
+          >
+            <img
+              src={previewImage.url}
+              alt={`Mâm cơm: ${previewImage.title}`}
+              style={{ width: '100%', height: 'auto', borderRadius: 14, border: `1px solid ${border}`, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', display: 'block' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+              <div style={{ color: text, fontSize: 13, fontWeight: 700 }}>🍽️ {previewImage.title}</div>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '6px 12px', fontSize: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.05)', color: text2 }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
