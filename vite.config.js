@@ -145,11 +145,24 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), inbodyOcrDevMiddleware(env), geminiComicDevMiddleware(env)],
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
+    // vision-sync-khanh (bản gốc AI Studio) gọi thẳng process.env.GEMINI_API_KEY /
+    // process.env.API_KEY ở client cho Gemini (generateContent) và Lyria Realtime
+    // Music (ai.live.music) — KHÔNG nhúng key thật trả phí vào bundle client (mất
+    // an toàn, giống lý do Pet Passport đã đổi hướng). Để trống: tính năng object
+    // detection (TensorFlow.js coco-ssd) + Face Landmarker (MediaPipe) vẫn chạy
+    // 100% phía client như bình thường; phần "vibe" từ Gemini sẽ tự rơi về local
+    // vibe map có sẵn trong code, và Lyria ambient music sẽ báo "API key missing"
+    // (đã có try/catch xử lý sẵn trong App.tsx gốc).
+    define: {
+      'process.env.GEMINI_API_KEY': JSON.stringify(''),
+      'process.env.API_KEY': JSON.stringify(''),
+    },
     build: {
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html'),
           mediapipeKhanh: resolve(__dirname, 'src/mediapipe-khanh/index.html'),
+          visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
         },
       },
     },
