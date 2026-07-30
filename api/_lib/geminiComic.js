@@ -5,23 +5,27 @@
 // LỊCH SỬ:
 //   1. Ban đầu dùng Google Gemini (@google/genai).
 //   2. Đổi sang Pollinations.AI, model ảnh "nanobanana" (giữ được nét mặt
-//      avatar thật qua ảnh tham chiếu / image-to-image).
-//   3. (BẢN NÀY) Đổi model ảnh sang "flux" — quyết định có chủ đích: tài
-//      khoản Pollinations dùng chung của app bị 0 Pollen ("insufficient
-//      balance"), mà TẤT CẢ model image-to-image (nanobanana, kontext,
-//      seedream, klein...) đều tốn Pollen. "flux" là model ảnh DUY NHẤT
-//      của Pollinations miễn phí — vĩnh viễn, không giới hạn, không cần
-//      Pollen. ĐÁNH ĐỔI: flux chỉ sinh ảnh từ TEXT (text-to-image), KHÔNG
-//      nhận ảnh tham chiếu → tính năng "giữ nét mặt avatar thật của người
-//      dùng" trong ảnh hero/panel truyện KHÔNG còn nữa; ảnh hero giờ sinh
-//      hoàn toàn từ mô tả text (scene/desc), không dựa trên ảnh thật.
-//   Sinh TEXT (kịch bản) vẫn dùng model "openai" — model này rất rẻ nhưng
-//   KHÔNG hoàn toàn $0 như flux (Pollinations tính ~100.000+ lượt/1 Pollen).
-//   Nếu tài khoản vẫn ở mức 0 Pollen, nhánh text vẫn có thể báo lỗi
-//   "insufficient balance" dù chi phí gần như không đáng kể — cần nạp tối
-//   thiểu (vài chục nghìn VNĐ ~ vài chục nghìn lượt gọi) hoặc chờ/khiếu nại
-//   phần Pollen miễn phí hàng tuần của tier đã đăng ký tại
-//   https://enter.pollinations.ai.
+//      avatar thật qua ảnh tham chiếu / image-to-image) — NHƯNG mọi request
+//      có kèm API key đều bị trừ Pollen, tài khoản dùng chung của app hết
+//      Pollen → lỗi "insufficient balance".
+//   3. Đổi model ảnh sang "flux" qua endpoint có key (POST
+//      /v1/images/generations) — NHƯNG vẫn bị trừ Pollen (rẻ hơn nhiều,
+//      nhưng vẫn > 0), ví vẫn 0 → vẫn lỗi.
+//   4. (BẢN NÀY) Đổi sang gọi "flux" ẨN DANH — GET /image/{prompt}, KHÔNG
+//      gửi Authorization/Bearer key. Theo tài liệu chính thức, đây là cách
+//      DUY NHẤT thật sự $0: tier "Anonymous" (không có key) không bị trừ
+//      Pollen, đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / IP.
+//
+//   TÓM LẠI (bản hiện tại):
+//   - Sinh ẢNH: hoàn toàn miễn phí, không cần POLLINATIONS_API_KEY, không
+//     phụ thuộc ví Pollen — nhưng sinh từ mô tả TEXT thuần (không nhận ảnh
+//     tham chiếu), nên KHÔNG còn giữ nét mặt avatar thật của người dùng, và
+//     bị giới hạn tốc độ ~1 ảnh/15 giây/IP (đủ dùng cho 1 người dùng thao
+//     tác tuần tự, nhưng nhiều người dùng cùng lúc có thể bị 429).
+//   - Sinh TEXT (kịch bản): vẫn dùng model "openai" qua endpoint có key —
+//     Pollinations KHÔNG có chế độ ẩn danh cho text trên gen.pollinations.ai
+//     nên vẫn cần POLLINATIONS_API_KEY có Pollen (dù chi phí rất rẻ, xem
+//     ghi chú ở TEXT_MODEL bên dưới).
 //
 // Được import bởi:
 //   - api/groq-proxy.js → Vercel Serverless Function (production), nhánh
@@ -40,13 +44,15 @@
 // tồn tại (xem sanitizePromptForTextToImage), và BỎ QUA phần inlineData.
 //
 // Env var: POLLINATIONS_API_KEY — secret key (sk_...) lấy free tại
-// https://enter.pollinations.ai — KHÔNG bao giờ để lộ ra frontend.
+// https://enter.pollinations.ai — KHÔNG bao giờ để lộ ra frontend. Chỉ nhánh
+// TEXT dùng biến này; nhánh ẢNH không cần.
 
 const BASE_URL = 'https://gen.pollinations.ai'
 
-// Model text: "openai" — rẻ nhưng không phải $0 tuyệt đối (xem ghi chú ở
-// trên). Model ảnh: "flux" — model ảnh duy nhất miễn phí vĩnh viễn của
-// Pollinations, không cần Pollen, không giới hạn.
+// Model text: "openai" — rẻ nhưng không phải $0 tuyệt đối, vẫn cần Pollen
+// (Pollinations tính ~100.000+ lượt/1 Pollen — gần như không đáng kể,
+// nhưng vẫn cần ví > 0). Model ảnh: "flux" — gọi ẩn danh (xem ghi chú ở
+// trên) nên thật sự $0, không cần Pollen.
 const TEXT_MODEL = 'openai'
 const IMAGE_MODEL = 'flux'
 
@@ -61,22 +67,23 @@ export class GeminiComicError extends Error {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Aspect ratio kiểu Gemini ("1:1", "2:3", ...) → kích thước pixel cụ thể mà
-// Pollinations dùng (param `size`, dạng "WIDTHxHEIGHT").
-function aspectRatioToSize(aspectRatio) {
+// Aspect ratio kiểu Gemini ("1:1", "2:3", ...) → { width, height } cụ thể
+// cho endpoint GET /image/{prompt} (nhận width/height riêng, không phải
+// chuỗi "size" như endpoint POST JSON).
+function aspectRatioToDims(aspectRatio) {
   switch (aspectRatio) {
     case '1:1':
-      return '1024x1024'
+      return { width: 1024, height: 1024 }
     case '2:3':
-      return '1024x1536'
+      return { width: 1024, height: 1536 }
     case '3:2':
-      return '1536x1024'
+      return { width: 1536, height: 1024 }
     case '9:16':
-      return '1024x1820'
+      return { width: 1024, height: 1820 }
     case '16:9':
-      return '1820x1024'
+      return { width: 1820, height: 1024 }
     default:
-      return '1024x1024'
+      return { width: 1024, height: 1024 }
   }
 }
 
@@ -140,7 +147,13 @@ async function parseUpstreamError(res) {
   }
   message = String(message || `Pollinations API error (${res.status})`)
   const isAuthError = res.status === 401 || res.status === 402 || /invalid.*key|unauthorized|payment required/i.test(message)
-  throw new GeminiComicError(message, isAuthError ? 401 : 500)
+  if (res.status === 429) {
+    throw new GeminiComicError(
+      'Đang bị giới hạn tần suất của chế độ ảnh miễn phí (~1 ảnh/15 giây/IP). Vui lòng đợi vài giây rồi thử lại.',
+      429
+    )
+  }
+  throw new GeminiComicError(message, isAuthError ? 401 : res.status || 500)
 }
 
 // ---------------------------------------------------------------------------
@@ -176,48 +189,30 @@ async function generateText({ apiKey, contents, config }) {
 
 // ---------------------------------------------------------------------------
 // Nhánh sinh ẢNH — dùng cho generateComicImage (persona + panel truyện).
-// LUÔN dùng flux (text-to-image, miễn phí) — không còn nhánh image-to-image
-// vì flux không nhận ảnh tham chiếu. Xem ghi chú ở đầu file.
+//
+// QUAN TRỌNG: gọi KHÔNG kèm Authorization/Bearer key. Tài liệu Pollinations
+// xác nhận: hễ request có gửi API key là bị trừ Pollen (kể cả model free
+// như flux) — "flux miễn phí vĩnh viễn" chỉ đúng ở tier Anonymous (không
+// gửi key), đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / địa chỉ IP. Vì mục
+// tiêu là $0 tuyệt đối (không phụ thuộc ví Pollen), ta chấp nhận đánh đổi
+// tốc độ này thay vì gửi kèm sk_ key.
 // ---------------------------------------------------------------------------
-async function generateImage({ apiKey, contents, config }) {
+async function generateImage({ contents, config }) {
   const rawPromptText = extractPromptText(contents)
   const promptText = sanitizePromptForTextToImage(rawPromptText)
-  const size = aspectRatioToSize(config?.imageConfig?.aspectRatio)
+  const { width, height } = aspectRatioToDims(config?.imageConfig?.aspectRatio)
 
-  const res = await fetch(`${BASE_URL}/v1/images/generations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      prompt: promptText,
-      size,
-      response_format: 'b64_json',
-    }),
-  })
+  const url = `${BASE_URL}/image/${encodeURIComponent(promptText)}?model=${IMAGE_MODEL}&width=${width}&height=${height}&nologo=true`
+
+  // Không set header Authorization ở đây — cố tình để request đi ẩn danh.
+  const res = await fetch(url)
 
   if (!res.ok) await parseUpstreamError(res)
 
-  const data = await res.json()
-  const first = data?.data?.[0]
-
-  let base64 = first?.b64_json
-  if (!base64 && first?.url) {
-    // Vài trường hợp API trả về URL thay vì base64 — tự tải về và encode lại
-    // để giữ nguyên "hình dạng" response mà client đang mong đợi.
-    const imgRes = await fetch(first.url)
-    if (!imgRes.ok) throw new GeminiComicError('Không tải được ảnh kết quả từ Pollinations', 500)
-    const arrBuf = await imgRes.arrayBuffer()
-    base64 = Buffer.from(arrBuf).toString('base64')
-  }
-
-  if (!base64) {
-    throw new GeminiComicError('Pollinations không trả về dữ liệu ảnh hợp lệ', 500)
-  }
-
-  const mimeType = sniffMimeFromBase64(base64)
+  const contentType = res.headers.get('content-type') || ''
+  const arrBuf = await res.arrayBuffer()
+  const base64 = Buffer.from(arrBuf).toString('base64')
+  const mimeType = contentType.startsWith('image/') ? contentType.split(';')[0].trim() : sniffMimeFromBase64(base64)
 
   return {
     text: '',
@@ -235,9 +230,6 @@ async function generateImage({ apiKey, contents, config }) {
 // Entry point — giữ nguyên chữ ký hàm để không phải sửa nơi gọi
 // ---------------------------------------------------------------------------
 export async function runGeminiComicGenerate({ apiKey, action = 'generateContent', contents, config }) {
-  if (!apiKey) {
-    throw new GeminiComicError('POLLINATIONS_API_KEY not configured on server', 500)
-  }
   if (!contents) {
     throw new GeminiComicError('Missing "contents" in request body', 400)
   }
@@ -251,7 +243,15 @@ export async function runGeminiComicGenerate({ apiKey, action = 'generateContent
     // và responseMimeType khi gọi generateComicText, nên không cần đổi gì ở
     // phía client.
     if (config?.imageConfig) {
-      return await generateImage({ apiKey, contents, config })
+      // Nhánh ảnh KHÔNG cần apiKey — chạy ẩn danh, miễn phí thật (xem
+      // generateImage). Không chặn ở đây dù POLLINATIONS_API_KEY chưa cấu
+      // hình, để tính năng sinh ảnh vẫn hoạt động độc lập với nhánh text.
+      return await generateImage({ contents, config })
+    }
+    // Nhánh text vẫn cần apiKey thật (có Pollen) vì Pollinations không có
+    // chế độ ẩn danh cho text trên gen.pollinations.ai.
+    if (!apiKey) {
+      throw new GeminiComicError('POLLINATIONS_API_KEY not configured on server', 500)
     }
     return await generateText({ apiKey, contents, config })
   } catch (err) {
