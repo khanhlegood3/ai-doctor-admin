@@ -1,6 +1,10 @@
 // api/_lib/geminiComic.js
-// Logic gọi Pollinations.AI (gen.pollinations.ai) — dùng chung cho tính năng
-// "Tạo Game bằng Avatar của Tôi" (Comic Hero).
+// Logic sinh TEXT + ẢNH — dùng chung cho tính năng "Tạo Game bằng Avatar của
+// Tôi" (Comic Hero). Hai nhánh dùng 2 nhà cung cấp khác nhau:
+//   - Sinh TEXT (kịch bản): Groq (api.groq.com) — TÁI SỬ DỤNG GROQ_API_KEY đã
+//     có sẵn trong dự án (đang chạy chatbot chính), miễn phí thật, không cần
+//     ví Pollen.
+//   - Sinh ẢNH: vẫn Pollinations.AI, model "flux" — gọi ẨN DANH.
 //
 // LỊCH SỬ:
 //   1. Ban đầu dùng Google Gemini (@google/genai).
@@ -11,28 +15,32 @@
 //   3. Đổi model ảnh sang "flux" qua endpoint có key (POST
 //      /v1/images/generations) — NHƯNG vẫn bị trừ Pollen (rẻ hơn nhiều,
 //      nhưng vẫn > 0), ví vẫn 0 → vẫn lỗi.
-//   4. (BẢN NÀY) Đổi sang gọi "flux" ẨN DANH — GET /image/{prompt}, KHÔNG
-//      gửi Authorization/Bearer key. Theo tài liệu chính thức, đây là cách
-//      DUY NHẤT thật sự $0: tier "Anonymous" (không có key) không bị trừ
-//      Pollen, đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / IP.
+//   4. Đổi sang gọi "flux" ẨN DANH — GET /image/{prompt}, KHÔNG gửi
+//      Authorization/Bearer key. Theo tài liệu chính thức, đây là cách DUY
+//      NHẤT thật sự $0: tier "Anonymous" (không có key) không bị trừ Pollen,
+//      đổi lại giới hạn tốc độ ~1 ảnh / 15 giây / IP.
+//   5. (BẢN NÀY) Nhánh TEXT (kịch bản): Pollinations không có chế độ ẩn danh
+//      cho text trên gen.pollinations.ai, vẫn cần POLLINATIONS_API_KEY có
+//      Pollen → đổi hẳn sang gọi Groq (api.groq.com/openai/v1/chat/
+//      completions), tái dùng GROQ_API_KEY đã cấu hình sẵn cho chatbot
+//      chính trong dự án. Miễn phí thật, không phụ thuộc ví Pollen nào cả.
 //
 //   TÓM LẠI (bản hiện tại):
-//   - Sinh ẢNH: hoàn toàn miễn phí, không cần POLLINATIONS_API_KEY, không
-//     phụ thuộc ví Pollen — nhưng sinh từ mô tả TEXT thuần (không nhận ảnh
-//     tham chiếu), nên KHÔNG còn giữ nét mặt avatar thật của người dùng, và
-//     bị giới hạn tốc độ ~1 ảnh/15 giây/IP (đủ dùng cho 1 người dùng thao
-//     tác tuần tự, nhưng nhiều người dùng cùng lúc có thể bị 429).
-//   - Sinh TEXT (kịch bản): vẫn dùng model "openai" qua endpoint có key —
-//     Pollinations KHÔNG có chế độ ẩn danh cho text trên gen.pollinations.ai
-//     nên vẫn cần POLLINATIONS_API_KEY có Pollen (dù chi phí rất rẻ, xem
-//     ghi chú ở TEXT_MODEL bên dưới).
+//   - Sinh ẢNH: hoàn toàn miễn phí, không cần API key, không phụ thuộc ví
+//     Pollen — nhưng sinh từ mô tả TEXT thuần (không nhận ảnh tham chiếu),
+//     nên KHÔNG còn giữ nét mặt avatar thật của người dùng, và bị giới hạn
+//     tốc độ ~1 ảnh/15 giây/IP (đủ dùng cho 1 người dùng thao tác tuần tự,
+//     nhưng nhiều người dùng cùng lúc có thể bị 429).
+//   - Sinh TEXT (kịch bản): dùng Groq, model xem TEXT_MODEL bên dưới — cần
+//     GROQ_API_KEY (đã có sẵn trong dự án, dùng chung với chatbot chính).
 //
 // Được import bởi:
 //   - api/groq-proxy.js → Vercel Serverless Function (production), nhánh
 //     provider: 'gemini-comic' (dùng chung endpoint với Groq để không vượt
 //     quá giới hạn 12 Serverless Functions của Vercel).
 //   - vite.config.js    → middleware dev-server, để `npm run dev`
-//     cũng gọi Pollinations thật, không cần deploy lên Vercel mới test được.
+//     cũng gọi Groq/Pollinations thật, không cần deploy lên Vercel mới test
+//     được.
 //
 // GIỮ NGUYÊN INTERFACE: hàm export `runGeminiComicGenerate({ apiKey, action,
 // model, contents, config })` nhận và trả về đúng "hình dạng" dữ liệu kiểu
@@ -43,17 +51,20 @@
 // ĐỌC phần text, tự "làm sạch" các câu nhắc tới ảnh tham chiếu không còn
 // tồn tại (xem sanitizePromptForTextToImage), và BỎ QUA phần inlineData.
 //
-// Env var: POLLINATIONS_API_KEY — secret key (sk_...) lấy free tại
-// https://enter.pollinations.ai — KHÔNG bao giờ để lộ ra frontend. Chỉ nhánh
-// TEXT dùng biến này; nhánh ẢNH không cần.
+// Env var:
+//   - GROQ_API_KEY — dùng cho nhánh TEXT (kịch bản), lấy free tại
+//     https://console.groq.com — đã có sẵn trong dự án (chatbot chính +
+//     api/groq-whisper.js dùng chung biến này).
+//   - Nhánh ẢNH không cần API key nào (gọi ẩn danh tới Pollinations).
 
-const BASE_URL = 'https://gen.pollinations.ai'
+const POLLINATIONS_BASE_URL = 'https://gen.pollinations.ai'
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 
-// Model text: "openai" — rẻ nhưng không phải $0 tuyệt đối, vẫn cần Pollen
-// (Pollinations tính ~100.000+ lượt/1 Pollen — gần như không đáng kể,
-// nhưng vẫn cần ví > 0). Model ảnh: "flux" — gọi ẩn danh (xem ghi chú ở
-// trên) nên thật sự $0, không cần Pollen.
-const TEXT_MODEL = 'openai'
+// Model text: dùng Groq "llama-3.3-70b-versatile" — cùng model đang dùng
+// cho chatbot chính (xem api/groq-proxy.js), miễn phí thật (14.400
+// request/ngày), hỗ trợ response_format json_object. Model ảnh: "flux" —
+// gọi ẩn danh (xem ghi chú ở trên) nên thật sự $0, không cần Pollen.
+const TEXT_MODEL = 'llama-3.3-70b-versatile'
 const IMAGE_MODEL = 'flux'
 
 export class GeminiComicError extends Error {
@@ -136,7 +147,11 @@ function sanitizePromptForTextToImage(promptText) {
     .trim()
 }
 
-async function parseUpstreamError(res) {
+// Dùng chung cho cả 2 nhánh (Groq text + Pollinations image) nên không còn
+// gắn cứng tên nhà cung cấp nào trong message mặc định — `providerLabel`
+// cho phép caller ghi rõ nguồn lỗi (vd "Groq API", "Pollinations API") khi
+// cần, còn mặc định chỉ nói chung chung "Upstream API error".
+async function parseUpstreamError(res, providerLabel = 'Upstream') {
   const text = await res.text().catch(() => '')
   let message = text
   try {
@@ -145,19 +160,23 @@ async function parseUpstreamError(res) {
   } catch {
     // giữ nguyên text nếu không phải JSON
   }
-  message = String(message || `Pollinations API error (${res.status})`)
+  message = String(message || `${providerLabel} API error (${res.status})`)
   const isAuthError = res.status === 401 || res.status === 402 || /invalid.*key|unauthorized|payment required/i.test(message)
   if (res.status === 429) {
-    throw new GeminiComicError(
-      'Đang bị giới hạn tần suất của chế độ ảnh miễn phí (~1 ảnh/15 giây/IP). Vui lòng đợi vài giây rồi thử lại.',
-      429
-    )
+    const rateLimitMessage = providerLabel === 'Pollinations'
+      ? 'Đang bị giới hạn tần suất của chế độ ảnh miễn phí (~1 ảnh/15 giây/IP). Vui lòng đợi vài giây rồi thử lại.'
+      : 'Đang bị giới hạn tần suất của API miễn phí. Vui lòng đợi một chút rồi thử lại.'
+    throw new GeminiComicError(rateLimitMessage, 429)
   }
   throw new GeminiComicError(message, isAuthError ? 401 : res.status || 500)
 }
 
 // ---------------------------------------------------------------------------
 // Nhánh sinh TEXT — dùng cho generateComicText (kịch bản/nội dung từng beat)
+// Gọi Groq (api.groq.com/openai/v1/chat/completions) — tái sử dụng
+// GROQ_API_KEY đã có sẵn trong dự án cho chatbot chính. Format request/
+// response tương thích OpenAI, giống hệt cách api/groq-proxy.js đang gọi
+// Groq ở nhánh mặc định.
 // ---------------------------------------------------------------------------
 async function generateText({ apiKey, contents, config }) {
   const promptText = typeof contents === 'string' ? contents : extractPromptText(contents)
@@ -170,7 +189,7 @@ async function generateText({ apiKey, contents, config }) {
     body.response_format = { type: 'json_object' }
   }
 
-  const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
+  const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -179,7 +198,7 @@ async function generateText({ apiKey, contents, config }) {
     body: JSON.stringify(body),
   })
 
-  if (!res.ok) await parseUpstreamError(res)
+  if (!res.ok) await parseUpstreamError(res, 'Groq')
 
   const data = await res.json()
   const text = data?.choices?.[0]?.message?.content || ''
@@ -202,12 +221,12 @@ async function generateImage({ contents, config }) {
   const promptText = sanitizePromptForTextToImage(rawPromptText)
   const { width, height } = aspectRatioToDims(config?.imageConfig?.aspectRatio)
 
-  const url = `${BASE_URL}/image/${encodeURIComponent(promptText)}?model=${IMAGE_MODEL}&width=${width}&height=${height}&nologo=true`
+  const url = `${POLLINATIONS_BASE_URL}/image/${encodeURIComponent(promptText)}?model=${IMAGE_MODEL}&width=${width}&height=${height}&nologo=true`
 
   // Không set header Authorization ở đây — cố tình để request đi ẩn danh.
   const res = await fetch(url)
 
-  if (!res.ok) await parseUpstreamError(res)
+  if (!res.ok) await parseUpstreamError(res, 'Pollinations')
 
   const contentType = res.headers.get('content-type') || ''
   const arrBuf = await res.arrayBuffer()
@@ -244,18 +263,18 @@ export async function runGeminiComicGenerate({ apiKey, action = 'generateContent
     // phía client.
     if (config?.imageConfig) {
       // Nhánh ảnh KHÔNG cần apiKey — chạy ẩn danh, miễn phí thật (xem
-      // generateImage). Không chặn ở đây dù POLLINATIONS_API_KEY chưa cấu
-      // hình, để tính năng sinh ảnh vẫn hoạt động độc lập với nhánh text.
+      // generateImage). Không chặn ở đây dù GROQ_API_KEY chưa cấu hình, để
+      // tính năng sinh ảnh vẫn hoạt động độc lập với nhánh text.
       return await generateImage({ contents, config })
     }
-    // Nhánh text vẫn cần apiKey thật (có Pollen) vì Pollinations không có
-    // chế độ ẩn danh cho text trên gen.pollinations.ai.
+    // Nhánh text gọi Groq, cần GROQ_API_KEY (đã có sẵn trong dự án, dùng
+    // chung với chatbot chính — xem api/groq-proxy.js).
     if (!apiKey) {
-      throw new GeminiComicError('POLLINATIONS_API_KEY not configured on server', 500)
+      throw new GeminiComicError('GROQ_API_KEY not configured on server', 500)
     }
     return await generateText({ apiKey, contents, config })
   } catch (err) {
     if (err instanceof GeminiComicError) throw err
-    throw new GeminiComicError(String(err?.message || err || 'Pollinations proxy error'), 500)
+    throw new GeminiComicError(String(err?.message || err || 'Comic generate proxy error'), 500)
   }
 }

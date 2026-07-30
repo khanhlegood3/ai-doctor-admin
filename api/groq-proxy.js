@@ -12,10 +12,12 @@
 // 1 file api/gemini-comic-proxy.js riêng (sẽ là function thứ 13), tính năng
 // Comic Hero Game DÙNG CHUNG endpoint này. Client gửi thêm field
 // `provider: 'gemini-comic'` trong body để định tuyến sang nhánh sinh
-// text/ảnh qua Pollinations.AI (xem runGeminiComicGenerate ở
-// api/_lib/geminiComic.js — tên field/hàm giữ nguyên "gemini-comic" vì lý do
-// lịch sử, dù engine bên dưới đã đổi sang Pollinations); nếu không có field
-// này thì xử lý y hệt như trước (Groq passthrough), không đổi hành vi cũ.
+// text/ảnh (xem runGeminiComicGenerate ở api/_lib/geminiComic.js — tên
+// field/hàm giữ nguyên "gemini-comic" vì lý do lịch sử). Nhánh text dùng
+// Groq (tái sử dụng GROQ_API_KEY bên dưới, cùng key với Groq passthrough),
+// nhánh ảnh vẫn gọi Pollinations ẩn danh (không cần key); nếu không có field
+// `provider` này thì xử lý y hệt như trước (Groq passthrough), không đổi
+// hành vi cũ.
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 
@@ -47,21 +49,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Failed to parse request body: ' + e.message })
   }
 
-  // --- Nhánh Comic Hero (Pollinations.AI) ---
+  // --- Nhánh Comic Hero (text: Groq | ảnh: Pollinations ẩn danh) ---
   if (body.provider === 'gemini-comic') {
-    console.log('[groq-proxy] (gemini-comic/pollinations) action:', body.action)
+    console.log('[groq-proxy] (gemini-comic) action:', body.action)
     try {
       const payload = await runGeminiComicGenerate({
-        apiKey: process.env.POLLINATIONS_API_KEY,
+        apiKey: process.env.GROQ_API_KEY,
         action: body.action,
         contents: body.contents,
         config: body.config,
       })
       return res.status(200).json(payload)
     } catch (err) {
-      console.error('[groq-proxy] (gemini-comic/pollinations) error:', err?.message || err)
+      console.error('[groq-proxy] (gemini-comic) error:', err?.message || err)
       const status = err instanceof GeminiComicError ? err.status : 500
-      return res.status(status).json({ error: err?.message || 'Pollinations proxy error' })
+      return res.status(status).json({ error: err?.message || 'Comic generate proxy error' })
     }
   }
 

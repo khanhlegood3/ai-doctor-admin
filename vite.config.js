@@ -55,7 +55,8 @@ function inbodyOcrDevMiddleware(env) {
 // file /api mới vì Vercel giới hạn 12 Serverless Functions — xem
 // api/groq-proxy.js). Middleware này bắt path /api/groq-proxy, đọc body 1
 // lần để kiểm tra field `provider`:
-//   - provider === 'gemini-comic' → xử lý cục bộ bằng Gemini thật.
+//   - provider === 'gemini-comic' → xử lý cục bộ (text: Groq thật, ảnh:
+//     Pollinations ẩn danh thật) — xem runGeminiComicGenerate.
 //   - ngược lại (Groq bình thường) → tự forward nguyên văn body đã đọc sang
 //     backend ai-doctor-engine.vercel.app (vì stream request đã bị đọc hết
 //     nên không thể để proxy /api chung ở dưới xử lý tiếp — phải tự forward
@@ -89,8 +90,11 @@ function geminiComicDevMiddleware(env) {
 
           if (parsed.provider === 'gemini-comic') {
             try {
+              // Nhánh text dùng Groq (env.GROQ_API_KEY, cùng key với Groq
+              // passthrough bên dưới); nhánh ảnh gọi Pollinations ẩn danh,
+              // không cần apiKey — xem runGeminiComicGenerate.
               const payload = await runGeminiComicGenerate({
-                apiKey: env.POLLINATIONS_API_KEY,
+                apiKey: env.GROQ_API_KEY,
                 action: parsed.action,
                 contents: parsed.contents,
                 config: parsed.config,
@@ -99,10 +103,10 @@ function geminiComicDevMiddleware(env) {
               res.statusCode = 200
               res.end(JSON.stringify(payload))
             } catch (error) {
-              console.error('[gemini-comic-dev-middleware/pollinations]', error?.message || error)
+              console.error('[gemini-comic-dev-middleware]', error?.message || error)
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
-              res.end(JSON.stringify({ error: error?.message || 'Pollinations proxy error' }))
+              res.end(JSON.stringify({ error: error?.message || 'Comic generate proxy error' }))
             }
             return
           }
