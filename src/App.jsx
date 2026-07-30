@@ -75,7 +75,7 @@ import { addNotification } from './lib/notifications.js'
 import { useTTS } from './lib/groqAiClient.js'
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -675,7 +675,7 @@ export default function App() {
             {active === 'stressRelief' && <StressReliefPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiInbodyPortal' && <AIInbodyPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'rssPortal' && <RSSPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onOpenCookingGuide={() => setActive('cookingGuide')} />}
-            {active === 'cookingGuide' && <CookingGuidePanel onBack={() => setActive('rssPortal')} />}
+            {active === 'cookingGuide' && <CookingGuidePanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onBack={goPrev} />}
             {active === 'waterDrinkChatBot' && <WaterDrinkChatBotPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'wikiMedVision' && <WikiMedVisionPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'fullDocSummarization' && <FullDocumentSummarizationPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
