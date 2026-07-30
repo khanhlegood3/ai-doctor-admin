@@ -2,9 +2,26 @@
 // Logic gọi Pollinations.AI (gen.pollinations.ai) — dùng chung cho tính năng
 // "Tạo Game bằng Avatar của Tôi" (Comic Hero).
 //
-// LỊCH SỬ: Ban đầu dùng Google Gemini (@google/genai). Đã đổi sang
-// Pollinations.AI vì miễn phí thật (không giới hạn credit dùng thử), có
-// endpoint OpenAI-compatible cho cả sinh text lẫn sinh ảnh/image-to-image.
+// LỊCH SỬ:
+//   1. Ban đầu dùng Google Gemini (@google/genai).
+//   2. Đổi sang Pollinations.AI, model ảnh "nanobanana" (giữ được nét mặt
+//      avatar thật qua ảnh tham chiếu / image-to-image).
+//   3. (BẢN NÀY) Đổi model ảnh sang "flux" — quyết định có chủ đích: tài
+//      khoản Pollinations dùng chung của app bị 0 Pollen ("insufficient
+//      balance"), mà TẤT CẢ model image-to-image (nanobanana, kontext,
+//      seedream, klein...) đều tốn Pollen. "flux" là model ảnh DUY NHẤT
+//      của Pollinations miễn phí — vĩnh viễn, không giới hạn, không cần
+//      Pollen. ĐÁNH ĐỔI: flux chỉ sinh ảnh từ TEXT (text-to-image), KHÔNG
+//      nhận ảnh tham chiếu → tính năng "giữ nét mặt avatar thật của người
+//      dùng" trong ảnh hero/panel truyện KHÔNG còn nữa; ảnh hero giờ sinh
+//      hoàn toàn từ mô tả text (scene/desc), không dựa trên ảnh thật.
+//   Sinh TEXT (kịch bản) vẫn dùng model "openai" — model này rất rẻ nhưng
+//   KHÔNG hoàn toàn $0 như flux (Pollinations tính ~100.000+ lượt/1 Pollen).
+//   Nếu tài khoản vẫn ở mức 0 Pollen, nhánh text vẫn có thể báo lỗi
+//   "insufficient balance" dù chi phí gần như không đáng kể — cần nạp tối
+//   thiểu (vài chục nghìn VNĐ ~ vài chục nghìn lượt gọi) hoặc chờ/khiếu nại
+//   phần Pollen miễn phí hàng tuần của tier đã đăng ký tại
+//   https://enter.pollinations.ai.
 //
 // Được import bởi:
 //   - api/groq-proxy.js → Vercel Serverless Function (production), nhánh
@@ -18,17 +35,20 @@
 // Gemini cũ (contents: string | {text} | Array<{text}|{inlineData}}>,
 // candidates[0].content.parts[].inlineData.{mimeType,data}) để KHÔNG phải
 // đụng vào geminiComicClient.js hay ComicHeroGamePanel.jsx ở phía client.
+// Client vẫn gửi kèm inlineData (ảnh tham chiếu) như cũ — engine ở đây chỉ
+// ĐỌC phần text, tự "làm sạch" các câu nhắc tới ảnh tham chiếu không còn
+// tồn tại (xem sanitizePromptForTextToImage), và BỎ QUA phần inlineData.
 //
 // Env var: POLLINATIONS_API_KEY — secret key (sk_...) lấy free tại
 // https://enter.pollinations.ai — KHÔNG bao giờ để lộ ra frontend.
 
 const BASE_URL = 'https://gen.pollinations.ai'
 
-// Model text: "openai" (Pollinations proxy tới GPT, miễn phí qua pool chung).
-// Model ảnh: "nanobanana" — hỗ trợ image-to-image nhiều ảnh tham chiếu
-// (đúng nhu cầu "biến avatar thành nhân vật hero" + giữ mặt nhân vật phụ).
+// Model text: "openai" — rẻ nhưng không phải $0 tuyệt đối (xem ghi chú ở
+// trên). Model ảnh: "flux" — model ảnh duy nhất miễn phí vĩnh viễn của
+// Pollinations, không cần Pollen, không giới hạn.
 const TEXT_MODEL = 'openai'
-const IMAGE_MODEL = 'nanobanana'
+const IMAGE_MODEL = 'flux'
 
 export class GeminiComicError extends Error {
   constructor(message, status = 500) {
@@ -71,31 +91,42 @@ function sniffMimeFromBase64(base64) {
   return 'image/png'
 }
 
-// contents kiểu Gemini → { promptText, refImages: [{mimeType, data}] }
+// contents kiểu Gemini → gộp hết các phần `text` thành 1 chuỗi prompt.
 // contents có thể là:
-//   - string (chỉ dùng cho nhánh text, xử lý riêng ở runGeminiComicGenerate)
-//   - { text: "..." } (ảnh không có tham chiếu, vd sinh persona lần đầu)
-//   - [{ text }, { inlineData: { mimeType, data } }, ...] (nhiều phần, có
-//     thể xen kẽ text + ảnh tham chiếu, vd generateImage với hero/co-star)
-function parseImageContents(contents) {
+//   - string (nhánh text, xử lý riêng ở generateText)
+//   - { text: "..." } (ảnh không có tham chiếu, vd sinh persona)
+//   - [{ text }, { inlineData: {...} }, ...] (nhiều phần — client vẫn gửi
+//     kèm inlineData như trước khi đổi sang flux, NHƯNG ở đây ta chủ động
+//     BỎ QUA phần inlineData vì flux không nhận ảnh tham chiếu)
+function extractPromptText(contents) {
   const parts = Array.isArray(contents) ? contents : [contents]
   const textParts = []
-  const refImages = []
-
   for (const part of parts) {
-    if (!part) continue
-    if (typeof part.text === 'string' && part.text.trim()) {
+    if (part && typeof part.text === 'string' && part.text.trim()) {
       textParts.push(part.text.trim())
     }
-    if (part.inlineData?.data) {
-      refImages.push({
-        mimeType: part.inlineData.mimeType || 'image/jpeg',
-        data: part.inlineData.data,
-      })
-    }
   }
+  return textParts.join('\n')
+}
 
-  return { promptText: textParts.join('\n'), refImages }
+// ComicHeroGamePanel.jsx (không sửa) vẫn chèn các câu như
+// "REFERENCE 1 [HERO]:" hoặc "Maintain strict character likeness... use
+// REFERENCE 1" vào prompt vì trước đây có ảnh tham chiếu đi kèm. Từ khi đổi
+// sang flux (text-to-image, không có ảnh tham chiếu), những câu này không
+// còn ý nghĩa và có thể khiến flux hiểu sai/sinh ảnh lỗi — nên lọc bỏ trước
+// khi gửi lên API.
+function sanitizePromptForTextToImage(promptText) {
+  return promptText
+    .replace(/REFERENCE 1 \[HERO\]:/g, '')
+    .replace(/REFERENCE 2 \[CO-STAR\]:/g, '')
+    .replace(/INSTRUCTIONS: Maintain strict character likeness\.[^.]*\.[^.]*\.\s*/g, '')
+    .replace(/\(Use REFERENCE 1\)/g, '')
+    .replace(/\(Use REFERENCE 2\)/g, '')
+    .replace(/\breference 1\b/gi, 'the main hero')
+    .replace(/\breference 2\b/gi, 'the co-star')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
 }
 
 async function parseUpstreamError(res) {
@@ -116,7 +147,7 @@ async function parseUpstreamError(res) {
 // Nhánh sinh TEXT — dùng cho generateComicText (kịch bản/nội dung từng beat)
 // ---------------------------------------------------------------------------
 async function generateText({ apiKey, contents, config }) {
-  const promptText = typeof contents === 'string' ? contents : parseImageContents(contents).promptText
+  const promptText = typeof contents === 'string' ? contents : extractPromptText(contents)
 
   const body = {
     model: TEXT_MODEL,
@@ -144,48 +175,28 @@ async function generateText({ apiKey, contents, config }) {
 }
 
 // ---------------------------------------------------------------------------
-// Nhánh sinh ẢNH — dùng cho generateComicImage (persona + panel truyện)
+// Nhánh sinh ẢNH — dùng cho generateComicImage (persona + panel truyện).
+// LUÔN dùng flux (text-to-image, miễn phí) — không còn nhánh image-to-image
+// vì flux không nhận ảnh tham chiếu. Xem ghi chú ở đầu file.
 // ---------------------------------------------------------------------------
 async function generateImage({ apiKey, contents, config }) {
-  const { promptText, refImages } = parseImageContents(contents)
+  const rawPromptText = extractPromptText(contents)
+  const promptText = sanitizePromptForTextToImage(rawPromptText)
   const size = aspectRatioToSize(config?.imageConfig?.aspectRatio)
 
-  let res
-  if (refImages.length > 0) {
-    // Có ảnh tham chiếu (avatar hero / co-star) → dùng /v1/images/edits
-    // (image-to-image, multipart) — nanobanana hỗ trợ nhiều ảnh tham chiếu
-    // cùng lúc qua nhiều field "image" lặp lại.
-    const form = new FormData()
-    form.append('model', IMAGE_MODEL)
-    form.append('prompt', promptText)
-    form.append('size', size)
-    for (const img of refImages) {
-      const buffer = Buffer.from(img.data, 'base64')
-      form.append('image', new Blob([buffer], { type: img.mimeType }), 'reference.jpg')
-    }
-
-    res = await fetch(`${BASE_URL}/v1/images/edits`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    })
-  } else {
-    // Không có ảnh tham chiếu (vd sinh persona từ mô tả text thuần) →
-    // /v1/images/generations (text-to-image).
-    res = await fetch(`${BASE_URL}/v1/images/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: IMAGE_MODEL,
-        prompt: promptText,
-        size,
-        response_format: 'b64_json',
-      }),
-    })
-  }
+  const res = await fetch(`${BASE_URL}/v1/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: IMAGE_MODEL,
+      prompt: promptText,
+      size,
+      response_format: 'b64_json',
+    }),
+  })
 
   if (!res.ok) await parseUpstreamError(res)
 
