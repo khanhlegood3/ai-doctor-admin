@@ -31,6 +31,12 @@ export default function ComicHeroGamePanel() {
   const [errorMessage, setErrorMessage] = useState('')
   const [isLoadingProfileAvatar, setIsLoadingProfileAvatar] = useState(false)
 
+  // Toast riêng cho lỗi gọi API trong lúc "in truyện" (sau khi đã bấm bắt
+  // đầu) — khác với `errorMessage` (chỉ hiển thị ở màn Setup, cho lỗi nhập
+  // liệu trước khi bắt đầu). Toast này hiện đè lên sách, tự ẩn sau vài giây.
+  const [apiToast, setApiToast] = useState(null) // { variant: 'warning' | 'error', message: string }
+  const apiToastTimerRef = useRef(null)
+
   const heroRef = useRef(null)
   const friendRef = useRef(null)
   const setHero = (p) => { setHeroState(p); heroRef.current = p }
@@ -48,15 +54,28 @@ export default function ComicHeroGamePanel() {
 
   const hasProfileAvatar = Boolean(user?.avatar)
 
+  const showApiToast = (variant, message, durationMs = 6000) => {
+    setApiToast({ variant, message })
+    if (apiToastTimerRef.current) clearTimeout(apiToastTimerRef.current)
+    apiToastTimerRef.current = setTimeout(() => setApiToast(null), durationMs)
+  }
+
+  useEffect(() => () => {
+    if (apiToastTimerRef.current) clearTimeout(apiToastTimerRef.current)
+  }, [])
+
   const handleAPIError = (e) => {
     const msg = String(e?.message || e)
     console.error('[comicHero] API Error:', msg)
-    setErrorMessage(
-      e?.status === 401
-        ? 'Không thể xác thực với Pollinations.AI. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình POLLINATIONS_API_KEY.'
-        : 'Có lỗi khi tạo nội dung. Vui lòng thử lại.'
-    )
+    if (e?.status === 401) {
+      showApiToast('error', 'Không thể xác thực với dịch vụ tạo nội dung. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình API key.')
+    } else if (e?.status === 429) {
+      showApiToast('warning', 'Đang vẽ hơi nhanh tay! Chế độ ảnh miễn phí cần nghỉ khoảng 15 giây giữa các ảnh — trang này sẽ trống tạm, bạn quay lại thử sau chút nhé.')
+    } else {
+      showApiToast('error', 'Có lỗi khi tạo nội dung. Vui lòng thử lại.')
+    }
   }
+
 
   const generateBeat = async (history, pageNum, isDecisionPage) => {
     if (!heroRef.current) throw new Error('No Hero')
@@ -434,6 +453,21 @@ OUTPUT STRICT JSON ONLY (No markdown formatting):
           onDownload={downloadPDF}
           onReset={resetApp}
         />
+
+        {apiToast && (
+          <div className={`comic-hero-toast comic-hero-toast--${apiToast.variant}`} role="status">
+            <span className="comic-hero-toast__icon">{apiToast.variant === 'warning' ? '⏳' : '⚠️'}</span>
+            <span className="comic-hero-toast__text">{apiToast.message}</span>
+            <button
+              type="button"
+              className="comic-hero-toast__close"
+              aria-label="Đóng"
+              onClick={() => setApiToast(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -204,3 +204,63 @@
   }
   .comic-hero-root .book.opened { transform: translateX(100%); }
 }
+
+/* Toast lỗi API (401/429/khác) — hiện đè lên sách trong lúc "in truyện",
+   khác với banner lỗi validate ở màn Setup (Setup.jsx). Màu vàng (warning)
+   dùng riêng cho 429 (giới hạn tốc độ ảnh miễn phí) để không tạo cảm giác
+   "hỏng nặng" như lỗi thật (error, màu đỏ). */
+.comic-hero-root .comic-hero-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 480px);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 3px solid #000;
+  box-shadow: 5px 5px 0px black;
+  font-family: 'Comic Neue', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: #1a1a1a;
+  animation: comic-hero-toast-in 0.35s ease-out;
+}
+
+.comic-hero-toast--warning { background: #fde047; }
+.comic-hero-toast--error { background: #fca5a5; }
+
+.comic-hero-toast__icon { font-size: 1.3rem; flex-shrink: 0; }
+.comic-hero-toast__text { flex: 1; }
+
+.comic-hero-toast__close {
+  flex-shrink: 0;
+  border: 2px solid #000;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  line-height: 1;
+  font-size: 1.1rem;
+  font-weight: 900;
+  cursor: pointer;
+  color: #1a1a1a;
+}
+.comic-hero-toast__close:hover { background: rgba(0, 0, 0, 0.18); }
+
+@keyframes comic-hero-toast-in {
+  0% { transform: translateX(-50%) translateY(16px); opacity: 0; }
+  100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .comic-hero-root .comic-hero-toast {
+    max-width: 94vw;
+    font-size: 0.88rem;
+    padding: 12px 14px;
+  }
+}
