@@ -84,6 +84,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
     { id: 'protein3d', label: t('protein3d'), step: '30' },
     { id: 'aiHealthcareVision', label: t('aiHealthcareVision'), step: '31' },
     { id: 'visionSync', label: t('visionSync'), step: '31b' },
+    { id: 'videoToLearning', label: t('videoToLearning'), step: '31c' },
     { id: 'aiInbodyPortal', label: t('aiInbodyPortal'), step: '33' },
     { id: 'printPortal', label: t('nav_printPortal'), step: '34' },
     { id: 'patientReflect', label: t('nav_patientReflect'), step: '35' },

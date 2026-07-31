@@ -178,6 +178,7 @@ export default defineConfig(({ mode }) => {
           main: resolve(__dirname, 'index.html'),
           mediapipeKhanh: resolve(__dirname, 'src/mediapipe-khanh/index.html'),
           visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
+          videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
         },
       },
     },
