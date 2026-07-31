@@ -77,6 +77,12 @@ function getNavItems(t) {
 
 const HEALTH_REMIX_INTRO_VIDEO_ID = 'q6sUo9YT3bA'
 
+// App con "Vision Sync" (React 19 + MediaPipe + TensorFlow.js + Tone.js),
+// build multi-page riêng (xem vite.config.js) — nhúng lại đúng phần
+// "camera AI + nhạc nền theo vibe" của trang Vision Sync, đặt cạnh card
+// "AI Pose Tracking (Virtual Twin)" trong menu Sản phẩm.
+const VISION_SYNC_APP_URL = '/src/vision-sync-khanh/index.html'
+
 /* ══════════════════════════════════════════════════════════════════════
  * Organ map visual — phần "vẽ lại nội tạng" của HeroZoneStackPopup
  * (heroPanels/HeroZoneStackPopup.jsx), dùng trên landing page. Giờ có thể
@@ -1733,6 +1739,36 @@ export default function LandingPageZeroToForever({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Demo trực tiếp: camera AI + nhạc nền theo vibe — copy từ
+                trang "Vision Sync" (VisionSyncPanel.jsx), gắn ngay dưới
+                card "AI Pose Tracking (Virtual Twin)" phía trên. */}
+            <div className="mt-6 rounded-3xl overflow-hidden zofo-shadow-soft border border-gray-100 dark:border-white/10 bg-white dark:bg-[#141b2e] p-6 sm:p-8">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <ScanFace className="w-7 h-7 text-[#4B6BFF]" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">
+                    {language === 'vi' ? 'Dùng thử Camera AI Pose + Nhạc theo Vibe' : 'Try the AI Pose Camera + Vibe Music'}
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {language === 'vi'
+                      ? 'Mở camera để MediaPipe nhận diện tư thế/khuôn mặt theo thời gian thực và tự tạo nhạc nền theo "vibe" khung cảnh — công nghệ giống hệt trang Vision Sync.'
+                      : 'Open the camera for realtime MediaPipe pose/face tracking, with background music generated from the scene "vibe" — the same tech as the Vision Sync page.'}
+                  </p>
+                </div>
+              </div>
+              <div className="ai-healthcare-vision-frame-card">
+                <iframe
+                  title="AI Pose Camera + Vibe Music"
+                  src={VISION_SYNC_APP_URL}
+                  className="ai-healthcare-vision-frame"
+                  allow="camera; microphone; fullscreen; clipboard-read; clipboard-write"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
             </div>
           </section>
 
