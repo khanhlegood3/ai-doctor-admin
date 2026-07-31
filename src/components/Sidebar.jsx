@@ -116,6 +116,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
     'omnidirectional3dBody',
     'aiHealthcareVision',
     'visionSync',
+    'videoToLearning',
     'patientReflect',
     'stressRelief',
     'chatHistory',
