@@ -1152,15 +1152,21 @@ export default function App() {
           autoPlay
           playsInline
           muted
-          className={`absolute inset-0 w-full h-full object-cover grayscale contrast-125 opacity-60 transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
         />
         <canvas
           ref={canvasRef}
           className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[15] ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
         />
-        {/* Vignette & Scanlines */}
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.8)_100%)] z-10" />
-        <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] z-10" />
+        {/* Vignette & Scanlines — làm nhạt hơn nhiều so với bản gốc (0.8 →
+            0.25 / 0.25 → 0.06) để không che mất màu thật của video camera.
+            Lưu ý: filter grayscale/contrast trên <video> ở trên ĐÃ BỊ GỠ —
+            đây chỉ là hiệu ứng thẩm mỹ (giao diện "HUD"), không giúp tăng
+            hiệu năng: trình duyệt vẫn phải render đúng số pixel video mỗi
+            khung hình dù có filter màu hay không, nên hiển thị màu thật
+            không tốn thêm chi phí gì so với bản trắng đen trước đó. */}
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.25)_100%)] z-10" />
+        <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.06)_50%)] bg-[length:100%_4px] z-10" />
         
         {/* Decorative HUD Elements */}
         <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center overflow-hidden">

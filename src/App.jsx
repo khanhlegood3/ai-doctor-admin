@@ -1,81 +1,109 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useAuth } from './context/AuthContext'
 import { useApp } from './context/AppContext'
 import Topbar from './components/Topbar.jsx'
 import Sidebar from './components/Sidebar.jsx'
 import GlobalAIChatbot from './components/GlobalAIChatbot.jsx'
-import ImagingPanel from './components/ImagingPanel.jsx'
-import CheckinPanel from './components/CheckinPanel.jsx'
-import TwinPanel from './components/TwinPanel.jsx'
-import Matrix3DBodyPanel from './components/Matrix3DBodyPanel.jsx'
-import Omnidirectional3DBodyPanel from './components/Omnidirectional3DBodyPanel.jsx'
-import TelemedicinePanel from './components/TelemedicinePanel.jsx'
-import StatisticalAnalysisPanel from './components/StatisticalAnalysisPanel.jsx'
-import SimulationPanel from './components/SimulationPanel.jsx'
-import ConsensusPanel from './components/ConsensusPanel.jsx'
-import VarCheckPanel from './components/VarCheckPanel.jsx'
-import SwarmConsensusPanel from './components/SwarmConsensusPanel.jsx'
-import UploadPanel from './components/upload/UploadPanel.jsx'
-import HealthJourneyPanel from './components/HealthJourneyPanel.jsx'
-import HealthJourneyGamePanel from './components/HealthJourneyGamePanel.jsx'
-import MyRewardHealthPanel from './components/MyRewardHealthPanel.jsx'
-import MedicalAssetStorePanel from './components/MedicalAssetStorePanel.jsx' // <--- IMPORT PANEL MỚI Ở ĐÂY
-import MedicalVisualPlayground from './components/MedicalVisualPlayground.jsx'
-import MedicalVisualCameraAngle3D from './components/MedicalVisualCameraAngle3D.jsx'
-import LunchJourneyPanel from './components/LunchJourneyPanel.jsx'
-import DinnerJourneyPanel from './components/DinnerJourneyPanel.jsx'
-import FamilyTreePanel from './components/family/FamilyTreePanel.jsx'
-import FamilyMedicalRelationshipPanel from './components/family/FamilyMedicalRelationshipPanel.jsx'
-import AdminPanel from './components/admin/AdminPanel.jsx'
-import AdminConceptPanel from './components/AdminConceptPanel.jsx'
-import PatientRecordPanel from './components/PatientRecordPanel.jsx'
-import Protein3DPanel from './components/Protein3DPanel.jsx'
-import AIHealthcareVisionPanel from './components/AIHealthcareVisionPanel.jsx'
-import VisionSyncPanel from './components/VisionSyncPanel.jsx'
-import AIHealthcareVisionControlPanel from './components/AIHealthcareVisionControlPanel.jsx'
-import AIInbodyPortalPanel from './components/AIInbodyPortalPanel.jsx'
-import WaterDrinkChatBotPanel from './components/WaterDrinkChatBotPanel.jsx'
-import RSSPortalPanel from './components/RSSPortalPanel.jsx'
-import CookingGuidePanel from './components/CookingGuidePanel.jsx'
-import WikiMedVisionPanel from './components/WikiMedVisionPanel.jsx'
-import FullDocumentSummarizationPanel from './components/FullDocumentSummarizationPanel.jsx'
-import DocumentOCRPanel from './components/DocumentOCRPanel.jsx'
-import StressReliefPanel from './components/StressReliefPanel.jsx'
+// PERFORMANCE NOTE: trước đây TẤT CẢ ~70 panel/page dưới đây được `import`
+// tĩnh (static) — nghĩa là code của MỌI tính năng (dù user có bao giờ mở
+// hay không) đều nằm chung trong DUY NHẤT 1 file JS "main" (build ra ~10MB
+// chưa nén / ~2.3MB gzip), và trình duyệt phải tải + parse + chạy TOÀN BỘ
+// file đó trước khi vẽ được MÀN HÌNH ĐẦU TIÊN — kể cả Landing Page (trang
+// public, ai vào cũng thấy trước tiên) — đây là nguyên nhân chính khiến lần
+// đầu vào trang bị delay nặng và trình duyệt hiện popup "Trang không phản
+// hồi / Chờ hoặc Thoát trang". Đã đổi các import bên dưới sang
+// `lazy(() => import(...))` để Vite tách mỗi panel thành 1 file JS riêng,
+// chỉ tải khi user thực sự điều hướng tới đó — Landing Page giờ chỉ cần tải
+// đúng phần code của chính nó. Các <Suspense fallback={<PanelLoadingFallback
+// />}> tương ứng nằm ở những chỗ render các component lazy này bên dưới.
+const ImagingPanel = lazy(() => import('./components/ImagingPanel.jsx'))
+const CheckinPanel = lazy(() => import('./components/CheckinPanel.jsx'))
+const TwinPanel = lazy(() => import('./components/TwinPanel.jsx'))
+const Matrix3DBodyPanel = lazy(() => import('./components/Matrix3DBodyPanel.jsx'))
+const Omnidirectional3DBodyPanel = lazy(() => import('./components/Omnidirectional3DBodyPanel.jsx'))
+const TelemedicinePanel = lazy(() => import('./components/TelemedicinePanel.jsx'))
+const StatisticalAnalysisPanel = lazy(() => import('./components/StatisticalAnalysisPanel.jsx'))
+const SimulationPanel = lazy(() => import('./components/SimulationPanel.jsx'))
+const ConsensusPanel = lazy(() => import('./components/ConsensusPanel.jsx'))
+const VarCheckPanel = lazy(() => import('./components/VarCheckPanel.jsx'))
+const SwarmConsensusPanel = lazy(() => import('./components/SwarmConsensusPanel.jsx'))
+const UploadPanel = lazy(() => import('./components/upload/UploadPanel.jsx'))
+const HealthJourneyPanel = lazy(() => import('./components/HealthJourneyPanel.jsx'))
+const HealthJourneyGamePanel = lazy(() => import('./components/HealthJourneyGamePanel.jsx'))
+const MyRewardHealthPanel = lazy(() => import('./components/MyRewardHealthPanel.jsx'))
+const MedicalAssetStorePanel = lazy(() => import('./components/MedicalAssetStorePanel.jsx')) // <--- IMPORT PANEL MỚI Ở ĐÂY
+const MedicalVisualPlayground = lazy(() => import('./components/MedicalVisualPlayground.jsx'))
+const MedicalVisualCameraAngle3D = lazy(() => import('./components/MedicalVisualCameraAngle3D.jsx'))
+const LunchJourneyPanel = lazy(() => import('./components/LunchJourneyPanel.jsx'))
+const DinnerJourneyPanel = lazy(() => import('./components/DinnerJourneyPanel.jsx'))
+const FamilyTreePanel = lazy(() => import('./components/family/FamilyTreePanel.jsx'))
+const FamilyMedicalRelationshipPanel = lazy(() => import('./components/family/FamilyMedicalRelationshipPanel.jsx'))
+const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
+const AdminConceptPanel = lazy(() => import('./components/AdminConceptPanel.jsx'))
+const PatientRecordPanel = lazy(() => import('./components/PatientRecordPanel.jsx'))
+const Protein3DPanel = lazy(() => import('./components/Protein3DPanel.jsx'))
+const AIHealthcareVisionPanel = lazy(() => import('./components/AIHealthcareVisionPanel.jsx'))
+const VisionSyncPanel = lazy(() => import('./components/VisionSyncPanel.jsx'))
+const AIHealthcareVisionControlPanel = lazy(() => import('./components/AIHealthcareVisionControlPanel.jsx'))
+const AIInbodyPortalPanel = lazy(() => import('./components/AIInbodyPortalPanel.jsx'))
+const WaterDrinkChatBotPanel = lazy(() => import('./components/WaterDrinkChatBotPanel.jsx'))
+const RSSPortalPanel = lazy(() => import('./components/RSSPortalPanel.jsx'))
+const CookingGuidePanel = lazy(() => import('./components/CookingGuidePanel.jsx'))
+const WikiMedVisionPanel = lazy(() => import('./components/WikiMedVisionPanel.jsx'))
+const FullDocumentSummarizationPanel = lazy(() => import('./components/FullDocumentSummarizationPanel.jsx'))
+const DocumentOCRPanel = lazy(() => import('./components/DocumentOCRPanel.jsx'))
+const StressReliefPanel = lazy(() => import('./components/StressReliefPanel.jsx'))
 import PrintCenter from './print/PrintCenter.jsx'
-import UserProfilePanel from './components/UserProfilePanel.jsx'
-import DonationHeroPanel from './components/DonationHeroPanel.jsx'
-import AffiliateUUIDReferralPanel from './components/AffiliateUUIDReferralPanel.jsx'
-import BodyProtectionJourneyPanel from './components/BodyProtectionJourneyPanel.jsx'
-import AffiliateGamePage from './components/AffiliateGamePage.jsx'
-import Hero3DMapPanel from './components/Hero3DMapPanel.jsx'
-import MyPainPathBodyPanel from './components/MyPainPathBodyPanel.jsx'
-import MyPainPathBodyPixelPanel from './components/MyPainPathBodyPixelPanel.jsx'
-import MyPainPathNoiTangPanel from './components/MyPainPathNoiTangPanel.jsx'
-import MyPainPathNoiTangPixelPanel from './components/MyPainPathNoiTangPixelPanel.jsx'
-import ChooseUserRolePanel from './components/ChooseUserRolePanel.jsx'
-import AvatarCreatorPanel from './components/AvatarCreatorPanel.jsx'
-import ComicHeroGamePanel from './components/comicHero/ComicHeroGamePanel.jsx'
-import ComicIssueLibraryPanel from './components/comicHero/ComicIssueLibraryPanel.jsx'
-import PetPassportAdventurePanel from './components/petPassport/PetPassportAdventurePanel.jsx'
-import Make3DModelPanel from './components/Make3DModelPanel.jsx'
-import My3DAssetPanel from './components/My3DAssetPanel.jsx'
-import TwoDTo3DAssetPanel from './components/TwoDTo3DAssetPanel.jsx'
-import XyzCameraAnglePanel from './components/XyzCameraAnglePanel.jsx'
-import CameraAngle3DStudioPanel from './components/CameraAngle3DStudioPanel.jsx'
-import Create3DVideoFrom2DPanel from './components/Create3DVideoFrom2DPanel.jsx'
-import OrganConnectionPanel from './components/OrganConnectionPanel.jsx'
-import ChatHistoryPanel from './components/ChatHistoryPanel.jsx'
-import PatientReflectPanel from './components/PatientReflectPanel.jsx'
-import AffiliateSystemControlPanel from './components/AffiliateSystemControlPanel.jsx'
-import AffiliateSystemPanel from './components/AffiliateSystemPanel.jsx'
-import AffiliateWebhookAdmin from './components/admin/AffiliateWebhookAdmin.jsx'
-import MoralisPlaygroundAdmin from './components/admin/MoralisPlaygroundAdmin.jsx'
-import AffiliateSystemAdminPanel from './components/admin/AffiliateSystemAdminPanel.jsx'
-import RoleMembershipAdminPanel from './components/admin/RoleMembershipAdminPanel.jsx'
-import LoginPage from './pages/LoginPage.jsx'
-import LandingPageZeroToForever from './pages/landingPageZeroToForever.jsx'
+const UserProfilePanel = lazy(() => import('./components/UserProfilePanel.jsx'))
+const DonationHeroPanel = lazy(() => import('./components/DonationHeroPanel.jsx'))
+const AffiliateUUIDReferralPanel = lazy(() => import('./components/AffiliateUUIDReferralPanel.jsx'))
+const BodyProtectionJourneyPanel = lazy(() => import('./components/BodyProtectionJourneyPanel.jsx'))
+const AffiliateGamePage = lazy(() => import('./components/AffiliateGamePage.jsx'))
+const Hero3DMapPanel = lazy(() => import('./components/Hero3DMapPanel.jsx'))
+const MyPainPathBodyPanel = lazy(() => import('./components/MyPainPathBodyPanel.jsx'))
+const MyPainPathBodyPixelPanel = lazy(() => import('./components/MyPainPathBodyPixelPanel.jsx'))
+const MyPainPathNoiTangPanel = lazy(() => import('./components/MyPainPathNoiTangPanel.jsx'))
+const MyPainPathNoiTangPixelPanel = lazy(() => import('./components/MyPainPathNoiTangPixelPanel.jsx'))
+const ChooseUserRolePanel = lazy(() => import('./components/ChooseUserRolePanel.jsx'))
+const AvatarCreatorPanel = lazy(() => import('./components/AvatarCreatorPanel.jsx'))
+const ComicHeroGamePanel = lazy(() => import('./components/comicHero/ComicHeroGamePanel.jsx'))
+const ComicIssueLibraryPanel = lazy(() => import('./components/comicHero/ComicIssueLibraryPanel.jsx'))
+const PetPassportAdventurePanel = lazy(() => import('./components/petPassport/PetPassportAdventurePanel.jsx'))
+const Make3DModelPanel = lazy(() => import('./components/Make3DModelPanel.jsx'))
+const My3DAssetPanel = lazy(() => import('./components/My3DAssetPanel.jsx'))
+const TwoDTo3DAssetPanel = lazy(() => import('./components/TwoDTo3DAssetPanel.jsx'))
+const XyzCameraAnglePanel = lazy(() => import('./components/XyzCameraAnglePanel.jsx'))
+const CameraAngle3DStudioPanel = lazy(() => import('./components/CameraAngle3DStudioPanel.jsx'))
+const Create3DVideoFrom2DPanel = lazy(() => import('./components/Create3DVideoFrom2DPanel.jsx'))
+const OrganConnectionPanel = lazy(() => import('./components/OrganConnectionPanel.jsx'))
+const ChatHistoryPanel = lazy(() => import('./components/ChatHistoryPanel.jsx'))
+const PatientReflectPanel = lazy(() => import('./components/PatientReflectPanel.jsx'))
+const AffiliateSystemControlPanel = lazy(() => import('./components/AffiliateSystemControlPanel.jsx'))
+const AffiliateSystemPanel = lazy(() => import('./components/AffiliateSystemPanel.jsx'))
+const AffiliateWebhookAdmin = lazy(() => import('./components/admin/AffiliateWebhookAdmin.jsx'))
+const MoralisPlaygroundAdmin = lazy(() => import('./components/admin/MoralisPlaygroundAdmin.jsx'))
+const AffiliateSystemAdminPanel = lazy(() => import('./components/admin/AffiliateSystemAdminPanel.jsx'))
+const RoleMembershipAdminPanel = lazy(() => import('./components/admin/RoleMembershipAdminPanel.jsx'))
+const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
+const LandingPageZeroToForever = lazy(() => import('./pages/landingPageZeroToForever.jsx'))
 import { addNotification } from './lib/notifications.js'
 import { useTTS } from './lib/groqAiClient.js'
+
+// Fallback nhẹ cho <Suspense> khi 1 panel/page (đã chuyển sang lazy(() =>
+// import(...)) bên trên — xem PERFORMANCE NOTE ở đầu file) đang tải chunk
+// JS riêng của nó lần đầu. Cố tình rất đơn giản (không import thêm gì nặng)
+// để không lặp lại đúng vấn đề mà việc lazy-loading đang cố khắc phục.
+function PanelLoadingFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8a94a6', fontSize: 13, fontWeight: 700 }}>
+        <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #8a94a6', borderTopColor: 'transparent', animation: 'panel-loading-spin 0.8s linear infinite' }} />
+        Đang tải...
+      </div>
+      <style>{'@keyframes panel-loading-spin { to { transform: rotate(360deg) } }'}</style>
+    </div>
+  )
+}
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
 const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
@@ -523,24 +551,28 @@ export default function App() {
   if (showGuestPreLoginScreens) {
     if (preLoginView === 'landing') {
       return (
-        <LandingPageZeroToForever
-          onGetStarted={() => setPreLoginView('chooseRole')}
-          onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
-          onWatchVideo={() => setPreLoginView('chooseRole')}
-          onDownloadApp={() => setPreLoginView('chooseRole')}
-        />
+        <Suspense fallback={<PanelLoadingFallback />}>
+          <LandingPageZeroToForever
+            onGetStarted={() => setPreLoginView('chooseRole')}
+            onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
+            onWatchVideo={() => setPreLoginView('chooseRole')}
+            onDownloadApp={() => setPreLoginView('chooseRole')}
+          />
+        </Suspense>
       )
     }
     if (preLoginView === 'chooseRole') {
       return (
         <div style={{ minHeight: '100vh', background: '#eef7f1' }}>
-          <ChooseUserRolePanel
-            mode="guest"
-            onSelectRole={() => setPreLoginView('hero')}
-            onEnterAction={() => setPreLoginView('hero')}
-            onCreateAccount={() => setPreLoginView('login')}
-            onBackToLanding={() => setPreLoginView('landing')}
-          />
+          <Suspense fallback={<PanelLoadingFallback />}>
+            <ChooseUserRolePanel
+              mode="guest"
+              onSelectRole={() => setPreLoginView('hero')}
+              onEnterAction={() => setPreLoginView('hero')}
+              onCreateAccount={() => setPreLoginView('login')}
+              onBackToLanding={() => setPreLoginView('landing')}
+            />
+          </Suspense>
           <GlobalPageReader readRootRef={mainRef} activeKey={preLoginView} />
           {/* Mount GlobalAIChatbot NGAY TẠI ĐÂY để popup chat vẫn truy cập
           được từ trang guest này (nút 🤗 góc màn hình) — nhưng KHÔNG có
@@ -555,12 +587,14 @@ export default function App() {
     if (preLoginView === 'hero') {
       return (
         <div style={{ minHeight: '100vh', background: '#eef7f1' }}>
-          <DonationHeroPanel
-            mode="guest"
-            onEnterAction={() => { setLoginInitialMode('register'); setPreLoginView('login') }}
-            onBack={() => setPreLoginView('chooseRole')}
-            onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
-          />
+          <Suspense fallback={<PanelLoadingFallback />}>
+            <DonationHeroPanel
+              mode="guest"
+              onEnterAction={() => { setLoginInitialMode('register'); setPreLoginView('login') }}
+              onBack={() => setPreLoginView('chooseRole')}
+              onLogin={() => { setLoginInitialMode('login'); setPreLoginView('login') }}
+            />
+          </Suspense>
           <GlobalPageReader readRootRef={mainRef} activeKey={preLoginView} />
           {/* Mount GlobalAIChatbot NGAY TẠI ĐÂY — lý do xem chú thích tương
           tự ở nhánh 'chooseRole' phía trên. */}
@@ -569,12 +603,14 @@ export default function App() {
       )
     }
     return (
-      <LoginPage
-        initialMode={loginInitialMode}
-        onSuccess={() => setHasCompletedLogin(true)}
-        onBack={() => setPreLoginView('hero')}
-        onShowProjectInfo={() => setPreLoginView('landing')}
-      />
+      <Suspense fallback={<PanelLoadingFallback />}>
+        <LoginPage
+          initialMode={loginInitialMode}
+          onSuccess={() => setHasCompletedLogin(true)}
+          onBack={() => setPreLoginView('hero')}
+          onShowProjectInfo={() => setPreLoginView('landing')}
+        />
+      </Suspense>
     )
   }
 
@@ -623,6 +659,7 @@ export default function App() {
             user={user}
           >
             <VipProGate locked={shouldLockVipProPanel} isDark={isDark}>
+            <Suspense fallback={<PanelLoadingFallback />}>
             {active === 'adminConcept' && user?.isAdmin && <AdminConceptPanel />}
             {active === 'adminConcept' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
@@ -750,6 +787,7 @@ export default function App() {
             {active === 'admin'     && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
             )}
+            </Suspense>
             </VipProGate>
           </PanelErrorBoundary>
           <GlobalScrollButtons
