@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
 import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './api/_lib/visionSyncProxy.js'
+import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -138,6 +139,37 @@ function geminiComicDevMiddleware(env) {
             return
           }
 
+          if (parsed.provider === 'vibe-tracking') {
+            try {
+              let payload
+              if (parsed.action === 'emotion') {
+                payload = await runVibeTrackingEmotionAnalysis({
+                  groqApiKey: env.GROQ_API_KEY,
+                  avgBlendshapes: parsed.avgBlendshapes,
+                  dominantEmotion: parsed.dominantEmotion,
+                  vibeValue: parsed.vibeValue,
+                  numFaces: parsed.numFaces,
+                })
+              } else if (parsed.action === 'sign') {
+                payload = await runVibeTrackingSignAnalysis({
+                  groqApiKey: env.GROQ_API_KEY,
+                  compactData: parsed.compactData,
+                })
+              } else {
+                throw new VibeTrackingProxyError('Unknown vibe-tracking action', 400)
+              }
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[vibe-tracking-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Vibe Tracking proxy error' }))
+            }
+            return
+          }
+
           // Groq bình thường: forward y nguyên sang backend thật (dev-server
           // proxy chung không dùng được nữa vì stream đã bị đọc ở trên).
           try {
@@ -179,6 +211,7 @@ export default defineConfig(({ mode }) => {
           mediapipeKhanh: resolve(__dirname, 'src/mediapipe-khanh/index.html'),
           visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
           videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
+          vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
         },
       },
     },

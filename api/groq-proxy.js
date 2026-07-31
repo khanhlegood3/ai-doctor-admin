@@ -21,6 +21,7 @@
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
+import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -73,6 +74,35 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (vision-sync) error:', err?.message || err)
       const status = err instanceof VisionSyncProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Vision Sync proxy error' })
+    }
+  }
+
+  // --- Nhánh Vibe Tracking (emotion: Groq free | sign: Groq free) ---
+  if (body.provider === 'vibe-tracking') {
+    console.log('[groq-proxy] (vibe-tracking) action:', body.action)
+    try {
+      if (body.action === 'emotion') {
+        const payload = await runVibeTrackingEmotionAnalysis({
+          groqApiKey: process.env.GROQ_API_KEY,
+          avgBlendshapes: body.avgBlendshapes,
+          dominantEmotion: body.dominantEmotion,
+          vibeValue: body.vibeValue,
+          numFaces: body.numFaces,
+        })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'sign') {
+        const payload = await runVibeTrackingSignAnalysis({
+          groqApiKey: process.env.GROQ_API_KEY,
+          compactData: body.compactData,
+        })
+        return res.status(200).json(payload)
+      }
+      return res.status(400).json({ error: 'Unknown vibe-tracking action' })
+    } catch (err) {
+      console.error('[groq-proxy] (vibe-tracking) error:', err?.message || err)
+      const status = err instanceof VibeTrackingProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Vibe Tracking proxy error' })
     }
   }
 
