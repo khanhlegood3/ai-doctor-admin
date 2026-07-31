@@ -5,6 +5,7 @@ import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
 import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './api/_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
+import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -170,6 +171,30 @@ function geminiComicDevMiddleware(env) {
             return
           }
 
+          if (parsed.provider === 'vibe-check') {
+            try {
+              const payload = await runVibeCheckGenerate({
+                geminiApiKey: env.GEMINI_API_KEY,
+                model: parsed.model,
+                systemInstruction: parsed.systemInstruction,
+                prompt: parsed.prompt,
+                promptImage: parsed.promptImage,
+                imageOutput: parsed.imageOutput,
+                thinking: parsed.thinking,
+                thinkingCapable: parsed.thinkingCapable,
+              })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[vibe-check-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Vibe Check proxy error' }))
+            }
+            return
+          }
+
           // Groq bình thường: forward y nguyên sang backend thật (dev-server
           // proxy chung không dùng được nữa vì stream đã bị đọc ở trên).
           try {
@@ -212,6 +237,7 @@ export default defineConfig(({ mode }) => {
           visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
           videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
+          vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
         },
       },
     },

@@ -22,6 +22,7 @@
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
+import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -103,6 +104,28 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (vibe-tracking) error:', err?.message || err)
       const status = err instanceof VibeTrackingProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Vibe Tracking proxy error' })
+    }
+  }
+
+  // --- Nhánh Vibe Check (Gemini thật server-side, cần GEMINI_API_KEY trả phí) ---
+  if (body.provider === 'vibe-check') {
+    console.log('[groq-proxy] (vibe-check) model:', body.model)
+    try {
+      const payload = await runVibeCheckGenerate({
+        geminiApiKey: process.env.GEMINI_API_KEY,
+        model: body.model,
+        systemInstruction: body.systemInstruction,
+        prompt: body.prompt,
+        promptImage: body.promptImage,
+        imageOutput: body.imageOutput,
+        thinking: body.thinking,
+        thinkingCapable: body.thinkingCapable,
+      })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (vibe-check) error:', err?.message || err)
+      const status = err instanceof VibeCheckProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Vibe Check proxy error' })
     }
   }
 
