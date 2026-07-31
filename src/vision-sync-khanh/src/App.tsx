@@ -379,6 +379,27 @@ export default function App() {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  // Trạng thái đồng bộ Gemini/Lyria — THAY cho popup to "API key missing or
+  // invalid. DISMISS" (gây khó chịu, không phải lỗi thật cần user xử lý).
+  // Hiển thị bằng 1 dot màu nhỏ + caption ngắn cạnh dòng status (xem JSX bên
+  // dưới), tái dùng đúng pattern "dot màu trạng thái nguồn" đã có sẵn ở
+  // AvatarCreatorPanel.jsx (dotColor theo source.status).
+  //   red    = đang tải thư viện (TensorFlow/MediaPipe models)
+  //   orange = thư viện sẵn sàng, camera/detection chạy bình thường,
+  //            chưa gọi/chưa có Gemini API key
+  //   green  = đã lấy được key (token) nhưng chưa sync Lyria thành công
+  //            (vd: tài khoản Gemini chưa bật billing, hoặc lỗi khác)
+  //   blue   = đã kết nối Lyria xong (setup complete), đang chờ audio chunk
+  //            đầu tiên
+  //   white  = đang nhận/phát nhạc thật
+  const [syncState, setSyncState] = useState<'loading' | 'ready' | 'blocked' | 'connected' | 'playing'>('loading');
+  const SYNC_STATUS_META = {
+    loading:   { dot: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]',     caption: 'Loading...' },
+    ready:     { dot: 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]', caption: 'Running' },
+    blocked:   { dot: 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]',   caption: 'Syncing' },
+    connected: { dot: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]',   caption: 'Syncing' },
+    playing:   { dot: 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]',     caption: 'Music' },
+  } as const;
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [consoleState, setConsoleState] = useState({
     emotion: 'neutral',
@@ -429,14 +450,30 @@ export default function App() {
   useEffect(() => {
     // Load TensorFlow, COCO-SSD, and MediaPipe FaceLandmarker
     const loadModels = async () => {
+      // Nhường quyền điều khiển cho trình duyệt (chờ 1 lần vẽ khung hình)
+      // TRƯỚC KHI bắt đầu các bước tải/khởi tạo nặng bên dưới, để ít nhất
+      // 1 frame UI (chữ "Loading...") được vẽ ra và trình duyệt kịp xử lý
+      // input — nếu không, nhiều bước đồng bộ nặng dồn liên tiếp ngay từ
+      // đầu (đặc biệt là warm-up của coco-ssd và dựng graph WASM của
+      // FaceLandmarker) có thể khiến CẢ TAB (bao gồm trang cha ngoài iframe,
+      // vì cùng-origin chia sẻ 1 main thread) bị trình duyệt coi là "không
+      // phản hồi" và bật popup "Trang không phản hồi / Chờ hoặc Thoát".
+      const yieldToBrowser = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
       try {
+        await yieldToBrowser();
         await tf.ready();
+
+        await yieldToBrowser();
         const cocoModel = await cocoSsd.load();
         objectModelRef.current = cocoModel;
 
+        await yieldToBrowser();
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
+
+        await yieldToBrowser();
         const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
@@ -447,8 +484,10 @@ export default function App() {
         });
         faceLandmarkerRef.current = faceLandmarker;
 
+        await yieldToBrowser();
         setIsModelLoaded(true);
         setStatus('Idle');
+        setSyncState('ready');
       } catch (err: any) {
         console.error("Failed to load models:", err);
         setStatus('Error loading models');
@@ -933,8 +972,15 @@ export default function App() {
         });
         const tokenData = await tokenRes.json().catch(() => ({} as any));
         if (!tokenRes.ok || !tokenData?.token) {
+          // 501 = server đã xác nhận rõ: chưa cấu hình GEMINI_API_KEY (xem
+          // api/_lib/visionSyncProxy.js) → vẫn là trạng thái "ready" (cam),
+          // không phải lỗi. Các mã lỗi khác (500, network...) → "blocked"
+          // (xanh lá): có khả năng đã có key nhưng chưa sync được (vd:
+          // chưa bật billing cho tài khoản Gemini).
+          setSyncState(tokenRes.status === 501 ? 'ready' : 'blocked');
           throw new Error(tokenData?.error || `Could not get Lyria session token (${tokenRes.status})`);
         }
+        setSyncState('blocked'); // đã có key/token — đang thử kết nối Lyria
 
         const ai = new GoogleGenAI({
           apiKey: tokenData.token,
@@ -947,10 +993,12 @@ export default function App() {
             onmessage: (message: any) => {
               if (message.setupComplete) {
                 console.log("Lyria setup complete");
+                setSyncState('connected');
               }
               const audioChunk = message.audioChunk;
               if (audioChunk?.data && playerRef.current) {
                 playerRef.current.playChunk(audioChunk.data);
+                setSyncState('playing');
               }
             },
             onclose: () => {
@@ -965,7 +1013,9 @@ export default function App() {
             onerror: (err: any) => {
               clearTimeout(timeoutId);
               console.error("Lyria API Error:", err);
-              setErrorMsg(err.message || 'Connection error with Lyria API.');
+              // Không hiện popup lỗi to nữa — chỉ đổi màu dot trạng thái
+              // (xem SYNC_STATUS_META) về "blocked" (xanh lá).
+              setSyncState('blocked');
               setInfoMsg(null);
               stopSession(false);
             }
@@ -974,14 +1024,15 @@ export default function App() {
       } catch (err: any) {
         console.warn("Failed to initialize Lyria API:", err);
         clearTimeout(timeoutId);
-        setErrorMsg('API key missing or invalid.');
+        // Không hiện popup "API key missing or invalid." nữa — trạng thái
+        // (ready/blocked) đã được set ngay phía trên trước khi throw.
         setInfoMsg(null);
         stopSession(false);
         return;
       }
       
       timeoutId = setTimeout(() => {
-        setErrorMsg('Lyria API took too long to respond.');
+        setSyncState('blocked');
         setInfoMsg(null);
         stopSession(false);
       }, 30000);
@@ -990,6 +1041,7 @@ export default function App() {
         clearTimeout(timeoutId);
         sessionRef.current = session;
         setStatus('Connected & Playing');
+        setSyncState('connected');
         setIsPlaying(true);
         
         const initialPrompt = "minimalist ambient drone, quiet";
@@ -1010,11 +1062,9 @@ export default function App() {
       }).catch(err => {
         clearTimeout(timeoutId);
         console.error("API Error:", err);
-        if (err.message?.includes('403') || err.message?.includes('Permission denied') || err.status === 403) {
-          setErrorMsg('Lyria RealTime is experimental and requires allowlisting.');
-        } else {
-          setErrorMsg(err.message || 'An unknown API error occurred.');
-        }
+        // Không hiện popup nữa (403/billing/allowlisting/lỗi khác) — chỉ
+        // đổi dot trạng thái về "blocked" (xanh lá: có key, chưa sync được).
+        setSyncState('blocked');
         setInfoMsg(null);
         stopSession(false);
       });
@@ -1030,6 +1080,9 @@ export default function App() {
 
   const stopSession = (closeCamera: boolean = true) => {
     setIsPlaying(false);
+    // Về lại trạng thái nghỉ "ready" (cam, "Running") — trừ khi model còn
+    // chưa load xong (rất hiếm khi vào tới đây trong lúc đó).
+    setSyncState((s) => (s === 'loading' ? s : 'ready'));
     if (vibeTimeoutRef.current) {
       clearTimeout(vibeTimeoutRef.current);
       vibeTimeoutRef.current = null;
@@ -1165,9 +1218,9 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <div className="text-xs font-mono text-white/80 flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-1.5 border border-white/20">
-                  <div className={`w-2 h-2 rounded-none ${status === 'Connected & Playing' ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]' : status.includes('Connecting') || status.includes('Starting') ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)]' : status === 'Loading Object Detection Model...' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]' : status.includes('Error') || status.includes('Denied') ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'bg-zinc-600'}`} />
-                  {status}
+                <div className="text-xs font-mono text-white/80 flex items-center gap-2 bg-black/40 backdrop-blur px-3 py-1.5 border border-white/20" title={status}>
+                  <div className={`w-2 h-2 rounded-none ${SYNC_STATUS_META[syncState].dot}`} />
+                  {SYNC_STATUS_META[syncState].caption}
                 </div>
               </div>
 
