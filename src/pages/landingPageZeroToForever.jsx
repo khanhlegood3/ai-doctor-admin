@@ -1770,6 +1770,35 @@ export default function LandingPageZeroToForever({
                 />
               </div>
             </div>
+
+            {/* Playlist YouTube — nằm ngay sau khối camera AI Pose ở trên */}
+            <div className="mt-6 rounded-3xl overflow-hidden zofo-shadow-soft border border-gray-100 dark:border-white/10 bg-white dark:bg-[#141b2e] p-6 sm:p-8">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <Play className="w-7 h-7 text-[#4B6BFF]" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg text-gray-900 dark:text-gray-50 mb-1">
+                    {language === 'vi' ? 'Video hướng dẫn & giới thiệu' : 'Tutorial & Overview Videos'}
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {language === 'vi'
+                      ? 'Danh sách video hướng dẫn sử dụng và giới thiệu tính năng.'
+                      : 'Playlist of tutorial and feature overview videos.'}
+                  </p>
+                </div>
+              </div>
+              <div className="relative w-full rounded-2xl overflow-hidden" style={{ aspectRatio: '16 / 9' }}>
+                <iframe
+                  title={language === 'vi' ? 'Playlist video hướng dẫn' : 'Tutorial video playlist'}
+                  src="https://www.youtube.com/embed/videoseries?list=PLfIRVddr1qvA"
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            </div>
           </section>
 
           {/* Trải nghiệm đầy đủ (đã convert từ health_remix_web3_ecosystem.html
