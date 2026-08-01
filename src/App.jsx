@@ -48,6 +48,7 @@ const RemixSucKhoeKOLPanel = lazy(() => import('./components/RemixSucKhoeKOLPane
 const VibeTrackingPanel = lazy(() => import('./components/VibeTrackingPanel.jsx'))
 const VibeCheckPanel = lazy(() => import('./components/VibeCheckPanel.jsx'))
 const VideoToLearningPanel = lazy(() => import('./components/VideoToLearningPanel.jsx'))
+const DinoJumpPanel = lazy(() => import('./components/DinoJumpPanel.jsx'))
 const AIHealthcareVisionControlPanel = lazy(() => import('./components/AIHealthcareVisionControlPanel.jsx'))
 const AIInbodyPortalPanel = lazy(() => import('./components/AIInbodyPortalPanel.jsx'))
 const WaterDrinkChatBotPanel = lazy(() => import('./components/WaterDrinkChatBotPanel.jsx'))
@@ -112,7 +113,7 @@ function PanelLoadingFallback() {
 }
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'dinoJump', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -289,6 +290,7 @@ export default function App() {
     vibeTracking: t('vibeTracking'),
     vibeCheck: t('vibeCheck'),
     videoToLearning: t('videoToLearning'),
+    dinoJump: 'AI camera control dino jump',
     stressRelief: t('stressRelief'),
     aiInbodyPortal: t('aiInbodyPortal'),
     waterDrinkChatBot: t('waterDrinkChatBot'),
@@ -731,6 +733,7 @@ export default function App() {
             {active === 'vibeTracking' && <VibeTrackingPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'vibeCheck' && <VibeCheckPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'videoToLearning' && <VideoToLearningPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
+            {active === 'dinoJump' && <DinoJumpPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiHealthcareVisionControl' && <AIHealthcareVisionControlPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'stressRelief' && <StressReliefPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiInbodyPortal' && <AIInbodyPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
