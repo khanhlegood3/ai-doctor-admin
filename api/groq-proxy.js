@@ -24,6 +24,7 @@ import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } fr
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
+import { runVideoToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -144,6 +145,24 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (ai-chatbot-control) error:', err?.message || err)
       const status = err instanceof AiChatbotControlProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'AI chatbot control proxy error' })
+    }
+  }
+
+  // --- Nhánh Video to Learning (Gemini thật server-side, dùng chung GEMINI_API_KEY) ---
+  if (body.provider === 'video-to-learning') {
+    console.log('[groq-proxy] (video-to-learning) model:', body.modelName)
+    try {
+      const payload = await runVideoToLearningGenerate({
+        geminiApiKey: process.env.GEMINI_API_KEY,
+        modelName: body.modelName,
+        prompt: body.prompt,
+        videoUrl: body.videoUrl,
+      })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning) error:', err?.message || err)
+      const status = err instanceof VideoToLearningProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video to Learning proxy error' })
     }
   }
 
