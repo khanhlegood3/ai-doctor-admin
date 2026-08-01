@@ -236,9 +236,9 @@ export default async function handler(req, res) {
 
   // --- Nhánh Groq (mặc định, hành vi gốc không đổi, chỉ thêm key pool) ---
   // KEY POOL / AUTO-ROTATION: đọc GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2,
-  // ... GROQ_API_KEY20 và tự động rotate sang key kế tiếp khi key đang dùng
-  // hết hạn mức/billing (xem api/_lib/apiKeyPool.js) — thay vì quăng lỗi
-  // real-time ngay cho client khi 1 key hết tiền.
+  // ... GROQ_API_KEYn (không giới hạn số lượng) và tự động rotate sang key
+  // kế tiếp khi key đang dùng hết hạn mức/billing (xem api/_lib/apiKeyPool.js)
+  // — thay vì quăng lỗi real-time ngay cho client khi 1 key hết tiền.
   console.log('[groq-proxy] model:', body.model, '| messages:', body.messages?.length)
 
   try {

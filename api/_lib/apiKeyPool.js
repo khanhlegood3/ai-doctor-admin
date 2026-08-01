@@ -14,14 +14,19 @@
 //   <PREFIX>1         (key #1, vd GROQ_API_KEY1)
 //   <PREFIX>2         (key #2, vd GROQ_API_KEY2)
 //   ...
-//   <PREFIX>20        (key #20, vd GROQ_API_KEY20)
+//   <PREFIX>n         (key #n, vd GROQ_API_KEYn — n lớn tuỳ ý, không giới hạn)
 //
 // Áp dụng được cho BẤT KỲ loại API nào chỉ bằng cách đổi PREFIX — vd:
-//   GROQ_API_KEY, GROQ_API_KEY1 ... GROQ_API_KEY20
-//   GEMINI_API_KEY, GEMINI_API_KEY1 ... GEMINI_API_KEY22
-//   ANTHROPIC_API_KEY, ANTHROPIC_API_KEY1 ... ANTHROPIC_API_KEY10
-// (số lượng key không cần khai báo liên tục hết mức tối đa — chỉ cần khai
-// báo bao nhiêu key thì dùng bấy nhiêu, các số bị thiếu sẽ tự bị bỏ qua).
+//   GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2, ... GROQ_API_KEYn
+//   GEMINI_API_KEY, GEMINI_API_KEY1, GEMINI_API_KEY2, ... GEMINI_API_KEYn
+//   ANTHROPIC_API_KEY, ANTHROPIC_API_KEY1, ... ANTHROPIC_API_KEYn
+// KHÔNG có giới hạn cứng bao nhiêu key — "n" ở đây là số bất kỳ, muốn khai
+// bao nhiêu key cũng được (1, 5, 22, 100, ...), cứ đặt tên biến môi trường
+// tăng dần đúng quy ước là hệ thống tự nhận ra, không cần sửa code khi thêm
+// key mới. Cơ chế dò: tăng dần từ 1, 2, 3, ... cho tới khi gặp
+// MAX_CONSECUTIVE_MISSING (mặc định 5) số liên tiếp không có giá trị thì
+// coi như hết key và dừng dò (để không phải quét vô hạn qua hàng nghìn biến
+// môi trường không tồn tại mỗi lần gọi).
 //
 // Khi gọi upstream mà 1 key trả về lỗi kiểu "hết billing/hết quota/bị chặn"
 // (401/402/403/429, hoặc message chứa "quota"/"insufficient"/"billing"/...),
@@ -52,10 +57,17 @@
 // credit"...) sẽ tự được nhận diện và rotate, không cần code thêm gì khác.
 // ---------------------------------------------------------------------------
 
-// Số thứ tự tối đa dò tìm cho mỗi prefix (vd GROQ_API_KEY1 .. GROQ_API_KEY30).
-// Đặt dư ra so với nhu cầu hiện tại (20 cho Groq, 22 cho Gemini) để không
-// phải sửa code này khi cần thêm key trong tương lai.
-const DEFAULT_MAX_KEYS_PER_PREFIX = 30
+// Số biến LIÊN TIẾP không tồn tại thì mới coi là "hết key, dừng dò". Vd nếu
+// đã khai GROQ_API_KEY, GROQ_API_KEY1..GROQ_API_KEY5 nhưng bỏ trống
+// GROQ_API_KEY6, GROQ_API_KEY7 rồi khai tiếp GROQ_API_KEY8 — hệ thống vẫn dò
+// thấy GROQ_API_KEY8 vì mới thiếu 2 số liên tiếp (< 5). Đặt > 1 để tránh
+// dừng sớm oan chỉ vì lỡ để trống 1 số thứ tự.
+const MAX_CONSECUTIVE_MISSING = 5
+
+// Trần an toàn tuyệt đối (không phải mức "khuyến nghị") — chỉ để chặn vòng
+// lặp chạy mãi nếu envSource bị cấu hình bất thường. Trong thực tế sẽ luôn
+// dừng sớm hơn nhiều nhờ MAX_CONSECUTIVE_MISSING ở trên.
+const HARD_SAFETY_CEILING = 2000
 
 // Nhớ "key đang chạy tốt" của mỗi prefix theo bộ nhớ của tiến trình (mỗi
 // Serverless Function instance còn "ấm"/warm sẽ dùng lại đúng key vừa thành
@@ -75,8 +87,9 @@ export class ApiKeyPoolError extends Error {
 
 /**
  * Đọc toàn bộ key hợp lệ của 1 prefix từ biến môi trường, theo thứ tự
- * <PREFIX>, <PREFIX>1, <PREFIX>2, ... Bỏ qua các số không có giá trị (không
- * yêu cầu khai báo liên tục).
+ * <PREFIX>, <PREFIX>1, <PREFIX>2, ... <PREFIX>n. KHÔNG có giới hạn số lượng
+ * cố định — cứ tăng dần cho tới khi gặp `MAX_CONSECUTIVE_MISSING` số liên
+ * tiếp không có giá trị thì dừng dò (xem giải thích ở đầu file).
  *
  * @param {string} prefix - vd 'GROQ_API_KEY', 'GEMINI_API_KEY'
  * @param {object} [opts]
@@ -84,20 +97,27 @@ export class ApiKeyPoolError extends Error {
  *   truyền `env` từ `loadEnv()` của Vite khi gọi từ middleware dev-server
  *   (vite.config.js) để dùng đúng nguồn biến môi trường của Vite thay vì
  *   process.env.
- * @param {number} [opts.max] - số thứ tự tối đa dò tìm (mặc định 30).
+ * @param {number} [opts.maxConsecutiveMissing] - override số lần "trượt"
+ *   liên tiếp trước khi dừng dò (mặc định 5, hiếm khi cần đổi).
  * @returns {Array<{ label: string, key: string }>}
  */
-export function loadApiKeyPool(prefix, { envSource = process.env, max = DEFAULT_MAX_KEYS_PER_PREFIX } = {}) {
+export function loadApiKeyPool(prefix, { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING } = {}) {
   const pool = []
   const baseValue = envSource[prefix]
   if (typeof baseValue === 'string' && baseValue.trim()) {
     pool.push({ label: prefix, key: baseValue.trim() })
   }
-  for (let i = 1; i <= max; i++) {
+
+  let consecutiveMissing = 0
+  for (let i = 1; i <= HARD_SAFETY_CEILING; i++) {
     const label = `${prefix}${i}`
     const value = envSource[label]
     if (typeof value === 'string' && value.trim()) {
       pool.push({ label, key: value.trim() })
+      consecutiveMissing = 0
+    } else {
+      consecutiveMissing++
+      if (consecutiveMissing >= maxConsecutiveMissing) break
     }
   }
   return pool
@@ -189,14 +209,14 @@ export async function toRotatableHttpError(res, providerLabel = 'Upstream') {
  * @param {(apiKey: string, label: string) => Promise<T>} attempt
  * @param {object} [opts]
  * @param {Record<string,string>} [opts.envSource]
- * @param {number} [opts.max]
+ * @param {number} [opts.maxConsecutiveMissing]
  * @param {boolean} [opts.required] - nếu true (mặc định) và pool rỗng, ném
  *   ApiKeyPoolError ngay. Đặt false cho các nhánh mà thiếu key chỉ nghĩa là
  *   "bỏ qua nhánh này, thử provider khác" thay vì báo lỗi cứng.
  * @returns {Promise<T>}
  */
-export async function withApiKeyRotation(prefix, attempt, { envSource = process.env, max = DEFAULT_MAX_KEYS_PER_PREFIX, required = true } = {}) {
-  const pool = loadApiKeyPool(prefix, { envSource, max })
+export async function withApiKeyRotation(prefix, attempt, { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING, required = true } = {}) {
+  const pool = loadApiKeyPool(prefix, { envSource, maxConsecutiveMissing })
 
   if (pool.length === 0) {
     if (!required) return undefined
