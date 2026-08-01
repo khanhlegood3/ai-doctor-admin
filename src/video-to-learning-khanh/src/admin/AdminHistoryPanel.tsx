@@ -1,4 +1,4 @@
-// src/video-to-learning-khanh/src/AdminHistoryPanel.tsx
+// src/video-to-learning-khanh/src/admin/AdminHistoryPanel.tsx
 // Panel Admin cho tính năng "Video to Learning": xem TOÀN BỘ user đã dùng
 // link nào (video/short/kênh YouTube/trang web), AI đã trả lời gì theo thời
 // gian, và vài số liệu thống kê xu hướng — dữ liệu lấy từ MongoDB qua
@@ -15,7 +15,7 @@
 // affiliate-admin-stats.js / mô hình bảo mật hiện tại: gating ở client).
 
 import { useEffect, useMemo, useState } from 'react';
-import { LINK_TYPE_LABELS, type LinkType } from './lib/linkClassifier';
+import { LINK_TYPE_LABELS, type LinkType } from '../lib/linkClassifier';
 
 interface AdminOverview {
   totalEntries: number;

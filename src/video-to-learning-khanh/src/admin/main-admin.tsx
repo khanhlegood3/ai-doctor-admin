@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import AdminHistoryPanel from './AdminHistoryPanel.tsx';
 // Dùng chung file CSS/Tailwind (v3) của toàn bộ ai-doctor-admin — giống
 // main.tsx (trang chính của sub-app này), không vendor Tailwind riêng.
-import '../../index.css';
+// (3 cấp '../' vì file này nằm trong admin/, sâu hơn main.tsx 1 cấp.)
+import '../../../index.css';
 
 // Entry point RIÊNG cho trang Admin của "Video to Learning" (xem admin.html)
 // — tách khỏi main.tsx (trang chính, dành cho user thường) vì đây là 2 màn

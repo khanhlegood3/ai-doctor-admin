@@ -1,46 +1,17 @@
 // src/video-to-learning-khanh/src/lib/identity.ts
-// video-to-learning-khanh là 1 Vite sub-app riêng được nhúng qua <iframe>
-// CÙNG-ORIGIN trong VideoToLearningPanel.jsx — vì cùng origin nên đọc thẳng
-// được localStorage của app cha (AuthContext.jsx) để lấy đúng uuid ẩn danh
-// hiện tại, KHÔNG cần postMessage hay props riêng.
-//
-// Cấu trúc localStorage (xem src/context/AuthContext.jsx):
-//   cdoc_session = { email }                         (ai đang đăng nhập)
-//   cdoc_users   = { [email]: { uuid, userId, name, ... } }  (hồ sơ từng user)
-//
-// Vì app này KHÔNG có server-session thật (toàn bộ auth client-side), đây
-// CHỈ là định danh ẩn danh để nhóm lịch sử theo người dùng — không phải xác
-// thực bảo mật.
-
+// Lớp mỏng re-export lại từ src/lib/khanhIdentity.js (app cha) — logic thật
+// đã được chuyển lên đó vì không có gì trong nó phụ thuộc riêng vào
+// video-to-learning (xem chú thích đầy đủ trong file đó). Giữ file này lại
+// (thay vì sửa trực tiếp import ở App.tsx/AdminHistoryPanel.tsx) để:
+//   1. Không phải đổi đường dẫn import ở nơi đang dùng './lib/identity'.
+//   2. Có 1 chỗ khai báo lại type Identity cho TypeScript (file gốc là .js
+//      thuần, dùng JSDoc — sub-app TS này vẫn muốn type rõ ràng khi import).
 export interface Identity {
   uuid: string | null;
   userId: string | null;
   name: string | null;
 }
 
-function safeParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-export function getIdentity(): Identity {
-  try {
-    const session = safeParse<{ email?: string }>(localStorage.getItem('cdoc_session'));
-    const users = safeParse<Record<string, { uuid?: string; userId?: string; name?: string }>>(
-      localStorage.getItem('cdoc_users'),
-    );
-    const email = session?.email;
-    const user = email && users ? users[email] : null;
-    return {
-      uuid: user?.uuid || null,
-      userId: user?.userId || null,
-      name: user?.name || null,
-    };
-  } catch {
-    return { uuid: null, userId: null, name: null };
-  }
-}
+// @ts-ignore — src/lib/khanhIdentity.js là JS thuần (JSDoc, không phải .d.ts),
+// TypeScript không tự suy được type khi import ngoài phạm vi sub-app này.
+export { getIdentity } from '../../../lib/khanhIdentity.js';

@@ -3,8 +3,9 @@ import { useApp } from '../../context/AppContext'
 
 // Cùng mô hình iframe cùng-origin với VideoToLearningPanel.jsx (trang chính
 // của user) — nhưng trỏ tới admin.html (entry point riêng, xem
-// src/video-to-learning-khanh/admin.html + src/main-admin.tsx) để mount
-// AdminHistoryPanel.tsx thay vì App.tsx. Tách route Vite riêng (thay vì
+// src/video-to-learning-khanh/admin.html + src/admin/main-admin.tsx) để
+// mount admin/AdminHistoryPanel.tsx thay vì App.tsx. Tách route Vite riêng
+// (thay vì
 // nhúng chung index.html rồi tự chuyển tab bằng JS) để không phải tải cả
 // logic sinh app học tập (transcript, Groq, iframe render...) chỉ để xem
 // thống kê admin.

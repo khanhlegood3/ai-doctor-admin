@@ -1,11 +1,14 @@
-// src/video-to-learning-khanh/src/lib/historyClient.ts
+// src/video-to-learning-khanh/src/lib/history/historyClient.ts
 // Gọi /api/groq-proxy (provider: 'video-to-learning-history') để lưu/đọc
 // lịch sử THEO SERVER (MongoDB) — xem api/_lib/videoToLearningHistory.js.
 // Song song với historyStorage.ts (IndexedDB cục bộ): mỗi lượt dùng được
 // lưu ở CẢ HAI nơi, MongoDB là bản "chính", IndexedDB chỉ để hiện nhanh/khi
 // mất mạng.
+//
+// COPY CHO TÍNH NĂNG "-TO-LEARNING" TIẾP THEO: xem chú thích đầu file
+// historyStorage.ts (cùng thư mục) — 4 chỗ cần đổi khi nhân bản.
 
-import type { LinkType } from './linkClassifier';
+import type { LinkType } from '../linkClassifier';
 
 export interface SaveHistoryPayload {
   uuid: string;

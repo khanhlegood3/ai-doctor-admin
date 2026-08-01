@@ -28,8 +28,8 @@ import {
 } from './lib/prompts';
 import { getYoutubeEmbedUrl, validateYoutubeUrl } from './lib/youtube';
 import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType } from './lib/linkClassifier';
-import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/historyStorage';
-import { saveHistoryToServer, fetchHistoryFromServer } from './lib/historyClient';
+import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
+import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
 import { getIdentity } from './lib/identity';
 
 type ItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'saved-only';

@@ -1,4 +1,4 @@
-// src/video-to-learning-khanh/src/lib/historyStorage.ts
+// src/video-to-learning-khanh/src/lib/history/historyStorage.ts
 // Lưu lịch sử "Video to Learning" CỤC BỘ trên trình duyệt bằng IndexedDB —
 // cùng pattern raw IndexedDB đã dùng cho Wiki Med Vision / Heirloom Recipes
 // (xem src/lib/heirloomRecipesStorage.js), không thêm dependency mới (idb).
@@ -8,8 +8,19 @@
 // /api/groq-proxy (provider: 'video-to-learning-history', xem
 // api/_lib/videoToLearningHistory.js). Component gọi CẢ HAI khi lưu 1 lượt
 // (xem App.tsx).
+//
+// COPY CHO TÍNH NĂNG "-TO-LEARNING" TIẾP THEO: file này (cùng
+// historyClient.ts, và backend api/_lib/videoToLearningHistory.js) là
+// KHUÔN MẪU thẳng để nhân bản cho 1 tính năng dạng "X to Learning" mới
+// (vd "podcast-to-learning-khanh") — CHƯA generic hoá sẵn (identity.ts thì
+// có, xem src/lib/khanhIdentity.js) vì DB_NAME/COLLECTION/provider string
+// bên dưới gắn chết với "video-to-learning". Khi nhân bản, chỉ cần đổi 4 chỗ:
+//   1. DB_NAME bên dưới (mỗi tính năng 1 IndexedDB riêng)
+//   2. provider: 'video-to-learning-history' trong historyClient.ts
+//   3. COLLECTION trong videoToLearningHistory.js (bản sao)
+//   4. type LinkType/HistoryEntry cho đúng loại link của tính năng đó
 
-import type { LinkType } from './linkClassifier';
+import type { LinkType } from '../linkClassifier';
 
 const DB_NAME = 'video-to-learning-history-db';
 const DB_VERSION = 1;
