@@ -257,6 +257,7 @@ export default defineConfig(({ mode }) => {
           mediapipeKhanh: resolve(__dirname, 'src/mediapipe-khanh/index.html'),
           visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
           videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
+          dinoJumpKhanh: resolve(__dirname, 'src/dino-jump-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
         },
