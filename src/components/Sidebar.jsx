@@ -208,6 +208,11 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
         <span style={{ flex: 1 }}>{t('profile')}</span>
         <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>ID</span>
       </NavItem>
+      <NavItem active={active === 'aiChatbotControl'} onClick={() => handleNavigate('aiChatbotControl')} text={text} text2={text2} isDark={isDark}>
+        <span style={{ fontSize: 13 }}>🤖</span>
+        <span style={{ flex: 1 }}>{t('nav_aiChatbotControl')}</span>
+        <span style={{ fontSize: 10, fontFamily: 'monospace', color: text3 }}>BOT</span>
+      </NavItem>
       <NavItem active={active === 'avatarCreator'} onClick={() => handleNavigate('avatarCreator')} text={text} text2={text2} isDark={isDark}>
         <span style={{ fontSize: 13 }}>🧑‍🚀</span>
         <span style={{ flex: 1 }}>{t('nav_avatarCreator')}</span>

@@ -69,6 +69,7 @@ const MyPainPathNoiTangPanel = lazy(() => import('./components/MyPainPathNoiTang
 const MyPainPathNoiTangPixelPanel = lazy(() => import('./components/MyPainPathNoiTangPixelPanel.jsx'))
 const ChooseUserRolePanel = lazy(() => import('./components/ChooseUserRolePanel.jsx'))
 const AvatarCreatorPanel = lazy(() => import('./components/AvatarCreatorPanel.jsx'))
+const AIChatbotControlPanel = lazy(() => import('./components/AIChatbotControlPanel.jsx'))
 const ComicHeroGamePanel = lazy(() => import('./components/comicHero/ComicHeroGamePanel.jsx'))
 const ComicIssueLibraryPanel = lazy(() => import('./components/comicHero/ComicIssueLibraryPanel.jsx'))
 const PetPassportAdventurePanel = lazy(() => import('./components/petPassport/PetPassportAdventurePanel.jsx'))
@@ -300,6 +301,7 @@ export default function App() {
     patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
     chatHistory: 'Lịch sử Chat với AI',
     profile: t('profile'),
+    aiChatbotControl: t('nav_aiChatbotControl'),
     avatarCreator: 'Tạo Avatar',
     comicHeroGame: 'Tạo Game bằng Avatar của Tôi',
     comicIssueLibrary: 'Thư Viện Truyện Của Tôi',
@@ -776,6 +778,7 @@ export default function App() {
               />
             )}
             {active === 'profile'   && <UserProfilePanel />}
+            {active === 'aiChatbotControl' && <AIChatbotControlPanel />}
             {active === 'create3DVideoFrom2D' && user?.isAdmin && <Create3DVideoFrom2DPanel />}
             {active === 'create3DVideoFrom2D' && !user?.isAdmin && (
               <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>

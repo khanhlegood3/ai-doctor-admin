@@ -1,0 +1,1022 @@
+/**
+ * Ported from chatterbots (Google I/O 2025 Live API Demo) index.css.
+ * Original license: Apache-2.0, Copyright 2024 Google LLC
+ *
+ * IMPORTANT: the original file styled `body`, `*`, `:root`, and bare tags
+ * (button, input, form, header, li…) globally. That would clobber every other
+ * panel in this admin app, so everything below is scoped under
+ * `.ai-chatbot-control-root`, the wrapper rendered by
+ * AIChatbotControlPanel.jsx. Layout rules that assumed a full-viewport app
+ * (100vw/100vh) were adapted to fill the panel container instead.
+ */
+
+.ai-chatbot-control-root {
+  --text: white;
+  --gray-200: #b4b8bb;
+  --gray-300: #80868b;
+  --gray-500: #5f6368;
+  --gray-600: #80868b;
+  --gray-700: #5f6368;
+  --gray-800: #3c4043;
+  --gray-900: #202124;
+  --gray-1000: #0a0a0a;
+  --border-stroke: #444444;
+  --accent-blue: rgb(161, 228, 242);
+  --accent-blue-active-bg: #001233;
+  --accent-blue-active: #98beff;
+  --accent-blue-headers: #448dff;
+  --accent-green: rgb(168, 218, 181);
+  --midnight-blue: rgb(0, 18, 51);
+  --blue-30: #99beff;
+  --accent-red: #ff4600;
+  --background: var(--gray-900);
+  --color: var(--text);
+  scrollbar-color: var(--gray-600) var(--gray-900);
+  scrollbar-width: thin;
+  --font-family: 'Space Mono', monospace;
+  /* Colors */
+  --Neutral-00: #000;
+  --Neutral-5: #181a1b;
+  --Neutral-10: #1c1f21;
+  --Neutral-15: #232729;
+  --Neutral-20: #2a2f31;
+  --Neutral-30: #404547;
+  --Neutral-50: #707577;
+  --Neutral-60: #888d8f;
+  --Neutral-80: #c3c6c7;
+  --Neutral-90: #e1e2e3;
+  --Green-500: #0d9c53;
+  --Green-700: #025022;
+  --Blue-400: #80c1ff;
+  --Blue-500: #1f94ff;
+  --Blue-800: #0f3557;
+  --Red-400: #ff9c7a;
+  --Red-500: #ff4600;
+  --Red-600: #e03c00;
+  --Red-700: #bd3000;
+  --card-header: #2e96ff;
+  --card-border: #217bfe;
+  --card-background: #13151a;
+  --card-border-radius: 16px;
+
+  --breakpoint-md: 768px;
+
+  position: relative;
+  width: 100%;
+  /* Fills the panel area given by AIChatbotControlPanel.jsx instead of the
+     full viewport (the original app was a standalone full-screen page). */
+  height: 100%;
+  min-height: 70vh;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--Neutral-00);
+  color: var(--text);
+  font-family: var(--font-family);
+}
+
+.ai-chatbot-control-root * {
+  box-sizing: border-box;
+}
+
+.ai-chatbot-control-root h1,
+.ai-chatbot-control-root h2,
+.ai-chatbot-control-root h3,
+.ai-chatbot-control-root h4,
+.ai-chatbot-control-root h5,
+.ai-chatbot-control-root h6 {
+  font-weight: normal;
+  margin: 0;
+}
+
+.ai-chatbot-control-root p {
+  margin: 0;
+}
+
+.ai-chatbot-control-root li {
+  list-style: none;
+}
+
+.ai-chatbot-control-root input,
+.ai-chatbot-control-root textarea {
+  font-family: var(--font-family);
+  background: none;
+  color: white;
+  border: none;
+  outline: none;
+  font-size: 18px;
+  resize: none;
+  user-select: text;
+}
+
+.ai-chatbot-control-root input::placeholder,
+.ai-chatbot-control-root textarea::placeholder {
+  user-select: none;
+}
+
+.ai-chatbot-control-root select {
+  font-family: inherit;
+  padding: 10px;
+  border: 1px solid var(--gray-700);
+  background: var(--background);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  accent-color: var(--text);
+}
+
+.ai-chatbot-control-root select:focus-visible {
+  outline: none;
+}
+
+.ai-chatbot-control-root button {
+  font-family: var(--font-family);
+  background: none;
+  color: white;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  margin: 0;
+}
+
+.ai-chatbot-control-root button.primary {
+  background: #4285f4;
+}
+
+.ai-chatbot-control-root button.icon {
+  font-size: 1.2em;
+}
+
+.ai-chatbot-control-root .button {
+  background: var(--Neutral-30);
+  display: inline-flex;
+  padding: 10px;
+  border-radius: 8px;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ai-chatbot-control-root .button .icon {
+  font-size: 1.2em;
+}
+
+.ai-chatbot-control-root button:focus {
+  outline: none;
+}
+
+.ai-chatbot-control-root button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-chatbot-control-root button .icon {
+  display: block;
+}
+
+.ai-chatbot-control-root .icon {
+  font-family: 'Material Symbols Outlined';
+  font-weight: 300;
+  line-height: 1;
+}
+
+.ai-chatbot-control-root .space-mono-regular {
+  font-family: 'Space Mono', monospace;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.ai-chatbot-control-root .space-mono-bold {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.ai-chatbot-control-root .space-mono-regular-italic {
+  font-family: 'Space Mono', monospace;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.ai-chatbot-control-root .space-mono-bold-italic {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-style: italic;
+}
+
+.ai-chatbot-control-root .hidden {
+  display: none;
+}
+
+.ai-chatbot-control-root .flex {
+  display: flex;
+}
+
+.ai-chatbot-control-root .h-screen-full {
+  height: 100%;
+}
+
+.ai-chatbot-control-root .w-screen-full {
+  width: 100%;
+}
+
+.ai-chatbot-control-root .flex-col {
+  flex-direction: column;
+}
+
+.ai-chatbot-control-root header {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 999;
+}
+
+.ai-chatbot-control-root header > * {
+  pointer-events: auto;
+}
+
+.ai-chatbot-control-root header:hover h1,
+.ai-chatbot-control-root header:hover .roomDescription,
+.ai-chatbot-control-root header:hover .createButton {
+  opacity: 1;
+}
+
+.ai-chatbot-control-root.simpleMode header {
+  opacity: 0;
+  transition: all 0.3s;
+}
+
+.ai-chatbot-control-root.simpleMode header:hover {
+  opacity: 1;
+}
+
+.ai-chatbot-control-root .streaming-console {
+  background: var(--Neutral-10);
+  color: var(--gray-300);
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+.ai-chatbot-control-root .streaming-console a,
+.ai-chatbot-control-root .streaming-console a:visited,
+.ai-chatbot-control-root .streaming-console a:active {
+  color: var(--gray-300);
+}
+
+.ai-chatbot-control-root .streaming-console .disabled {
+  pointer-events: none;
+}
+
+.ai-chatbot-control-root .streaming-console .disabled > * {
+  pointer-events: none;
+}
+
+.ai-chatbot-control-root .streaming-console main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  gap: 1rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-chatbot-control-root .streaming-console .main-app-area {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.ai-chatbot-control-root .streaming-console .function-call {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 50%;
+  overflow-y: auto;
+}
+
+@keyframes ai-chatbot-control-hover {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3.5px);
+  }
+}
+@keyframes ai-chatbot-control-pulse {
+  from {
+    scale: 1 1;
+  }
+  to {
+    scale: 1.2 1.2;
+  }
+}
+
+.ai-chatbot-control-root .action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--Neutral-20);
+  color: var(--Neutral-60);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  text-transform: lowercase;
+  cursor: pointer;
+  animation: ai-chatbot-control-opacity-pulse 3s ease-in infinite;
+  transition: all 0.2s ease-in-out;
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0);
+  user-select: none;
+}
+.ai-chatbot-control-root .action-button:focus {
+  border: 2px solid var(--Neutral-20);
+  outline: 2px solid var(--Neutral-80);
+}
+.ai-chatbot-control-root .action-button.outlined {
+  background: var(--Neutral-2);
+  border: 1px solid var(--Neutral-20);
+}
+.ai-chatbot-control-root .action-button .no-action {
+  pointer-events: none;
+}
+.ai-chatbot-control-root .action-button:hover {
+  background: rgba(0, 0, 0, 0);
+  border: 1px solid var(--Neutral-20);
+}
+.ai-chatbot-control-root .action-button.connected {
+  background: var(--Blue-800);
+  color: var(--Blue-500);
+}
+.ai-chatbot-control-root .action-button.connected:hover {
+  border: 1px solid var(--Blue-500);
+}
+
+.ai-chatbot-control-root .disabled .mic-button:before,
+.ai-chatbot-control-root .mic-button.disabled:before {
+  background: rgba(0, 0, 0, 0);
+}
+
+.ai-chatbot-control-root .mic-button {
+  position: relative;
+  background-color: var(--accent-red);
+  z-index: 1;
+  color: black;
+  transition: all 0.2s ease-in;
+}
+.ai-chatbot-control-root .mic-button:focus {
+  border: 2px solid var(--Neutral-20);
+  outline: 2px solid var(--Red-500);
+}
+.ai-chatbot-control-root .mic-button:hover {
+  background-color: var(--Red-400);
+}
+.ai-chatbot-control-root .mic-button:before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  display: block;
+  content: '';
+  opacity: 0.35;
+  background-color: var(--Red-500);
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  transition: all 0.02s ease-in-out;
+}
+
+.ai-chatbot-control-root .connect-toggle:focus {
+  border: 2px solid var(--Neutral-20);
+  outline: 2px solid var(--Neutral-80);
+}
+.ai-chatbot-control-root .connect-toggle:not(.connected) {
+  background-color: var(--Blue-500);
+  color: var(--Neutral-5);
+}
+
+.ai-chatbot-control-root .control-tray {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 0);
+  display: inline-flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 18px;
+  z-index: 12;
+}
+.ai-chatbot-control-root .control-tray .disabled .action-button,
+.ai-chatbot-control-root .control-tray .action-button.disabled {
+  background: rgba(0, 0, 0, 0);
+  border: 1px solid var(--Neutral-30, #404547);
+  color: var(--Neutral-30);
+}
+.ai-chatbot-control-root .control-tray .connection-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+.ai-chatbot-control-root .control-tray .connection-container .connection-button-container {
+  border-radius: 27px;
+  border: 1px solid var(--Neutral-30);
+  background: var(--Neutral-5);
+  padding: 10px;
+}
+.ai-chatbot-control-root .control-tray .connection-container .text-indicator {
+  font-size: 11px;
+  color: var(--Blue-500);
+  user-select: none;
+}
+.ai-chatbot-control-root .control-tray .connection-container:not(.connected) .text-indicator {
+  opacity: 0;
+}
+
+.ai-chatbot-control-root .actions-nav {
+  background: var(--Neutral-5);
+  border: 1px solid var(--Neutral-30);
+  border-radius: 27px;
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+  overflow: clip;
+  padding: 10px;
+  transition: all 0.6s ease-in;
+}
+.ai-chatbot-control-root .actions-nav > * {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@keyframes ai-chatbot-control-opacity-pulse {
+  0% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+.ai-chatbot-control-root .top {
+  width: 100%;
+  flex-grow: 0;
+  flex-shrink: 0;
+  height: 30px;
+  display: flex;
+  align-self: flex-end;
+  align-items: center;
+  transition: all 0.2s ease-in;
+}
+
+.ai-chatbot-control-root .top button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  padding: 4px;
+}
+
+.ai-chatbot-control-root .keynote-companion {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.ai-chatbot-control-root .counter-container {
+  position: absolute;
+  right: 2rem;
+  top: 2rem;
+  z-index: 10;
+}
+
+/* Modal */
+.ai-chatbot-control-root .modalShroud {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.ai-chatbot-control-root .modalShroud .modal {
+  background: var(--gray-900);
+  border: 1px solid var(--gray-800);
+  border-radius: 10px;
+  padding: 40px;
+  position: relative;
+  width: 100%;
+  max-width: calc(100% - 40px);
+  max-height: 80%;
+  overflow: auto;
+  margin: 20px;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .modalShroud .modal {
+    max-width: 500px;
+  }
+}
+
+.ai-chatbot-control-root .modalShroud .modal h2 {
+  margin-bottom: 20px;
+}
+
+.ai-chatbot-control-root .modalClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: white;
+  font-size: 24px;
+}
+
+/* UserSettings */
+.ai-chatbot-control-root .userSettings {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ai-chatbot-control-root .userSettings p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .userSettings p {
+    font-size: 18px;
+  }
+}
+
+.ai-chatbot-control-root .userSettings form {
+  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gray-800);
+}
+
+.ai-chatbot-control-root .userSettingsButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+  transition: all 0.3s;
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .userSettingsButton {
+    font-size: 18px;
+  }
+}
+
+.ai-chatbot-control-root .userSettingsButton .user-name {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .userSettingsButton .user-name {
+    display: block;
+  }
+}
+
+.ai-chatbot-control-root .userSettingsButton .icon {
+  font-size: 30px;
+}
+
+.ai-chatbot-control-root .userSettingsButton:hover {
+  color: white;
+}
+
+/* Form */
+.ai-chatbot-control-root form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ai-chatbot-control-root form .largeInput {
+  font-size: 16px;
+  border-bottom: 1px solid var(--gray-700);
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root form .largeInput {
+    font-size: 28px;
+  }
+}
+
+.ai-chatbot-control-root form > div,
+.ai-chatbot-control-root form label,
+.ai-chatbot-control-root form details div {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  user-select: none;
+}
+
+.ai-chatbot-control-root form details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.ai-chatbot-control-root form summary {
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.ai-chatbot-control-root form input,
+.ai-chatbot-control-root form textarea {
+  border: 1px solid var(--gray-700);
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 14px;
+  resize: none;
+  line-height: 1.4;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root form input,
+  .ai-chatbot-control-root form textarea {
+    font-size: 18px;
+  }
+}
+
+.ai-chatbot-control-root form input:focus,
+.ai-chatbot-control-root form textarea:focus {
+  background: #111;
+}
+
+.ai-chatbot-control-root form textarea {
+  resize: none;
+}
+
+.ai-chatbot-control-root form hr {
+  margin: 20px 0;
+}
+
+.ai-chatbot-control-root form button:first-of-type {
+  margin-top: 30px;
+}
+
+.ai-chatbot-control-root input[type='range'] {
+  padding: 0;
+  accent-color: var(--text);
+  flex: 1;
+}
+
+.ai-chatbot-control-root .checkbox {
+  flex-direction: row;
+  color: var(--gray-600);
+}
+
+.ai-chatbot-control-root .temperature {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-chatbot-control-root .temperature span {
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.ai-chatbot-control-root .colorPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ai-chatbot-control-root .colorPicker li {
+  width: 20px;
+  height: 20px;
+  border-radius: 100%;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .colorPicker li {
+    width: 35px;
+    height: 35px;
+  }
+}
+
+.ai-chatbot-control-root .colorPicker li.active {
+  outline: 4px solid var(--text);
+}
+
+.ai-chatbot-control-root .colorPicker li button {
+  width: 100%;
+  height: 100%;
+  border-radius: 100%;
+  border: none;
+  cursor: pointer;
+}
+
+/* edit agent */
+
+.ai-chatbot-control-root .editAgent {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .editAgent {
+    gap: 50px;
+  }
+}
+
+.ai-chatbot-control-root .editAgent > div:first-child {
+  max-width: 500px;
+}
+
+.ai-chatbot-control-root .editAgent > div:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+}
+
+.ai-chatbot-control-root .agentPreview {
+  width: 280px;
+  height: 280px;
+  background: var(--Neutral-00);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  pointer-events: none;
+  position: relative;
+}
+
+.ai-chatbot-control-root .agentPreview .agent {
+  position: static;
+  left: unset;
+  top: unset;
+  translate: 0 0 !important;
+}
+
+.ai-chatbot-control-root .voicePicker {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-chatbot-control-root .voicePicker select {
+  accent-color: var(--Neutral-00);
+  color: white;
+  padding: 5px;
+  font-size: 16px;
+  border-radius: 5px;
+}
+
+.ai-chatbot-control-root .voicePicker select:focus-visible {
+  outline: none;
+}
+
+.ai-chatbot-control-root .sleep label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-chatbot-control-root .sleep input {
+  accent-color: white;
+}
+
+/* agents */
+
+.ai-chatbot-control-root .roomInfo {
+  position: relative;
+}
+
+.ai-chatbot-control-root .roomInfo h1 {
+  font-size: 16px;
+  font-weight: normal;
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .roomInfo h1 {
+    font-size: 28px;
+  }
+}
+
+.ai-chatbot-control-root .roomInfo h1:hover,
+.ai-chatbot-control-root .roomInfo h1.active {
+  opacity: 1;
+}
+
+.ai-chatbot-control-root .roomInfo .edit {
+  font-size: 22px;
+}
+
+.ai-chatbot-control-root .roomInfo .createButton {
+  opacity: 1;
+}
+
+@media (min-width: 768px) {
+  .ai-chatbot-control-root .roomInfo .createButton {
+    opacity: 0;
+  }
+}
+
+.ai-chatbot-control-root .roomName {
+  display: flex;
+}
+
+.ai-chatbot-control-root .roomDescription {
+  font-size: 16px;
+  color: var(--gray-500);
+  margin-top: 10px;
+  width: max-content;
+  max-width: 380px;
+  line-height: 1.5;
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.ai-chatbot-control-root .createButton {
+  transition: opacity 0.3s;
+  background: var(--Blue-500);
+}
+
+.ai-chatbot-control-root .hint .createButton {
+  margin-top: 10px;
+}
+
+.ai-chatbot-control-root .deleteRoomButton {
+  background: var(--Red-500);
+  font-size: 12px;
+  margin-top: 15px;
+}
+
+.ai-chatbot-control-root .roomList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: absolute;
+  background: var(--gray-900);
+  border: 1px solid var(--gray-800);
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+  margin-top: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.1s;
+  user-select: none;
+  max-height: 70%;
+  overflow: auto;
+}
+
+.ai-chatbot-control-root .roomList.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ai-chatbot-control-root .roomList h3 {
+  font-size: 15px;
+  margin-bottom: 10px;
+  color: var(--gray-500);
+}
+
+.ai-chatbot-control-root .roomList ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--gray-800);
+  padding-bottom: 20px;
+  margin-bottom: 5px;
+}
+
+.ai-chatbot-control-root .roomList li {
+  font-size: 22px;
+}
+
+.ai-chatbot-control-root .roomList li button {
+  color: var(--gray-500);
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.ai-chatbot-control-root .roomList li.active button,
+.ai-chatbot-control-root .roomList li:hover button {
+  color: white;
+}
+
+.ai-chatbot-control-root .roomList .newRoomButton {
+  margin-top: 15px;
+}
+
+.ai-chatbot-control-root .error-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background: black;
+  color: white;
+  gap: 48px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 99991;
+}
+
+.ai-chatbot-control-root .error-screen .error-message-container,
+.ai-chatbot-control-root .error-screen .error-raw-message-container {
+  width: 100%;
+  text-align: center;
+  max-width: 650px;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.ai-chatbot-control-root .error-screen .close-button {
+  color: white;
+  font-size: 24px;
+}
+
+/* Material Symbols font used by the mic/play/pause icons in ControlTray. */
+.ai-chatbot-control-root .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
+
+.ai-chatbot-control-root .material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Fallback panel shown when VITE_GEMINI_API_KEY is not configured */
+.ai-chatbot-control-root .aiChatbotControlSetupNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  width: 100%;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--gray-300);
+}
+
+.ai-chatbot-control-root .aiChatbotControlSetupNotice code {
+  background: var(--Neutral-10);
+  border: 1px solid var(--gray-800);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: 'Space Mono', monospace;
+}
