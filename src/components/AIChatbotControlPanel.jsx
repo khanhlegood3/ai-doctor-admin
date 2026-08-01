@@ -4,14 +4,20 @@ import ChatterbotsApp from './aiChatbotControl/ChatterbotsApp'
 import './aiChatbotControl/aiChatbotControl.css'
 
 /**
- * "AI chatbot control" panel — hosts the ported chatterbots (Gemini Live API
- * voice companion) app inside the admin sidebar, right below Profile.
+ * "AI chatbot control" panel — hosts the ported chatterbots voice companion
+ * app inside the admin sidebar, right below Profile.
  *
- * The original chatterbots project read `process.env.GEMINI_API_KEY` and
- * threw at import time if it was missing. Here we read the Vite-style
- * `VITE_GEMINI_API_KEY` (same convention already used by AffiliateSystemControlPanel.jsx
- * and VideoToLearningPanel.jsx in this project) and show a setup notice
- * instead of crashing the whole app when it isn't configured yet.
+ * FREE architecture: instead of the paid/quota-limited Gemini Live API the
+ * original chatterbots demo used, this panel drives voice in/out with the
+ * browser's free SpeechRecognition + SpeechSynthesis APIs, and gets replies
+ * from the same free `generateContent` Gemini endpoint already used
+ * elsewhere in this project (see AffiliateSystemControlPanel.jsx). It reuses
+ * the same `VITE_GEMINI_API_KEY` env var already configured for that panel —
+ * no new key or extra billing needed. If the key isn't set, a setup notice
+ * is shown instead of crashing the app.
+ *
+ * Note: SpeechRecognition is best supported in Google Chrome / Chromium
+ * based browsers today.
  */
 export default function AIChatbotControlPanel() {
   const { t, theme } = useApp()

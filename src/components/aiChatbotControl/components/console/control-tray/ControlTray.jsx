@@ -1,21 +1,31 @@
 /**
- * Ported from chatterbots (Google I/O 2025 Live API Demo).
+ * Ported from chatterbots (Google I/O 2025 Live API Demo), adapted to the
+ * free architecture. The original mic button toggled mute on a continuous
+ * PCM audio stream to the Gemini Live API. The free version has no
+ * always-on audio stream (that requires the paid Live API), so the mic
+ * button is push-to-talk: tap it, speak, and the browser's SpeechRecognition
+ * API transcribes it, sends it to the free Gemini text endpoint, and speaks
+ * the reply back with SpeechSynthesis.
  * Original license: Apache-2.0, Copyright 2024 Google LLC
  */
-import React, { memo, useEffect, useRef, useState } from 'react'
+import React, { memo, useEffect, useRef } from 'react'
 import cn from 'classnames'
 
-import { AudioRecorder } from '../../../lib/audio-recorder'
-import { useLiveAPIContext } from '../../../contexts/LiveAPIContext'
+import { useLiveAPIContext } from '../../../contexts/VoiceCompanionContext'
 import { useUI } from '../../../lib/state'
 
 function ControlTray({ children }) {
-  const [audioRecorder] = useState(() => new AudioRecorder())
-  const [muted, setMuted] = useState(false)
   const connectButtonRef = useRef(null)
 
   const { showAgentEdit, showUserConfig } = useUI()
-  const { client, connected, connect, disconnect } = useLiveAPIContext()
+  const {
+    connected,
+    connect,
+    disconnect,
+    listening,
+    speaking,
+    startListening,
+  } = useLiveAPIContext()
 
   // Stop the current agent if the user is editing the agent or user config
   useEffect(() => {
@@ -30,37 +40,28 @@ function ControlTray({ children }) {
     }
   }, [connected])
 
-  useEffect(() => {
-    const onData = (base64) => {
-      client.sendRealtimeInput([
-        {
-          mimeType: 'audio/pcm;rate=16000',
-          data: base64,
-        },
-      ])
-    }
-    if (connected && !muted && audioRecorder) {
-      audioRecorder.on('data', onData).start()
-    } else {
-      audioRecorder.stop()
-    }
-    return () => {
-      audioRecorder.off('data', onData)
-    }
-  }, [connected, client, muted, audioRecorder])
+  const micDisabled = !connected || speaking
 
   return (
     <section className="control-tray">
       <nav className={cn('actions-nav', { disabled: !connected })}>
         <button
-          className={cn('action-button mic-button')}
-          onClick={() => setMuted(!muted)}
+          className={cn('action-button mic-button', {
+            connected: listening,
+          })}
+          disabled={micDisabled}
+          onClick={startListening}
+          title={
+            speaking
+              ? 'Đang nói…'
+              : listening
+              ? 'Đang nghe…'
+              : 'Nhấn để nói'
+          }
         >
-          {!muted ? (
-            <span className="material-symbols-outlined filled">mic</span>
-          ) : (
-            <span className="material-symbols-outlined filled">mic_off</span>
-          )}
+          <span className="material-symbols-outlined filled">
+            {speaking ? 'volume_up' : listening ? 'graphic_eq' : 'mic'}
+          </span>
         </button>
         {children}
       </nav>

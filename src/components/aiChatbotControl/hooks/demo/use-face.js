@@ -3,7 +3,7 @@
  * Original license: Apache-2.0, Copyright 2024 Google LLC
  */
 import { useEffect, useRef, useState } from 'react'
-import { useLiveAPIContext } from '../../contexts/LiveAPIContext'
+import { useLiveAPIContext } from '../../contexts/VoiceCompanionContext'
 
 function easeOutQuint(x) {
   return 1 - Math.pow(1 - x, 5)

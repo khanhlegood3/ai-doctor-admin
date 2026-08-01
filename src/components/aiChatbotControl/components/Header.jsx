@@ -3,7 +3,7 @@
  * Original license: Apache-2.0, Copyright 2024 Google LLC
  */
 import React, { useEffect, useState } from 'react'
-import { useLiveAPIContext } from '../contexts/LiveAPIContext'
+import { useLiveAPIContext } from '../contexts/VoiceCompanionContext'
 import { createNewAgent } from '../lib/presets/agents'
 import { useAgent, useUI, useUser } from '../lib/state'
 import c from 'classnames'

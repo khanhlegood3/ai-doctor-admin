@@ -14,7 +14,6 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@google/genai": "^1.27.0",
     "classnames": "^2.5.1",
-    "eventemitter3": "^5.0.1",
     "@gradio/client": "^2.3.0",
     "@mediapipe/tasks-audio": "^0.10.14",
     "@mediapipe/tasks-text": "^0.10.14",

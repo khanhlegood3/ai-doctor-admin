@@ -4,6 +4,11 @@
  * Original license: Apache-2.0, Copyright 2024 Google LLC
  *
  * Differences from the original App.tsx:
+ * - Uses the FREE architecture: browser SpeechRecognition (STT) +
+ *   browser SpeechSynthesis (TTS) + the project's existing free
+ *   VITE_GEMINI_API_KEY `generateContent` endpoint (see
+ *   lib/geminiTextClient.js and hooks/useVoiceCompanion.js), instead of the
+ *   paid/quota-limited Gemini Live API used by the original demo.
  * - apiKey is passed in as a prop (resolved by AIChatbotControlPanel.jsx from
  *   import.meta.env.VITE_GEMINI_API_KEY) instead of reading process.env and
  *   throwing at module scope.
@@ -18,7 +23,7 @@ import ErrorScreen from './components/demo/ErrorScreen'
 import KeynoteCompanion from './components/demo/keynote-companion/KeynoteCompanion'
 import Header from './components/Header'
 import UserSettings from './components/UserSettings'
-import { LiveAPIProvider } from './contexts/LiveAPIContext'
+import { LiveAPIProvider } from './contexts/VoiceCompanionContext'
 import { useUI } from './lib/state'
 
 /**

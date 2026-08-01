@@ -9,7 +9,7 @@ import { renderBasicFace } from './basic-face-render'
 import useFace from '../../../hooks/demo/use-face'
 import useHover from '../../../hooks/demo/use-hover'
 import useTilt from '../../../hooks/demo/use-tilt'
-import { useLiveAPIContext } from '../../../contexts/LiveAPIContext'
+import { useLiveAPIContext } from '../../../contexts/VoiceCompanionContext'
 
 // Minimum volume level that indicates audio output is occurring
 const AUDIO_OUTPUT_DETECTION_THRESHOLD = 0.05
