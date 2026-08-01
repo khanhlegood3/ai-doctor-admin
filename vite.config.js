@@ -6,6 +6,7 @@ import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './api/_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
+import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -191,6 +192,26 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
               res.end(JSON.stringify({ error: error?.message || 'Vibe Check proxy error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'video-to-learning') {
+            try {
+              const payload = await runVideoToLearningGenerate({
+                geminiApiKey: env.GEMINI_API_KEY,
+                modelName: parsed.modelName,
+                prompt: parsed.prompt,
+                videoUrl: parsed.videoUrl,
+              })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[video-to-learning-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Video to Learning proxy error' }))
             }
             return
           }
