@@ -65,6 +65,12 @@ export default function App() {
 
   const isBusy = validating || loadingState === 'loading-spec' || loadingState === 'loading-code';
 
+  // Cả 2 bước dùng gemini-3.6-flash (thay vì gemini-2.5-flash/pro cũ — đã bị
+  // Google ngừng cấp cho user mới và tắt hẳn 10/2026): đây là model Flash mới
+  // nhất, VẪN nằm trong free tier thật của Google AI Studio (không cần thẻ,
+  // không cần bật billing) — khác với dòng Pro đã chuyển sang trả phí từ
+  // 4/2026. gemini-3.6-flash hỗ trợ video multimodal (đủ cho bước phân tích
+  // video) và mạnh về code hơn cả Pro thế hệ trước (đủ cho bước sinh HTML).
   const generateFromVideo = async (url: string) => {
     try {
       setError(null);
@@ -74,7 +80,7 @@ export default function App() {
       setLoadingState('loading-spec');
 
       const specResponse = await generateText({
-        modelName: 'gemini-2.5-flash',
+        modelName: 'gemini-3.6-flash',
         prompt: SPEC_FROM_VIDEO_PROMPT,
         videoUrl: url,
       });
@@ -83,7 +89,7 @@ export default function App() {
       setLoadingState('loading-code');
 
       const codeResponse = await generateText({
-        modelName: 'gemini-2.5-pro',
+        modelName: 'gemini-3.6-flash',
         prompt: generatedSpec,
       });
       const generatedCode = parseHTML(codeResponse, CODE_REGION_CLOSER);
