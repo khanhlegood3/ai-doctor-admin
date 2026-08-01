@@ -36,6 +36,12 @@ export interface HistoryEntry {
   status: 'success' | 'error' | 'saved-only';
   errorMessage?: string | null;
   specPreview?: string | null;
+  // Nội dung ĐẦY ĐỦ (không cắt ngắn) — CHỈ lưu ở đây (IndexedDB cục bộ),
+  // KHÔNG gửi lên server/Mongo (server chỉ nhận specPreview đã cắt ngắn, xem
+  // historyClient.ts) để giữ document Mongo gọn. Dùng cho nút "Reload" ở
+  // App.tsx: nạp lại y hệt input/output cũ MÀ KHÔNG cần gọi lại AI.
+  fullSpec?: string | null;
+  fullCode?: string | null;
   createdAt: string;
 }
 

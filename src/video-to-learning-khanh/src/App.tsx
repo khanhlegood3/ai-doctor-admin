@@ -98,15 +98,23 @@ export default function App() {
 
   // --- Lịch sử: nạp từ IndexedDB ngay (nhanh), rồi đối chiếu/merge từ
   // server (bản "chính", đầy đủ hơn nếu người dùng đổi máy).
+  // Local (IndexedDB) LUÔN là nguồn cho nút Reload vì có fullSpec/fullCode
+  // (server không lưu 2 trường này, xem historyStorage.ts). Merge chỉ để
+  // BỔ SUNG các lượt đã lưu từ máy/trình duyệt KHÁC (không có ở IndexedDB
+  // máy này) — các dòng bổ sung này sẽ không Reload được nội dung đầy đủ
+  // (chỉ có specPreview), Reload lúc đó chỉ nạp lại link vào ô nhập.
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
       const local = await getHistoryEntries(identity.uuid).catch(() => [] as HistoryEntry[]);
-      setHistoryEntries(local);
+      const localKeys = new Set(local.map((e) => `${e.link}|${e.createdAt}`));
+      let merged: any[] = local;
       if (identity.uuid) {
         const remote = await fetchHistoryFromServer(identity.uuid);
-        if (remote.length) setHistoryEntries(remote);
+        const remoteOnly = remote.filter((r: any) => !localKeys.has(`${r.link}|${r.createdAt}`));
+        merged = [...local, ...remoteOnly].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       }
+      setHistoryEntries(merged);
     } finally {
       setHistoryLoading(false);
     }
@@ -125,6 +133,10 @@ export default function App() {
     status: 'success' | 'error' | 'saved-only';
     errorMessage?: string | null;
     specPreview?: string | null;
+    // CHỈ dùng để lưu IndexedDB (nút Reload) — KHÔNG gửi lên server, xem
+    // chú thích ở HistoryEntry trong lib/history/historyStorage.ts.
+    fullSpec?: string | null;
+    fullCode?: string | null;
   }) => {
     // Lưu cục bộ trước (luôn thành công, không phụ thuộc mạng)...
     try {
@@ -137,11 +149,15 @@ export default function App() {
         status: entry.status,
         errorMessage: entry.errorMessage ?? null,
         specPreview: entry.specPreview ?? null,
+        fullSpec: entry.fullSpec ?? null,
+        fullCode: entry.fullCode ?? null,
       });
     } catch (err) {
       console.warn('[video-to-learning] addHistoryEntry (IndexedDB) failed:', err);
     }
     // ...rồi bắn lên server (không chặn UI nếu lỗi, xem historyClient.ts).
+    // CỐ Ý không gửi fullSpec/fullCode lên server — giữ document Mongo gọn,
+    // đủ dùng cho Admin xem/thống kê; bản đầy đủ chỉ cần có cục bộ cho nút Reload.
     if (identity.uuid) {
       saveHistoryToServer({
         uuid: identity.uuid,
@@ -194,6 +210,8 @@ export default function App() {
         aiSource: specResponse.source ?? null,
         status: 'success',
         specPreview: generatedSpec.slice(0, 500),
+        fullSpec: generatedSpec,
+        fullCode: generatedCode,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Đã có lỗi không xác định xảy ra.';
@@ -263,6 +281,40 @@ export default function App() {
   };
 
   const rerenderFromCode = () => {
+    setIframeKey((k) => k + 1);
+    setActiveTab('render');
+  };
+
+  // Nút "Reload" trong tab Lịch sử: nạp lại NGUYÊN VẸN link input + spec/code
+  // output đã lưu CỤC BỘ (IndexedDB, có fullSpec/fullCode) — KHÔNG gọi
+  // server/AI. Nếu dòng lịch sử này chỉ đến từ server (máy/trình duyệt
+  // khác, không có fullSpec/fullCode ở IndexedDB máy này) thì chỉ nạp lại
+  // link vào ô nhập, không có output đầy đủ để hiện lại.
+  // Muốn gọi lại AI thật sự: dán link vào ô nhập rồi bấm nút "Tạo ứng dụng
+  // học tập" bên dưới như bình thường (nút đó luôn gọi server).
+  const handleReloadFromHistory = (entry: any) => {
+    if (textareaRef.current) textareaRef.current.value = entry.link;
+
+    const hasFullOutput = Boolean(entry.fullSpec || entry.fullCode);
+    const reloadedItem: QueueItem = {
+      raw: entry.link,
+      url: entry.link,
+      type: (entry.type as LinkType) || 'website',
+      status: entry.status === 'error' ? 'error' : entry.status === 'saved-only' ? 'saved-only' : hasFullOutput ? 'done' : 'error',
+      spec: entry.fullSpec || undefined,
+      code: entry.fullCode || undefined,
+      error:
+        entry.status === 'error'
+          ? entry.errorMessage || 'Đã có lỗi không xác định.'
+          : !hasFullOutput && entry.status !== 'saved-only'
+            ? 'Lượt này chỉ đồng bộ từ máy/trình duyệt khác, chưa có bản đầy đủ lưu ở máy này nên không Reload lại output được — chỉ nạp lại link vào ô nhập. Muốn xem lại nội dung, bấm "Tạo ứng dụng học tập" để gọi lại AI.'
+            : null,
+      aiSource: entry.aiSource ?? null,
+      pageTitle: entry.title ?? null,
+    };
+
+    setItems((prev) => [reloadedItem, ...prev]);
+    setSelectedIndex(0);
     setIframeKey((k) => k + 1);
     setActiveTab('render');
   };
@@ -451,6 +503,19 @@ export default function App() {
                         </div>
                         {h.specPreview && <p className="text-slate-400 mt-2 line-clamp-3 whitespace-pre-wrap">{h.specPreview}</p>}
                         {h.errorMessage && <p className="text-red-400 mt-2">{h.errorMessage}</p>}
+                        <div className="mt-2">
+                          <button
+                            onClick={() => handleReloadFromHistory(h)}
+                            disabled={isBusy}
+                            title="Nạp lại link + kết quả đã lưu cục bộ trên máy này, không gọi lại server"
+                            className="rounded-md bg-slate-800 hover:bg-slate-700 disabled:opacity-50 px-2.5 py-1 text-xs font-medium text-slate-200"
+                          >
+                            ↺ Reload
+                          </button>
+                          {!(h.fullSpec || h.fullCode) && h.status !== 'saved-only' && (
+                            <span className="ml-2 text-[11px] text-slate-600">(chỉ nạp lại link — chưa có bản đầy đủ trên máy này)</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
