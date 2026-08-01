@@ -233,7 +233,7 @@ export default function App() {
           </div>
 
           <p className="text-xs text-slate-500">
-            Cần cấu hình <code className="text-slate-400">VITE_GEMINI_API_KEY</code> (Gemini có hỗ trợ hiểu video) trong file <code className="text-slate-400">.env</code>.
+            Video được phân tích bằng Gemini qua máy chủ — không cần cấu hình gì thêm ở trình duyệt.
           </p>
         </div>
 
