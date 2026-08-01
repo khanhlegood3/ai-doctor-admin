@@ -127,6 +127,13 @@ export default function AIPoseCompareLivePanel() {
   const [poseReady, setPoseReady] = useState(false)
   const [score, setScore] = useState(0)
   const [bestScore, setBestScore] = useState(0)
+  // BUG ĐÃ SỬA: trước đây nếu ensureLoaded() lỗi (mạng chậm/chặn CDN
+  // storage.googleapis.com, model .task không tải được), vision.status
+  // chuyển sang 'error' nhưng overlay vẫn chỉ check `=== 'ready'` -> spinner
+  // "Đang tải mô hình AI Pose..." quay MÃI MÃI, không báo lỗi, không có
+  // cách nào thoát ra ngoài bấm tắt camera. Giờ thêm timer cảnh báo tải
+  // chậm + hiện rõ lỗi (nếu có) kèm nút "Thử lại".
+  const [slowLoadHint, setSlowLoadHint] = useState(false)
 
   const vision = useMediaPipeVision()
   const visionRef = useRef(vision)
@@ -141,6 +148,7 @@ export default function AIPoseCompareLivePanel() {
     setCamStarting(false)
     setPoseReady(false)
     setScore(0)
+    setSlowLoadHint(false)
   }, [])
 
   useEffect(() => () => stopCamera(), [stopCamera])
@@ -173,6 +181,21 @@ export default function AIPoseCompareLivePanel() {
       setCamStarting(false)
     }
   }, [stopCamera, lang])
+
+  // Cảnh báo "tải chậm" sau 10s nếu camera đã mở mà model AI vẫn chưa sẵn
+  // sàng (kể cả khi vision.status đang 'loading' chứ chưa hẳn 'error') —
+  // model .task tải từ storage.googleapis.com có thể mất lâu trên mạng
+  // yếu/di động, hoặc bị chặn hoàn toàn (khi đó sẽ không bao giờ xong).
+  useEffect(() => {
+    if (!camOpen || poseReady) { setSlowLoadHint(false); return }
+    const timer = setTimeout(() => setSlowLoadHint(true), 10_000)
+    return () => clearTimeout(timer)
+  }, [camOpen, poseReady])
+
+  const retryLoadModel = useCallback(() => {
+    setSlowLoadHint(false)
+    visionRef.current.ensureLoaded({ face: false, pose: true, object: false })
+  }, [])
 
   // Vòng lặp: lấy landmark thật từ webcam mỗi khung hình, tính góc khớp thật,
   // so với tư thế mục tiêu, ra điểm % thật + vẽ khung xương tô màu theo độ khớp.
@@ -329,14 +352,57 @@ export default function AIPoseCompareLivePanel() {
           {camOpen && <canvas ref={canvasRef} className="pd-canvas-overlay" style={{ transform: 'scaleX(-1)' }} />}
 
           {camOpen && !poseReady && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-              <div className="flex flex-col items-center">
-                <svg className="animate-spin h-8 w-8 text-cyan-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span className="text-xs text-cyan-400 font-mono">{t('Tải mô hình AI Pose...', 'Loading AI pose model...')}</span>
-              </div>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 p-4">
+              {vision.status === 'error' ? (
+                <div className="flex flex-col items-center text-center gap-2">
+                  <span className="text-2xl">⚠️</span>
+                  <p className="text-xs text-red-400 max-w-[260px]">
+                    {t('Không tải được mô hình AI Pose', 'Could not load the AI pose model')}
+                    {vision.error ? `: ${vision.error}` : '.'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 max-w-[260px]">
+                    {t(
+                      'Có thể do mạng chậm hoặc chặn kết nối tới storage.googleapis.com. Kiểm tra mạng rồi thử lại.',
+                      'This may be due to a slow network or a block on storage.googleapis.com. Check your connection and try again.',
+                    )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={retryLoadModel}
+                    className="mt-1 bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-full text-xs font-bold"
+                  >
+                    {t('Thử lại', 'Retry')}
+                  </button>
+                  <button type="button" onClick={stopCamera} className="text-[11px] text-slate-400 underline mt-1">
+                    {t('Tắt camera', 'Turn off camera')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <svg className="animate-spin h-8 w-8 text-cyan-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span className="text-xs text-cyan-400 font-mono">{t('Tải mô hình AI Pose...', 'Loading AI pose model...')}</span>
+                  {slowLoadHint && (
+                    <div className="flex flex-col items-center gap-2 mt-3">
+                      <span className="text-[11px] text-amber-400 max-w-[240px] text-center">
+                        {t(
+                          'Tải hơi lâu — có thể do mạng chậm. Bạn có thể chờ thêm hoặc thử lại.',
+                          'This is taking a while — your network may be slow. You can keep waiting or try again.',
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={retryLoadModel}
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-full text-xs font-bold"
+                      >
+                        {t('Thử lại', 'Retry')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
