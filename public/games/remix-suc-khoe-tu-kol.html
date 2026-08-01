@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mô Phỏng Ước Lượng Tư Thế AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a; /* slate-900 */
+            color: #e2e8f0;
+            overflow: hidden; /* Prevent scrolling on mobile */
+            touch-action: none; /* Disable default touch actions for dragging */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Custom scrollbar for side panel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
+            color: #0ff;
+        }
+        .neon-text-magenta {
+            text-shadow: 0 0 5px #f0f, 0 0 10px #f0f;
+            color: #f0f;
+        }
+        .panel-glass {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-neon {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 0 5px rgba(6, 182, 212, 0.2);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+        }
+        .btn-neon:hover {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
+            background: rgba(6, 182, 212, 0.2);
+        }
+        .btn-neon.active {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.8);
+            background: rgba(6, 182, 212, 0.4);
+            border-color: #06b6d4;
+        }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen font-sans">
+
+    <!-- Bảng Điều Khiển (Sidebar) -->
+    <aside class="panel-glass w-full md:w-80 h-auto md:h-full flex flex-col z-10 shrink-0 md:max-h-screen overflow-y-auto">
+        <div class="p-6 flex flex-col gap-6">
+            <div>
+                <h1 class="text-2xl font-bold tracking-wider mb-1 neon-text-cyan">POSE<span class="text-white">.VISION</span></h1>
+                <p class="text-xs text-slate-400 uppercase tracking-widest">Trình mô phỏng AI</p>
+            </div>
+
+            <!-- Điều khiển Chế độ -->
+            <div class="space-y-3">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide border-b border-slate-700 pb-1">Chế Độ Hoạt Động</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-mode-match" class="btn-neon active bg-slate-800 text-cyan-400 py-2 rounded text-sm font-medium" onclick="setMode('match')">
+                        Ghép Tư Thế
+                    </button>
+                    <button id="btn-mode-sync" class="btn-neon bg-slate-800 text-cyan-400 py-2 rounded text-sm font-medium" onclick="setMode('sync')">
+                        Đa Đối Tượng
+                    </button>
+                </div>
+            </div>
+
+            <!-- Các Tư Thế Mục Tiêu -->
+            <div id="target-controls" class="space-y-3 transition-opacity duration-300">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide border-b border-slate-700 pb-1">Mục Tiêu (Target)</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white py-1.5 rounded text-xs transition" onclick="setTarget('stand')">Đứng Thẳng</button>
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white py-1.5 rounded text-xs transition" onclick="setTarget('handsUp')">Giơ Tay Lênh</button>
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white py-1.5 rounded text-xs transition" onclick="setTarget('squat')">Ngồi Xổm</button>
+                    <button class="bg-slate-700 hover:bg-slate-600 text-white py-1.5 rounded text-xs transition" onclick="setTarget('cheer')">Cổ Vũ</button>
+                </div>
+                <div class="flex gap-2">
+                    <button class="flex-1 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-500/30 text-cyan-300 py-1.5 rounded text-xs transition" onclick="randomizeTarget()">Ngẫu Nhiên Target</button>
+                    <button class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 py-1.5 rounded text-xs transition" onclick="resetPlayer()">Reset Người Chơi</button>
+                </div>
+            </div>
+
+            <!-- Tùy Chọn Hiển Thị -->
+            <div class="space-y-3">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide border-b border-slate-700 pb-1">Hiển Thị</h2>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="toggle-data" class="form-checkbox h-4 w-4 text-cyan-500 rounded border-slate-600 bg-slate-700 focus:ring-cyan-500 focus:ring-offset-slate-900" checked onchange="appConfig.showData = this.checked; render();">
+                    <span class="text-sm text-slate-300">Nhãn Dữ Liệu Khớp (Tọa độ)</span>
+                </label>
+            </div>
+
+            <!-- Kiến thức Giáo dục -->
+            <div class="space-y-3 mt-auto">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide border-b border-slate-700 pb-1 text-yellow-400">Khái Niệm CV</h2>
+                
+                <details class="group bg-slate-800/50 rounded-md border border-slate-700">
+                    <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-3 text-sm">
+                        <span class="text-cyan-300">1. Điểm mấu chốt (Keypoints)</span>
+                        <span class="transition group-open:rotate-180">
+                            <svg fill="none" height="16" width="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                        </span>
+                    </summary>
+                    <div class="text-slate-400 text-xs px-3 pb-3">
+                        Hệ thống AI nhận diện các vùng cụ thể trên cơ thể (như vai, cùi chỏ) dưới dạng tọa độ X, Y 2D. 
+                    </div>
+                </details>
+
+                <details class="group bg-slate-800/50 rounded-md border border-slate-700">
+                    <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-3 text-sm">
+                        <span class="text-cyan-300">2. Khung xương (Topology)</span>
+                        <span class="transition group-open:rotate-180">
+                            <svg fill="none" height="16" width="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                        </span>
+                    </summary>
+                    <div class="text-slate-400 text-xs px-3 pb-3">
+                        Thuật toán kết nối các điểm mấu chốt bằng các đường ('xương') theo một trật tự giải phẫu được xác định trước, tạo ra mô hình trực quan để phân tích.
+                    </div>
+                </details>
+
+                <details class="group bg-slate-800/50 rounded-md border border-slate-700">
+                    <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-3 text-sm">
+                        <span class="text-cyan-300">3. Điểm khớp tư thế</span>
+                        <span class="transition group-open:rotate-180">
+                            <svg fill="none" height="16" width="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                        </span>
+                    </summary>
+                    <div class="text-slate-400 text-xs px-3 pb-3">
+                        Tính toán bằng cách so sánh khoảng cách và góc của các vector xương giữa hai mô hình (đã được chuẩn hóa về cùng một tỷ lệ). Xương sẽ chuyển màu Xanh lá khi đạt độ chính xác cao.
+                    </div>
+                </details>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Khu vực Canvas -->
+    <main class="flex-1 relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black">
+        <!-- Lưới nền (Background Grid) -->
+        <div class="absolute inset-0" style="background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 40px 40px;"></div>
+        
+        <canvas id="poseCanvas"></canvas>
+
+        <!-- Overlay Điểm số (Chỉ hiện trong chế độ Match) -->
+        <div id="score-overlay" class="absolute top-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center pointer-events-none transition-opacity duration-300">
+            <div class="text-xs uppercase tracking-widest text-slate-400 font-bold bg-slate-900/80 px-3 py-1 rounded-full mb-1 border border-slate-700">Độ Đồng Bộ Tư Thế</div>
+            <div class="text-5xl font-black drop-shadow-[0_0_15px_rgba(0,255,0,0.5)]" id="score-text">
+                <span class="text-green-400">0</span><span class="text-2xl text-green-600">%</span>
+            </div>
+            <div class="w-48 h-2 bg-slate-800 rounded-full mt-2 overflow-hidden border border-slate-700">
+                <div id="score-bar" class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-200" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <!-- Hướng dẫn trên màn hình -->
+        <div class="absolute bottom-6 left-6 pointer-events-none">
+            <p class="text-slate-400 text-sm bg-slate-900/60 p-2 rounded backdrop-blur">
+                <span class="text-cyan-400 animate-pulse">👆 Kéo các điểm (khớp)</span> trên mô hình <span class="text-cyan-400">Màu Xanh</span> để điều chỉnh tư thế.
+            </p>
+        </div>
+    </main>
+
+<script>
+/**
+ * CẤU TRÚC MÔ HÌNH XƯƠNG (TOPOLOGY)
+ * Sử dụng định dạng 14 điểm cơ bản. 
+ * Tọa độ gốc được lưu chuẩn hóa (0.0 đến 1.0) để dễ dàng co giãn.
+ */
+const JOINTS = [
+    { id: 'head', name: 'Đầu' },
+    { id: 'neck', name: 'Cổ' },
+    { id: 'r_shoulder', name: 'Vai Phải' },
+    { id: 'l_shoulder', name: 'Vai Trái' },
+    { id: 'r_elbow', name: 'Khuỷu Phải' },
+    { id: 'l_elbow', name: 'Khuỷu Trái' },
+    { id: 'r_wrist', name: 'Cổ tay Phải' },
+    { id: 'l_wrist', name: 'Cổ tay Trái' },
+    { id: 'r_hip', name: 'Hông Phải' },
+    { id: 'l_hip', name: 'Hông Trái' },
+    { id: 'r_knee', name: 'Đầu gối Phải' },
+    { id: 'l_knee', name: 'Đầu gối Trái' },
+    { id: 'r_ankle', name: 'Mắt cá Phải' },
+    { id: 'l_ankle', name: 'Mắt cá Trái' }
+];
+
+// Các kết nối (Cạnh/Xương) - chỉ mục trong mảng JOINTS
+const BONES = [
+    [0, 1],   // Đầu -> Cổ
+    [1, 2],   // Cổ -> Vai Phải
+    [1, 3],   // Cổ -> Vai Trái
+    [2, 4],   // Vai P -> Khuỷu P
+    [4, 6],   // Khuỷu P -> Cổ tay P
+    [3, 5],   // Vai T -> Khuỷu T
+    [5, 7],   // Khuỷu T -> Cổ tay T
+    [2, 8],   // Vai P -> Hông P (Thân phải)
+    [3, 9],   // Vai T -> Hông T (Thân trái)
+    [8, 9],   // Hông P -> Hông T (Khung xương chậu)
+    [8, 10],  // Hông P -> Gối P
+    [10, 12], // Gối P -> Mắt cá P
+    [9, 11],  // Hông T -> Gối T
+    [11, 13]  // Gối T -> Mắt cá T
+];
+
+// Các bộ tư thế chuẩn hóa (x, y từ 0 đến 1)
+const POSES = {
+    stand: [
+        {x: 0.5, y: 0.1}, {x: 0.5, y: 0.2}, {x: 0.4, y: 0.22}, {x: 0.6, y: 0.22},
+        {x: 0.35, y: 0.4}, {x: 0.65, y: 0.4}, {x: 0.3, y: 0.55}, {x: 0.7, y: 0.55},
+        {x: 0.45, y: 0.55}, {x: 0.55, y: 0.55}, {x: 0.45, y: 0.75}, {x: 0.55, y: 0.75},
+        {x: 0.45, y: 0.95}, {x: 0.55, y: 0.95}
+    ],
+    handsUp: [
+        {x: 0.5, y: 0.1}, {x: 0.5, y: 0.2}, {x: 0.4, y: 0.22}, {x: 0.6, y: 0.22},
+        {x: 0.3, y: 0.1}, {x: 0.7, y: 0.1}, {x: 0.3, y: 0.0}, {x: 0.7, y: 0.0},
+        {x: 0.45, y: 0.55}, {x: 0.55, y: 0.55}, {x: 0.45, y: 0.75}, {x: 0.55, y: 0.75},
+        {x: 0.45, y: 0.95}, {x: 0.55, y: 0.95}
+    ],
+    squat: [
+        {x: 0.5, y: 0.3}, {x: 0.5, y: 0.4}, {x: 0.35, y: 0.45}, {x: 0.65, y: 0.45},
+        {x: 0.35, y: 0.6}, {x: 0.65, y: 0.6}, {x: 0.45, y: 0.6}, {x: 0.55, y: 0.6},
+        {x: 0.4, y: 0.75}, {x: 0.6, y: 0.75}, {x: 0.25, y: 0.75}, {x: 0.75, y: 0.75},
+        {x: 0.4, y: 0.95}, {x: 0.6, y: 0.95}
+    ],
+    cheer: [
+        {x: 0.5, y: 0.15}, {x: 0.5, y: 0.25}, {x: 0.4, y: 0.27}, {x: 0.6, y: 0.27},
+        {x: 0.25, y: 0.2}, {x: 0.75, y: 0.45}, {x: 0.2, y: 0.05}, {x: 0.8, y: 0.3},
+        {x: 0.45, y: 0.55}, {x: 0.55, y: 0.55}, {x: 0.35, y: 0.75}, {x: 0.65, y: 0.75},
+        {x: 0.4, y: 0.95}, {x: 0.6, y: 0.95}
+    ]
+};
+
+// State Ứng dụng
+const appConfig = {
+    mode: 'match', // 'match' or 'sync'
+    showData: true,
+    currentScore: 0,
+    theme: {
+        playerColor: '#00ffff', // Cyan
+        targetColor: '#ff00ff', // Magenta
+        syncColors: ['#00ff00', '#ffff00'], // Xanh lá, Vàng cho clone
+        matchGood: '#10b981', // Emerald 500
+        matchBad: '#ef4444'   // Red 500
+    }
+};
+
+let playerJoints = JSON.parse(JSON.stringify(POSES.stand));
+let targetJoints = JSON.parse(JSON.stringify(POSES.handsUp));
+let draggedJointIndex = -1;
+
+// Canvas Setup
+const canvas = document.getElementById('poseCanvas');
+const ctx = canvas.getContext('2d');
+let cw, ch;
+
+function resize() {
+    // Làm cho canvas sắc nét trên màn hình retina
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    cw = rect.width;
+    ch = rect.height;
+    render();
+}
+window.addEventListener('resize', resize);
+
+// Logic Toán học & Tiện ích
+function getDistance(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+}
+
+function calculateScore() {
+    if (appConfig.mode !== 'match') return;
+    
+    let totalError = 0;
+    // Tính khoảng cách Euclidean trung bình giữa các khớp chuẩn hóa
+    for (let i = 0; i < playerJoints.length; i++) {
+        totalError += getDistance(playerJoints[i], targetJoints[i]);
+    }
+    let avgError = totalError / playerJoints.length;
+    
+    // Chuyển đổi lỗi thành điểm phần trăm (0-100)
+    // Ngưỡng: sai số 0.3 coi như 0%, sai số 0 coi như 100%
+    let score = Math.max(0, 100 - (avgError * 350));
+    appConfig.currentScore = Math.round(score);
+    
+    updateScoreUI();
+}
+
+function updateScoreUI() {
+    const scoreText = document.getElementById('score-text');
+    const scoreBar = document.getElementById('score-bar');
+    
+    let colorClass = 'text-red-500';
+    if (appConfig.currentScore > 50) colorClass = 'text-yellow-500';
+    if (appConfig.currentScore > 85) colorClass = 'text-green-400';
+    
+    scoreText.innerHTML = `<span class="${colorClass}">${appConfig.currentScore}</span><span class="text-2xl ${colorClass}">%</span>`;
+    scoreText.className = `text-5xl font-black drop-shadow-[0_0_15px_currentColor] ${colorClass}`;
+    scoreBar.style.width = `${appConfig.currentScore}%`;
+}
+
+// Logic Render (Vẽ)
+function drawBone(p1, p2, color, thickness = 4) {
+    ctx.beginPath();
+    ctx.moveTo(p1.px, p1.py);
+    ctx.lineTo(p2.px, p2.py);
+    ctx.lineWidth = thickness;
+    ctx.strokeStyle = color;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.shadowBlur = 0; // Reset
+}
+
+function drawJoint(p, color, radius = 6) {
+    ctx.beginPath();
+    ctx.arc(p.px, p.py, radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = color;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+}
+
+function drawDataLabel(p, index) {
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+    ctx.fillRect(p.px + 10, p.py - 20, 70, 22);
+    ctx.strokeStyle = 'rgba(6, 182, 212, 0.5)';
+    ctx.strokeRect(p.px + 10, p.py - 20, 70, 22);
+    
+    ctx.fillStyle = '#67e8f9';
+    ctx.font = '10px monospace';
+    // Hiển thị tọa độ chuẩn hóa với 2 chữ số thập phân
+    ctx.fillText(`x:${p.x.toFixed(2)}, y:${p.y.toFixed(2)}`, p.px + 15, p.py - 6);
+}
+
+// Hàm chính để vẽ một bộ xương dựa trên bounding box (x, y, w, h)
+function renderSkeleton(jointsNormal, bounds, colorTheme, isPlayer = false, compareJoints = null) {
+    // 1. Chuyển đổi tọa độ chuẩn hóa sang tọa độ pixel thực tế trên canvas
+    const mappedJoints = jointsNormal.map(j => ({
+        x: j.x, y: j.y, // Giữ lại tọa độ chuẩn hóa để dùng
+        px: bounds.x + (j.x * bounds.w),
+        py: bounds.y + (j.y * bounds.h)
+    }));
+
+    // 2. Vẽ các xương (Bones)
+    BONES.forEach(bone => {
+        const j1 = mappedJoints[bone[0]];
+        const j2 = mappedJoints[bone[1]];
+        
+        let boneColor = colorTheme;
+        
+        // Logic đổi màu xương nếu đang ở chế độ ghép tư thế và là xương người chơi
+        if (isPlayer && appConfig.mode === 'match' && compareJoints) {
+            const d1 = getDistance(jointsNormal[bone[0]], compareJoints[bone[0]]);
+            const d2 = getDistance(jointsNormal[bone[1]], compareJoints[bone[1]]);
+            // Nếu cả 2 đầu của xương khớp vị trí tương đối
+            if (d1 < 0.08 && d2 < 0.08) {
+                boneColor = appConfig.theme.matchGood; // Khớp -> Xanh
+            } else if (d1 > 0.15 || d2 > 0.15) {
+                boneColor = appConfig.theme.matchBad;  // Lệch xa -> Đỏ
+            } else {
+                boneColor = '#f59e0b'; // Gần đúng -> Vàng
+            }
+        }
+        
+        drawBone(j1, j2, boneColor);
+    });
+
+    // 3. Vẽ các khớp (Joints)
+    mappedJoints.forEach((j, i) => {
+        // Làm nổi bật khớp đang được kéo
+        let jointColor = colorTheme;
+        let radius = isPlayer ? 6 : 4;
+        
+        if (isPlayer && draggedJointIndex === i) {
+            radius = 10;
+            jointColor = '#fff';
+        }
+
+        drawJoint(j, jointColor, radius);
+
+        // 4. Vẽ dữ liệu nổi
+        if (isPlayer && appConfig.showData) {
+            drawDataLabel(j, i);
+        }
+    });
+
+    return mappedJoints; // Trả về tọa độ pixel để xử lý tương tác
+}
+
+let currentPlayerPixelJoints = [];
+let targetBox = {};
+let playerBox = {};
+
+function render() {
+    ctx.clearRect(0, 0, cw, ch);
+
+    if (appConfig.mode === 'match') {
+        // Chế độ 2 bên: Trái (Target), Phải (Player)
+        targetBox = { x: cw * 0.1, y: ch * 0.15, w: cw * 0.35, h: ch * 0.7 };
+        playerBox = { x: cw * 0.55, y: ch * 0.15, w: cw * 0.35, h: ch * 0.7 };
+        
+        // Vẽ Target (Mờ hơn, không tương tác)
+        ctx.globalAlpha = 0.5;
+        renderSkeleton(targetJoints, targetBox, appConfig.theme.targetColor);
+        ctx.globalAlpha = 1.0;
+
+        // Vẽ Player
+        calculateScore();
+        currentPlayerPixelJoints = renderSkeleton(playerJoints, playerBox, appConfig.theme.playerColor, true, targetJoints);
+        
+        // Vẽ nhãn dưới chân
+        ctx.fillStyle = appConfig.theme.targetColor;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("MỤC TIÊU", targetBox.x + targetBox.w/2, targetBox.y + targetBox.h + 30);
+        
+        ctx.fillStyle = appConfig.theme.playerColor;
+        ctx.fillText("BẠN (KÉO ĐỂ CHỈNH)", playerBox.x + playerBox.w/2, playerBox.y + playerBox.h + 30);
+        ctx.textAlign = 'left'; // reset
+
+    } else if (appConfig.mode === 'sync') {
+        // Chế độ Sync: 3 người cùng chung một data (thể hiện multi-subject tracking)
+        const box1 = { x: cw * 0.1, y: ch * 0.2, w: cw * 0.2, h: ch * 0.6 }; // Trái nhỏ
+        const box2 = { x: cw * 0.35, y: ch * 0.15, w: cw * 0.3, h: ch * 0.7 }; // Giữa lớn (Player)
+        const box3 = { x: cw * 0.7, y: ch * 0.2, w: cw * 0.2, h: ch * 0.6 }; // Phải nhỏ
+        
+        // Clone 1
+        renderSkeleton(playerJoints, box1, appConfig.theme.syncColors[0]);
+        // Clone 2
+        renderSkeleton(playerJoints, box3, appConfig.theme.syncColors[1]);
+        
+        // Main Player
+        currentPlayerPixelJoints = renderSkeleton(playerJoints, box2, appConfig.theme.playerColor, true);
+
+        // Nhãn
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.font = '14px sans-serif';
+        ctx.fillText("Camera 2 (Góc xa)", box1.x + box1.w/2, box1.y + box1.h + 30);
+        ctx.fillText("Dữ liệu Chuẩn hóa (Kéo chỉnh)", box2.x + box2.w/2, box2.y + box2.h + 30);
+        ctx.fillText("Camera 3 (Góc hẹp)", box3.x + box3.w/2, box3.y + box3.h + 30);
+        ctx.textAlign = 'left'; // reset
+    }
+}
+
+// Xử lý Tương tác (Kéo/Thả)
+function getPointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    let clientX = e.clientX;
+    let clientY = e.clientY;
+    
+    if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    }
+    
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
+
+function handlePointerDown(e) {
+    const pos = getPointerPos(e);
+    
+    // Chỉ check va chạm với khớp của Player
+    const hitRadius = 25; // Vùng cảm ứng rộng hơn bán kính vẽ để dễ chạm trên mobile
+    draggedJointIndex = -1;
+    
+    for (let i = 0; i < currentPlayerPixelJoints.length; i++) {
+        const j = currentPlayerPixelJoints[i];
+        const dist = Math.sqrt(Math.pow(pos.x - j.px, 2) + Math.pow(pos.y - j.py, 2));
+        if (dist <= hitRadius) {
+            draggedJointIndex = i;
+            canvas.style.cursor = 'grabbing';
+            break;
+        }
+    }
+    render();
+}
+
+function handlePointerMove(e) {
+    if (draggedJointIndex === -1) {
+        // Chỉ cập nhật cursor nếu hover
+        let hovering = false;
+        const pos = getPointerPos(e);
+        for (let i = 0; i < currentPlayerPixelJoints.length; i++) {
+            const j = currentPlayerPixelJoints[i];
+            const dist = Math.sqrt(Math.pow(pos.x - j.px, 2) + Math.pow(pos.y - j.py, 2));
+            if (dist <= 25) { hovering = true; break; }
+        }
+        canvas.style.cursor = hovering ? 'grab' : 'default';
+        return;
+    }
+
+    e.preventDefault(); // Chống cuộn trang trên mobile khi kéo
+    const pos = getPointerPos(e);
+    
+    // Xác định box của player hiện tại dựa trên chế độ
+    let activeBox = appConfig.mode === 'match' ? playerBox : { x: cw * 0.35, y: ch * 0.15, w: cw * 0.3, h: ch * 0.7 };
+    
+    // Ánh xạ ngược tọa độ pixel về tọa độ chuẩn hóa (0-1)
+    let normX = (pos.x - activeBox.x) / activeBox.w;
+    let normY = (pos.y - activeBox.y) / activeBox.h;
+    
+    // Giới hạn trong phạm vi 0-1 (hoặc dôi ra chút đỉnh)
+    normX = Math.max(-0.2, Math.min(1.2, normX));
+    normY = Math.max(-0.2, Math.min(1.2, normY));
+
+    // Cập nhật mảng gốc
+    playerJoints[draggedJointIndex].x = normX;
+    playerJoints[draggedJointIndex].y = normY;
+    
+    render();
+}
+
+function handlePointerUp() {
+    draggedJointIndex = -1;
+    canvas.style.cursor = 'default';
+    render();
+}
+
+// Đăng ký Events
+canvas.addEventListener('mousedown', handlePointerDown);
+canvas.addEventListener('mousemove', handlePointerMove);
+window.addEventListener('mouseup', handlePointerUp);
+
+canvas.addEventListener('touchstart', handlePointerDown, {passive: false});
+canvas.addEventListener('touchmove', handlePointerMove, {passive: false});
+window.addEventListener('touchend', handlePointerUp);
+
+// UI Logic
+function setMode(mode) {
+    appConfig.mode = mode;
+    
+    document.getElementById('btn-mode-match').classList.remove('active');
+    document.getElementById('btn-mode-sync').classList.remove('active');
+    document.getElementById('btn-mode-' + mode).classList.add('active');
+    
+    const targetControls = document.getElementById('target-controls');
+    const scoreOverlay = document.getElementById('score-overlay');
+    
+    if (mode === 'match') {
+        targetControls.style.opacity = '1';
+        targetControls.style.pointerEvents = 'auto';
+        scoreOverlay.style.opacity = '1';
+        // Reset player to stand when switching to match mode for fair play
+        playerJoints = JSON.parse(JSON.stringify(POSES.stand));
+    } else {
+        targetControls.style.opacity = '0.3';
+        targetControls.style.pointerEvents = 'none';
+        scoreOverlay.style.opacity = '0';
+    }
+    
+    render();
+}
+
+function setTarget(poseName) {
+    if (POSES[poseName]) {
+        targetJoints = JSON.parse(JSON.stringify(POSES[poseName]));
+        render();
+    }
+}
+
+function randomizeTarget() {
+    const poseKeys = Object.keys(POSES);
+    const randomKey = poseKeys[Math.floor(Math.random() * poseKeys.length)];
+    setTarget(randomKey);
+}
+
+function resetPlayer() {
+    playerJoints = JSON.parse(JSON.stringify(POSES.stand));
+    render();
+}
+
+// Khởi tạo
+setTimeout(() => {
+    resize();
+    render();
+}, 100);
+
+</script>
+</body>
+</html>
