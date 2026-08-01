@@ -58,10 +58,14 @@
 // tồn tại (xem sanitizePromptForTextToImage), và BỎ QUA phần inlineData.
 //
 // Env var:
-//   - GROQ_API_KEY — dùng cho nhánh TEXT (kịch bản), lấy free tại
-//     https://console.groq.com — đã có sẵn trong dự án (chatbot chính +
+//   - GROQ_API_KEY (hoặc GROQ_API_KEY1, GROQ_API_KEY2, ... — xem
+//     api/_lib/apiKeyPool.js để dùng nhiều key dự phòng, tự động rotate khi
+//     1 key hết hạn mức/billing) — dùng cho nhánh TEXT (kịch bản), lấy free
+//     tại https://console.groq.com — đã có sẵn trong dự án (chatbot chính +
 //     api/groq-whisper.js dùng chung biến này).
 //   - Nhánh ẢNH không cần API key nào (gọi ẩn danh tới Pollinations).
+
+import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
 
 const POLLINATIONS_IMAGE_BASE_URL = 'https://image.pollinations.ai'
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
@@ -184,7 +188,7 @@ async function parseUpstreamError(res, providerLabel = 'Upstream') {
 // response tương thích OpenAI, giống hệt cách api/groq-proxy.js đang gọi
 // Groq ở nhánh mặc định.
 // ---------------------------------------------------------------------------
-async function generateText({ apiKey, contents, config }) {
+async function generateText({ contents, config, envSource }) {
   const promptText = typeof contents === 'string' ? contents : extractPromptText(contents)
 
   const body = {
@@ -195,18 +199,22 @@ async function generateText({ apiKey, contents, config }) {
     body.response_format = { type: 'json_object' }
   }
 
-  const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  })
+  // KEY POOL / AUTO-ROTATION: nếu GROQ_API_KEY đang dùng hết hạn mức/billing,
+  // tự động thử GROQ_API_KEY1, GROQ_API_KEY2, ... (xem api/_lib/apiKeyPool.js)
+  // thay vì để nhánh sinh kịch bản của Comic Hero lỗi ngay lập tức.
+  const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+    const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw await toRotatableHttpError(res, 'Groq')
+    return res.json()
+  }, { envSource })
 
-  if (!res.ok) await parseUpstreamError(res, 'Groq')
-
-  const data = await res.json()
   const text = data?.choices?.[0]?.message?.content || ''
 
   return { text, candidates: [] }
@@ -262,7 +270,7 @@ async function generateImage({ contents, config }) {
 // ---------------------------------------------------------------------------
 // Entry point — giữ nguyên chữ ký hàm để không phải sửa nơi gọi
 // ---------------------------------------------------------------------------
-export async function runGeminiComicGenerate({ apiKey, action = 'generateContent', contents, config }) {
+export async function runGeminiComicGenerate({ action = 'generateContent', contents, config, envSource }) {
   if (!contents) {
     throw new GeminiComicError('Missing "contents" in request body', 400)
   }
@@ -281,12 +289,9 @@ export async function runGeminiComicGenerate({ apiKey, action = 'generateContent
       // tính năng sinh ảnh vẫn hoạt động độc lập với nhánh text.
       return await generateImage({ contents, config })
     }
-    // Nhánh text gọi Groq, cần GROQ_API_KEY (đã có sẵn trong dự án, dùng
-    // chung với chatbot chính — xem api/groq-proxy.js).
-    if (!apiKey) {
-      throw new GeminiComicError('GROQ_API_KEY not configured on server', 500)
-    }
-    return await generateText({ apiKey, contents, config })
+    // Nhánh text gọi Groq — KEY POOL / AUTO-ROTATION qua GROQ_API_KEY* (xem
+    // generateText() ở trên và api/_lib/apiKeyPool.js).
+    return await generateText({ contents, config, envSource })
   } catch (err) {
     if (err instanceof GeminiComicError) throw err
     throw new GeminiComicError(String(err?.message || err || 'Comic generate proxy error'), 500)

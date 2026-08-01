@@ -25,6 +25,7 @@ import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTracki
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
+import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -60,16 +61,13 @@ export default async function handler(req, res) {
     try {
       if (body.action === 'vibe') {
         const payload = await runVisionSyncVibe({
-          groqApiKey: process.env.GROQ_API_KEY,
           objects: body.objects,
           emotion: body.emotion,
         })
         return res.status(200).json(payload)
       }
       if (body.action === 'liveToken') {
-        const payload = await createVisionSyncLiveToken({
-          geminiApiKey: process.env.GEMINI_API_KEY,
-        })
+        const payload = await createVisionSyncLiveToken({})
         return res.status(200).json(payload)
       }
       return res.status(400).json({ error: 'Unknown vision-sync action' })
@@ -86,7 +84,6 @@ export default async function handler(req, res) {
     try {
       if (body.action === 'emotion') {
         const payload = await runVibeTrackingEmotionAnalysis({
-          groqApiKey: process.env.GROQ_API_KEY,
           avgBlendshapes: body.avgBlendshapes,
           dominantEmotion: body.dominantEmotion,
           vibeValue: body.vibeValue,
@@ -96,7 +93,6 @@ export default async function handler(req, res) {
       }
       if (body.action === 'sign') {
         const payload = await runVibeTrackingSignAnalysis({
-          groqApiKey: process.env.GROQ_API_KEY,
           compactData: body.compactData,
         })
         return res.status(200).json(payload)
@@ -114,7 +110,6 @@ export default async function handler(req, res) {
     console.log('[groq-proxy] (vibe-check) model:', body.model)
     try {
       const payload = await runVibeCheckGenerate({
-        geminiApiKey: process.env.GEMINI_API_KEY,
         model: body.model,
         systemInstruction: body.systemInstruction,
         prompt: body.prompt,
@@ -136,7 +131,6 @@ export default async function handler(req, res) {
     console.log('[groq-proxy] (ai-chatbot-control) prompt length:', body.prompt?.length)
     try {
       const payload = await runAiChatbotControlGenerate({
-        geminiApiKey: process.env.GEMINI_API_KEY,
         prompt: body.prompt,
         systemInstruction: body.systemInstruction,
       })
@@ -153,8 +147,6 @@ export default async function handler(req, res) {
     console.log('[groq-proxy] (video-to-learning) hasVideoUrl:', Boolean(body.videoUrl))
     try {
       const payload = await runVideoToLearningGenerate({
-        groqApiKey: process.env.GROQ_API_KEY,
-        geminiApiKey: process.env.GEMINI_API_KEY,
         prompt: body.prompt,
         videoUrl: body.videoUrl,
       })
@@ -172,7 +164,6 @@ export default async function handler(req, res) {
     console.log('[groq-proxy] (gemini-comic) action:', body.action)
     try {
       const payload = await runGeminiComicGenerate({
-        apiKey: process.env.GROQ_API_KEY,
         action: body.action,
         contents: body.contents,
         config: body.config,
@@ -185,38 +176,47 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Nhánh Groq (mặc định, hành vi gốc không đổi) ---
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) {
-    console.error('[groq-proxy] GROQ_API_KEY is not set')
-    return res.status(500).json({
-      error: 'GROQ_API_KEY not configured. Get a free key at https://console.groq.com and add it in Vercel → Settings → Environment Variables.',
-    })
-  }
-
+  // --- Nhánh Groq (mặc định, hành vi gốc không đổi, chỉ thêm key pool) ---
+  // KEY POOL / AUTO-ROTATION: đọc GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2,
+  // ... GROQ_API_KEY20 và tự động rotate sang key kế tiếp khi key đang dùng
+  // hết hạn mức/billing (xem api/_lib/apiKeyPool.js) — thay vì quăng lỗi
+  // real-time ngay cho client khi 1 key hết tiền.
   console.log('[groq-proxy] model:', body.model, '| messages:', body.messages?.length)
 
   try {
-    const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
+    const { status, data } = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+      const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      const text = await upstream.text()
+      let parsed
+      try { parsed = JSON.parse(text) } catch { parsed = { raw: text } }
+
+      if (!upstream.ok) {
+        console.error('[groq-proxy] Groq', upstream.status, ':', text.slice(0, 500))
+        throw await toRotatableHttpError(upstream, 'Groq')
+      }
+
+      return { status: upstream.status, data: parsed }
     })
 
-    const text = await upstream.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = { raw: text } }
-
-    if (!upstream.ok) {
-      console.error('[groq-proxy] Groq', upstream.status, ':', text.slice(0, 500))
-    }
-
-    return res.status(upstream.status).json(data)
+    return res.status(status).json(data)
   } catch (err) {
-    console.error('[groq-proxy] fetch error:', err?.message)
+    console.error('[groq-proxy] error:', err?.message)
+    if (err instanceof ApiKeyPoolError) {
+      return res.status(err.status).json({ error: err.message })
+    }
+    if (typeof err?.status === 'number' && err.rawBody !== undefined) {
+      let parsed
+      try { parsed = JSON.parse(err.rawBody) } catch { parsed = { error: err.message } }
+      return res.status(err.status).json(parsed)
+    }
     return res.status(500).json({ error: err?.message || 'Proxy fetch error' })
   }
 }

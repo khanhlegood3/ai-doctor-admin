@@ -33,10 +33,10 @@ function inbodyOcrDevMiddleware(env) {
           try {
             const { image, mediaType, previousRecord } = body ? JSON.parse(body) : {}
             const analysis = await runInbodyOcr({
-              apiKey: env.ANTHROPIC_API_KEY,
               image,
               mediaType,
               previousRecord,
+              envSource: env,
             })
             res.setHeader('Content-Type', 'application/json')
             res.statusCode = 200
@@ -98,10 +98,10 @@ function geminiComicDevMiddleware(env) {
               // passthrough bên dưới); nhánh ảnh gọi Pollinations ẩn danh,
               // không cần apiKey — xem runGeminiComicGenerate.
               const payload = await runGeminiComicGenerate({
-                apiKey: env.GROQ_API_KEY,
                 action: parsed.action,
                 contents: parsed.contents,
                 config: parsed.config,
+                envSource: env,
               })
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = 200
@@ -120,12 +120,12 @@ function geminiComicDevMiddleware(env) {
               let payload
               if (parsed.action === 'vibe') {
                 payload = await runVisionSyncVibe({
-                  groqApiKey: env.GROQ_API_KEY,
                   objects: parsed.objects,
                   emotion: parsed.emotion,
+                  envSource: env,
                 })
               } else if (parsed.action === 'liveToken') {
-                payload = await createVisionSyncLiveToken({ geminiApiKey: env.GEMINI_API_KEY })
+                payload = await createVisionSyncLiveToken({ envSource: env })
               } else {
                 throw new VisionSyncProxyError('Unknown vision-sync action', 400)
               }
@@ -146,16 +146,16 @@ function geminiComicDevMiddleware(env) {
               let payload
               if (parsed.action === 'emotion') {
                 payload = await runVibeTrackingEmotionAnalysis({
-                  groqApiKey: env.GROQ_API_KEY,
                   avgBlendshapes: parsed.avgBlendshapes,
                   dominantEmotion: parsed.dominantEmotion,
                   vibeValue: parsed.vibeValue,
                   numFaces: parsed.numFaces,
+                  envSource: env,
                 })
               } else if (parsed.action === 'sign') {
                 payload = await runVibeTrackingSignAnalysis({
-                  groqApiKey: env.GROQ_API_KEY,
                   compactData: parsed.compactData,
+                  envSource: env,
                 })
               } else {
                 throw new VibeTrackingProxyError('Unknown vibe-tracking action', 400)
@@ -175,7 +175,6 @@ function geminiComicDevMiddleware(env) {
           if (parsed.provider === 'vibe-check') {
             try {
               const payload = await runVibeCheckGenerate({
-                geminiApiKey: env.GEMINI_API_KEY,
                 model: parsed.model,
                 systemInstruction: parsed.systemInstruction,
                 prompt: parsed.prompt,
@@ -183,6 +182,7 @@ function geminiComicDevMiddleware(env) {
                 imageOutput: parsed.imageOutput,
                 thinking: parsed.thinking,
                 thinkingCapable: parsed.thinkingCapable,
+                envSource: env,
               })
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = 200
@@ -199,10 +199,9 @@ function geminiComicDevMiddleware(env) {
           if (parsed.provider === 'video-to-learning') {
             try {
               const payload = await runVideoToLearningGenerate({
-                groqApiKey: env.GROQ_API_KEY,
-                geminiApiKey: env.GEMINI_API_KEY,
                 prompt: parsed.prompt,
                 videoUrl: parsed.videoUrl,
+                envSource: env,
               })
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = 200
@@ -270,6 +269,12 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy /api/* (trừ /api/inbody-analyze đã được middleware ở trên xử
         // lý riêng) và /health sang FastAPI backend.
+        // LƯU Ý: đây là reverse-proxy thô (http-proxy), chỉ dùng 1 key
+        // ANTHROPIC_API_KEY duy nhất cho dev local — KHÔNG chạy qua
+        // withApiKeyRotation()/apiKeyPool.js (cơ chế đó chỉ áp dụng cho
+        // Serverless Function thật ở api/anthropic-proxy.js khi deploy lên
+        // Vercel). Muốn test rotation cục bộ, dùng `vercel dev` thay vì
+        // `npm run dev`.
         '/api/anthropic-proxy': {
           target: 'https://api.anthropic.com',
           changeOrigin: true,

@@ -9,6 +9,7 @@
 // cùng 1 cách build request, cùng 1 cách parse JSON trả về).
 
 import Anthropic from '@anthropic-ai/sdk';
+import { withApiKeyRotation } from './apiKeyPool.js';
 
 export const INBODY_OCR_SYSTEM_PROMPT = `Bạn là chuyên gia phân tích kết quả InBody (máy đo thành phần cơ thể).
 Khi nhận ảnh/PDF kết quả InBody, hãy:
@@ -45,26 +46,25 @@ CHỈ trả lời bằng JSON hợp lệ (không kèm lời dẫn, không kèm m
 
 /**
  * Gọi Claude Vision để OCR thật một ảnh kết quả InBody.
+ *
+ * KEY POOL / AUTO-ROTATION: nếu ANTHROPIC_API_KEY đang dùng hết hạn mức/
+ * billing (401/402/429), tự động thử ANTHROPIC_API_KEY1, ANTHROPIC_API_KEY2,
+ * ... (xem api/_lib/apiKeyPool.js) thay vì báo lỗi ngay cho người dùng.
+ *
  * @param {object} params
- * @param {string} params.apiKey - ANTHROPIC_API_KEY (bắt buộc)
  * @param {string} params.image - ảnh dạng base64 (không kèm prefix data:...)
  * @param {string} [params.mediaType] - ví dụ 'image/jpeg', 'image/png'
  * @param {object} [params.previousRecord] - lần đo trước, để Claude so sánh
+ * @param {Record<string,string>} [params.envSource] - nguồn biến môi trường
+ *   (mặc định process.env; truyền `env` từ loadEnv() khi gọi từ dev-server)
  * @returns {Promise<object>} analysis JSON: { summary, metrics, tags, recommendations, xp_earned, inbody_score }
  */
-export async function runInbodyOcr({ apiKey, image, mediaType, previousRecord }) {
-  if (!apiKey) {
-    const err = new Error('Server chưa cấu hình ANTHROPIC_API_KEY — không thể chạy OCR thật.');
-    err.code = 'NO_API_KEY';
-    throw err;
-  }
+export async function runInbodyOcr({ image, mediaType, previousRecord, envSource }) {
   if (!image) {
     const err = new Error('Thiếu dữ liệu ảnh để OCR.');
     err.code = 'NO_IMAGE';
     throw err;
   }
-
-  const client = new Anthropic({ apiKey });
 
   const userContent = [
     {
@@ -83,12 +83,25 @@ export async function runInbodyOcr({ apiKey, image, mediaType, previousRecord })
     },
   ];
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    system: INBODY_OCR_SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userContent }],
-  });
+  let response;
+  try {
+    response = await withApiKeyRotation('ANTHROPIC_API_KEY', async (apiKey) => {
+      const client = new Anthropic({ apiKey });
+      return client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: INBODY_OCR_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userContent }],
+      });
+    }, { envSource });
+  } catch (err) {
+    if (err?.status === 501) {
+      const wrapped = new Error('Server chưa cấu hình ANTHROPIC_API_KEY — không thể chạy OCR thật.');
+      wrapped.code = 'NO_API_KEY';
+      throw wrapped;
+    }
+    throw err;
+  }
 
   const rawText = response.content
     .filter((block) => block.type === 'text')

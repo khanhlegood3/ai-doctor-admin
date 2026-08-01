@@ -18,6 +18,13 @@
 // response_format tương thích OpenAI) thay vì Gemini thật, giữ đúng tinh
 // thần "$0, không cần key Gemini trả phí" như Vision Sync/Comic Hero đã áp
 // dụng trước đó.
+//
+// KEY POOL / AUTO-ROTATION: gọi qua withApiKeyRotation() (xem
+// api/_lib/apiKeyPool.js) — nếu GROQ_API_KEY đang dùng bị hết hạn mức/
+// billing, tự động thử GROQ_API_KEY1, GROQ_API_KEY2, ... thay vì quăng lỗi
+// ngay cho client.
+
+import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
 
 export class VibeTrackingProxyError extends Error {
   constructor(message, status = 500) {
@@ -27,48 +34,44 @@ export class VibeTrackingProxyError extends Error {
   }
 }
 
-async function callGroqJSON({ groqApiKey, systemInstruction, prompt }) {
-  if (!groqApiKey) {
-    throw new VibeTrackingProxyError(
-      'GROQ_API_KEY not configured. Get a free key at https://console.groq.com and add it in Vercel → Settings → Environment Variables.',
-      500,
-    )
-  }
-
+async function callGroqJSON({ systemInstruction, prompt, envSource }) {
   const messages = []
   if (systemInstruction) messages.push({ role: 'system', content: systemInstruction })
   messages.push({ role: 'user', content: prompt })
 
-  const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${groqApiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      response_format: { type: 'json_object' },
-      temperature: 0.4,
-      max_tokens: 1024,
-    }),
-  })
-
-  const data = await upstream.json().catch(() => ({}))
-  if (!upstream.ok) {
-    throw new VibeTrackingProxyError(data?.error?.message || `Groq error (${upstream.status})`, upstream.status)
-  }
-
-  const text = data?.choices?.[0]?.message?.content?.trim() || '{}'
   try {
-    return JSON.parse(text)
-  } catch {
-    return {}
+    const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+      const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages,
+          response_format: { type: 'json_object' },
+          temperature: 0.4,
+          max_tokens: 1024,
+        }),
+      })
+      if (!upstream.ok) throw await toRotatableHttpError(upstream, 'Groq')
+      return upstream.json()
+    }, { envSource })
+
+    const text = data?.choices?.[0]?.message?.content?.trim() || '{}'
+    try {
+      return JSON.parse(text)
+    } catch {
+      return {}
+    }
+  } catch (err) {
+    throw new VibeTrackingProxyError(err?.message || 'Groq error', err?.status || 500)
   }
 }
 
 // Tab "Emotion Mesh" (VibeVizTab gốc) — phân tích blendshape trung bình.
-export async function runVibeTrackingEmotionAnalysis({ groqApiKey, avgBlendshapes, dominantEmotion, vibeValue, numFaces }) {
+export async function runVibeTrackingEmotionAnalysis({ avgBlendshapes, dominantEmotion, vibeValue, numFaces, envSource }) {
   const prompt = `You are an AI assistant helping to analyze a audience's engagement and emotional state during the current session.
 Here are the average facial blendshape scores (from 0.0 to 1.0) of the student(s) over the recorded time interval. If there are multiple people, this represents the average group emotion:
 ${JSON.stringify(avgBlendshapes || {}, null, 2)}
@@ -81,7 +84,7 @@ Based on these facial muscle activations and the heuristic data, provide a short
 
 Respond ONLY with a JSON object of this exact shape: { "summary": string, "details": string }. No markdown, no extra text.`
 
-  const result = await callGroqJSON({ groqApiKey, prompt })
+  const result = await callGroqJSON({ prompt, envSource })
   return {
     summary: result?.summary || 'No summary generated.',
     details: result?.details || '',
@@ -89,7 +92,7 @@ Respond ONLY with a JSON object of this exact shape: { "summary": string, "detai
 }
 
 // Tab "Sign Language" (CustomAnalyticsTab gốc) — dịch chuỗi toạ độ tay/mặt.
-export async function runVibeTrackingSignAnalysis({ groqApiKey, compactData }) {
+export async function runVibeTrackingSignAnalysis({ compactData, envSource }) {
   const systemInstruction = `## Role
 You are a High-Speed Sign Language Interpreter (ASL/CSL specialist). You translate sequences of normalized landmark coordinates and facial blendshapes into natural English.
 
@@ -126,7 +129,7 @@ Analyze the STARTING position of the hand relative to the face landmarks. Transl
 
 Respond ONLY with a JSON object of this exact shape: { "translation": string, "reasoning": string }. No markdown, no extra text.`
 
-  const result = await callGroqJSON({ groqApiKey, systemInstruction, prompt })
+  const result = await callGroqJSON({ systemInstruction, prompt, envSource })
   return {
     summary: result?.translation || 'No translation generated.',
     details: result?.reasoning || '',

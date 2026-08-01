@@ -6,6 +6,12 @@
 // Model: whisper-large-v3-turbo (fast, multilingual, free on Groq)
 //
 // Env var required: GROQ_API_KEY (same key as groq-proxy.js)
+//
+// KEY POOL / AUTO-ROTATION: đọc GROQ_API_KEY, GROQ_API_KEY1, GROQ_API_KEY2,
+// ... và tự động rotate sang key kế tiếp khi key đang dùng hết hạn mức/
+// billing — xem api/_lib/apiKeyPool.js.
+
+import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 export const config = { api: { bodyParser: false } }
 
@@ -69,11 +75,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'GROQ_API_KEY not configured.' })
-  }
-
   const contentType = req.headers['content-type'] || ''
   const boundaryMatch = contentType.match(/boundary=([^\s;]+)/)
   if (!boundaryMatch) {
@@ -129,27 +130,40 @@ export default async function handler(req, res) {
   const bodyBuffer = Buffer.concat(bodyParts)
 
   try {
-    const upstream = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${upstreamBoundary}`,
-        'Content-Length': String(bodyBuffer.length),
-      },
-      body: bodyBuffer,
+    const { status, data } = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+      const upstream = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': `multipart/form-data; boundary=${upstreamBoundary}`,
+          'Content-Length': String(bodyBuffer.length),
+        },
+        body: bodyBuffer,
+      })
+
+      const text = await upstream.text()
+      let parsed
+      try { parsed = JSON.parse(text) } catch { parsed = { raw: text } }
+
+      if (!upstream.ok) {
+        console.error('[groq-whisper] Groq', upstream.status, ':', text.slice(0, 300))
+        throw await toRotatableHttpError(upstream, 'Groq')
+      }
+
+      return { status: upstream.status, data: parsed }
     })
 
-    const text = await upstream.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = { raw: text } }
-
-    if (!upstream.ok) {
-      console.error('[groq-whisper] Groq', upstream.status, ':', text.slice(0, 300))
-    }
-
-    return res.status(upstream.status).json(data)
+    return res.status(status).json(data)
   } catch (err) {
-    console.error('[groq-whisper] fetch error:', err?.message)
+    console.error('[groq-whisper] error:', err?.message)
+    if (err instanceof ApiKeyPoolError) {
+      return res.status(err.status).json({ error: err.message })
+    }
+    if (typeof err?.status === 'number' && err.rawBody !== undefined) {
+      let parsed
+      try { parsed = JSON.parse(err.rawBody) } catch { parsed = { error: err.message } }
+      return res.status(err.status).json(parsed)
+    }
     return res.status(500).json({ error: err?.message || 'Proxy fetch error' })
   }
 }

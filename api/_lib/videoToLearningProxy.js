@@ -28,6 +28,7 @@
 
 import { GoogleGenAI, FinishReason } from '@google/genai'
 import { fetchYoutubeTranscript, YoutubeTranscriptError } from './youtubeTranscript.js'
+import { withApiKeyRotation, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 
 export class VideoToLearningProxyError extends Error {
   constructor(message, status = 500) {
@@ -44,9 +45,11 @@ const MIN_TRANSCRIPT_CHARS = 200 // dưới ngưỡng này coi là "nội dung k
 const GEMINI_TIMEOUT_MS = 55_000
 
 // --- Groq (text) ---
-async function callGroq({ apiKey, promptText, jsonMode }) {
-  if (!apiKey) throw new VideoToLearningProxyError('GROQ_API_KEY not configured', 501)
-
+// KEY POOL / AUTO-ROTATION: thử lần lượt GROQ_API_KEY, GROQ_API_KEY1,
+// GROQ_API_KEY2, ... (xem api/_lib/apiKeyPool.js) trước khi coi Groq là
+// "gặp sự cố" và fallback sang Gemini — tránh fallback sang Gemini (quota
+// chặt hơn) chỉ vì 1 key Groq bị hết hạn mức trong khi vẫn còn key dự phòng.
+async function callGroq({ promptText, jsonMode, envSource }) {
   const body = {
     model: GROQ_TEXT_MODEL,
     messages: [{ role: 'user', content: promptText }],
@@ -54,56 +57,66 @@ async function callGroq({ apiKey, promptText, jsonMode }) {
   }
   if (jsonMode) body.response_format = { type: 'json_object' }
 
-  const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  })
+  try {
+    const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+      const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw await toRotatableHttpError(res, 'Groq')
+      return res.json()
+    }, { envSource })
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    throw new VideoToLearningProxyError(`Groq error (${res.status}): ${errText.slice(0, 300)}`, 502)
+    return data?.choices?.[0]?.message?.content || ''
+  } catch (err) {
+    throw new VideoToLearningProxyError(err?.message || 'Groq error', err?.status || 502)
   }
-
-  const data = await res.json()
-  return data?.choices?.[0]?.message?.content || ''
 }
 
 // --- Gemini (multimodal, fallback) ---
 const withTimeout = (promise, ms) =>
   Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))])
 
-async function callGemini({ apiKey, promptText, videoUrl }) {
-  if (!apiKey) throw new VideoToLearningProxyError('GEMINI_API_KEY not configured', 501)
+// KEY POOL / AUTO-ROTATION: thử lần lượt GEMINI_API_KEY, GEMINI_API_KEY1,
+// GEMINI_API_KEY2, ... (xem api/_lib/apiKeyPool.js) khi key đang dùng hết
+// hạn mức/billing, trước khi báo lỗi cho client.
+async function callGemini({ promptText, videoUrl, envSource }) {
+  try {
+    return await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
+      const ai = new GoogleGenAI({ apiKey })
+      const parts = [{ text: promptText }]
+      if (videoUrl) parts.push({ fileData: { mimeType: 'video/mp4', fileUri: videoUrl } })
 
-  const ai = new GoogleGenAI({ apiKey })
-  const parts = [{ text: promptText }]
-  if (videoUrl) parts.push({ fileData: { mimeType: 'video/mp4', fileUri: videoUrl } })
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: [{ role: 'user', parts }],
+          config: { temperature: 0.75 },
+        }),
+        GEMINI_TIMEOUT_MS,
+      )
 
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: 'user', parts }],
-      config: { temperature: 0.75 },
-    }),
-    GEMINI_TIMEOUT_MS,
-  )
+      if (response.promptFeedback?.blockReason) {
+        throw new VideoToLearningProxyError(`Nội dung bị chặn (lý do: ${response.promptFeedback.blockReason})`, 400)
+      }
+      const firstCandidate = response.candidates?.[0]
+      if (!firstCandidate) {
+        throw new VideoToLearningProxyError('Không có kết quả trả về từ Gemini.', 502)
+      }
+      if (firstCandidate.finishReason && firstCandidate.finishReason !== FinishReason.STOP) {
+        if (firstCandidate.finishReason === FinishReason.SAFETY) {
+          throw new VideoToLearningProxyError('Nội dung bị chặn do cài đặt an toàn.', 400)
+        }
+        throw new VideoToLearningProxyError(`Gemini dừng vì lý do: ${firstCandidate.finishReason}.`, 502)
+      }
 
-  if (response.promptFeedback?.blockReason) {
-    throw new VideoToLearningProxyError(`Nội dung bị chặn (lý do: ${response.promptFeedback.blockReason})`, 400)
+      return response.text ?? ''
+    }, { envSource })
+  } catch (err) {
+    if (err instanceof VideoToLearningProxyError) throw err
+    throw new VideoToLearningProxyError(err?.message || 'Gemini error', err?.status || 502)
   }
-  const firstCandidate = response.candidates?.[0]
-  if (!firstCandidate) {
-    throw new VideoToLearningProxyError('Không có kết quả trả về từ Gemini.', 502)
-  }
-  if (firstCandidate.finishReason && firstCandidate.finishReason !== FinishReason.STOP) {
-    if (firstCandidate.finishReason === FinishReason.SAFETY) {
-      throw new VideoToLearningProxyError('Nội dung bị chặn do cài đặt an toàn.', 400)
-    }
-    throw new VideoToLearningProxyError(`Gemini dừng vì lý do: ${firstCandidate.finishReason}.`, 502)
-  }
-
-  return response.text ?? ''
 }
 
 function buildTranscriptOverridePrompt(originalPrompt, transcript) {
@@ -117,29 +130,37 @@ ${transcript}
 }
 
 // --- Điều phối Groq (mặc định) ↔ Gemini (fallback tự động) ---
-export async function runVideoToLearningGenerate({ groqApiKey, geminiApiKey, prompt, videoUrl }) {
+// `hasGroq`/`hasGemini` giờ nghĩa là "có ÍT NHẤT 1 key trong pool tương ứng"
+// (GROQ_API_KEY* / GEMINI_API_KEY*) — chỉ dùng để quyết định NHÁNH nào được
+// thử trước, việc rotate GIỮA CÁC KEY của cùng 1 nhánh diễn ra bên trong
+// callGroq()/callGemini() (xem api/_lib/apiKeyPool.js).
+export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }) {
   if (!prompt) throw new VideoToLearningProxyError('Missing prompt', 400)
-  if (!groqApiKey && !geminiApiKey) {
+
+  const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
+  const hasGemini = countApiKeyPool('GEMINI_API_KEY', { envSource }) > 0
+
+  if (!hasGroq && !hasGemini) {
     throw new VideoToLearningProxyError(
-      'Chưa cấu hình GROQ_API_KEY lẫn GEMINI_API_KEY trên server. Thêm ít nhất một trong hai trong Vercel → Settings → Environment Variables rồi redeploy.',
+      'Chưa cấu hình GROQ_API_KEY lẫn GEMINI_API_KEY (hoặc các biến *_API_KEY1, *_API_KEY2, ...) trên server. Thêm ít nhất một trong hai trong Vercel → Settings → Environment Variables rồi redeploy.',
       501,
     )
   }
 
   // Bước 2: sinh code từ spec (text-only, không có videoUrl)
   if (!videoUrl) {
-    if (groqApiKey) {
+    if (hasGroq) {
       try {
-        const text = await callGroq({ apiKey: groqApiKey, promptText: prompt, jsonMode: false })
+        const text = await callGroq({ promptText: prompt, jsonMode: false, envSource })
         return { text, source: 'groq' }
       } catch (err) {
-        console.warn('[video-to-learning] Groq (code step) failed, falling back to Gemini:', err?.message || err)
+        console.warn('[video-to-learning] Groq (code step) failed on all keys, falling back to Gemini:', err?.message || err)
       }
     }
-    if (!geminiApiKey) {
-      throw new VideoToLearningProxyError('Groq gặp sự cố và chưa cấu hình GEMINI_API_KEY để dự phòng.', 502)
+    if (!hasGemini) {
+      throw new VideoToLearningProxyError('Groq gặp sự cố ở tất cả các key và chưa cấu hình GEMINI_API_KEY để dự phòng.', 502)
     }
-    const text = await callGemini({ apiKey: geminiApiKey, promptText: prompt })
+    const text = await callGemini({ promptText: prompt, envSource })
     return { text, source: 'gemini-fallback' }
   }
 
@@ -154,13 +175,13 @@ export async function runVideoToLearningGenerate({ groqApiKey, geminiApiKey, pro
 
   const hasEnoughTranscript = Boolean(transcriptResult && transcriptResult.transcript.length >= MIN_TRANSCRIPT_CHARS)
 
-  if (hasEnoughTranscript && groqApiKey) {
+  if (hasEnoughTranscript && hasGroq) {
     try {
       const finalPrompt = buildTranscriptOverridePrompt(prompt, transcriptResult.transcript)
-      const text = await callGroq({ apiKey: groqApiKey, promptText: finalPrompt, jsonMode: true })
+      const text = await callGroq({ promptText: finalPrompt, jsonMode: true, envSource })
       return { text, source: 'groq-transcript' }
     } catch (err) {
-      console.warn('[video-to-learning] Groq (spec step) failed, falling back to Gemini:', err?.message || err)
+      console.warn('[video-to-learning] Groq (spec step) failed on all keys, falling back to Gemini:', err?.message || err)
     }
   } else if (transcriptError) {
     console.warn('[video-to-learning] Transcript unavailable, falling back to Gemini:', transcriptError.message)
@@ -168,16 +189,16 @@ export async function runVideoToLearningGenerate({ groqApiKey, geminiApiKey, pro
     console.warn('[video-to-learning] Transcript too short, falling back to Gemini')
   }
 
-  if (!geminiApiKey) {
+  if (!hasGemini) {
     if (transcriptError instanceof YoutubeTranscriptError) {
       throw new VideoToLearningProxyError(transcriptError.message, transcriptError.status)
     }
     throw new VideoToLearningProxyError(
-      'Không đủ transcript và Groq gặp sự cố, nhưng chưa cấu hình GEMINI_API_KEY để dự phòng. Hãy thử video khác có phụ đề đầy đủ.',
+      'Không đủ transcript và Groq gặp sự cố ở tất cả các key, nhưng chưa cấu hình GEMINI_API_KEY để dự phòng. Hãy thử video khác có phụ đề đầy đủ.',
       502,
     )
   }
 
-  const text = await callGemini({ apiKey: geminiApiKey, promptText: prompt, videoUrl })
+  const text = await callGemini({ promptText: prompt, videoUrl, envSource })
   return { text, source: 'gemini-fallback' }
 }

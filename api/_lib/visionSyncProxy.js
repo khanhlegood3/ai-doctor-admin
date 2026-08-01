@@ -21,8 +21,14 @@
 //      https://ai.google.dev/gemini-api/docs/live-api/ephemeral-tokens).
 //      Token này sống ngắn hạn (mặc định 30 phút, dùng 1 lần) và CHỈ dùng
 //      được cho Live API — không phải API key đầy đủ.
+//
+// KEY POOL / AUTO-ROTATION: cả 2 nhánh đều gọi qua withApiKeyRotation() (xem
+// api/_lib/apiKeyPool.js) — nếu key đang dùng bị hết hạn mức/billing, tự
+// động thử key kế tiếp trong GROQ_API_KEY*/GEMINI_API_KEY* pool thay vì
+// quăng lỗi ngay cho client.
 
 import { GoogleGenAI } from '@google/genai'
+import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
 
 export class VisionSyncProxyError extends Error {
   constructor(message, status = 500) {
@@ -32,68 +38,70 @@ export class VisionSyncProxyError extends Error {
   }
 }
 
-export async function runVisionSyncVibe({ groqApiKey, objects, emotion }) {
-  if (!groqApiKey) {
-    throw new VisionSyncProxyError(
-      'GROQ_API_KEY not configured. Get a free key at https://console.groq.com and add it in Vercel → Settings → Environment Variables.',
-      500,
-    )
-  }
-
+export async function runVisionSyncVibe({ objects, emotion, envSource } = {}) {
   const objectList = Array.isArray(objects) && objects.length ? objects.join(', ') : 'none'
   const safeEmotion = typeof emotion === 'string' && emotion ? emotion : 'neutral'
   const prompt = `You are a soundscape generator. Based on the following scene, output ONLY a 3-5 word ambient soundscape description (e.g., "tribal rhythmic drone", "cyberpunk electronic drone" or "melancholy acoustic ambient"). Do not include any other text, quotes, or punctuation. Never output "pop", "upbeat", or "energetic". Everything must be ambient, but based on the expression. Scene: a person is feeling ${safeEmotion} and the following objects are visible: ${objectList}.`
 
-  const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${groqApiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 20,
-      temperature: 0.9,
-    }),
-  })
-
-  const data = await upstream.json().catch(() => ({}))
-  if (!upstream.ok) {
-    throw new VisionSyncProxyError(data?.error?.message || `Groq error (${upstream.status})`, upstream.status)
-  }
-
-  const text = data?.choices?.[0]?.message?.content?.trim()?.replace(/^["'.]+|["'.]+$/g, '')
-  return { text: text || 'ambient drone, relaxing' }
-}
-
-export async function createVisionSyncLiveToken({ geminiApiKey }) {
-  if (!geminiApiKey) {
-    throw new VisionSyncProxyError(
-      'GEMINI_API_KEY not configured. Lyria realtime music needs a real (paid) Gemini API key from Google AI Studio — add it in Vercel → Settings → Environment Variables as GEMINI_API_KEY. (The vibe/soundscape text feature above already works without this, via Groq.)',
-      501,
-    )
-  }
-
-  const ai = new GoogleGenAI({ apiKey: geminiApiKey, apiVersion: 'v1alpha' })
-  const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString()
-  const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
-
   try {
-    const token = await ai.authTokens.create({
-      config: {
-        uses: 1,
-        expireTime,
-        newSessionExpireTime,
-        httpOptions: { apiVersion: 'v1alpha' },
-      },
-    })
-    if (!token?.name) {
-      throw new VisionSyncProxyError('Gemini returned no token.', 500)
-    }
-    return { token: token.name }
+    const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+      const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 20,
+          temperature: 0.9,
+        }),
+      })
+      if (!upstream.ok) throw await toRotatableHttpError(upstream, 'Groq')
+      return upstream.json()
+    }, { envSource })
+
+    const text = data?.choices?.[0]?.message?.content?.trim()?.replace(/^["'.]+|["'.]+$/g, '')
+    return { text: text || 'ambient drone, relaxing' }
   } catch (err) {
     if (err instanceof VisionSyncProxyError) throw err
-    throw new VisionSyncProxyError(err?.message || 'Failed to create Gemini ephemeral token', 500)
+    throw new VisionSyncProxyError(err?.message || 'Groq error', err?.status || 500)
+  }
+}
+
+export async function createVisionSyncLiveToken({ envSource } = {}) {
+  try {
+    const token = await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
+      const ai = new GoogleGenAI({ apiKey, apiVersion: 'v1alpha' })
+      const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+      const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString()
+
+      const result = await ai.authTokens.create({
+        config: {
+          uses: 1,
+          expireTime,
+          newSessionExpireTime,
+          httpOptions: { apiVersion: 'v1alpha' },
+        },
+      })
+      if (!result?.name) {
+        const err = new Error('Gemini returned no token.')
+        err.status = 500
+        throw err
+      }
+      return result.name
+    }, { envSource })
+
+    return { token }
+  } catch (err) {
+    if (err instanceof VisionSyncProxyError) throw err
+    const status = err?.status === 501
+      ? 501
+      : err?.status || 500
+    const message = err?.status === 501
+      ? 'GEMINI_API_KEY not configured. Lyria realtime music needs a real (paid) Gemini API key from Google AI Studio — add it in Vercel → Settings → Environment Variables as GEMINI_API_KEY (or GEMINI_API_KEY1, GEMINI_API_KEY2, ... for multiple keys). (The vibe/soundscape text feature above already works without this, via Groq.)'
+      : (err?.message || 'Failed to create Gemini ephemeral token')
+    throw new VisionSyncProxyError(message, status)
   }
 }

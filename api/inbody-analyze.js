@@ -42,8 +42,10 @@ export default async function handler(req, res) {
     const body = await parseBody(req);
     const { image, mediaType, previousRecord } = body;
 
+    // KEY POOL / AUTO-ROTATION: runInbodyOcr() tự đọc ANTHROPIC_API_KEY,
+    // ANTHROPIC_API_KEY1, ANTHROPIC_API_KEY2, ... từ process.env và tự
+    // rotate khi 1 key hết hạn mức/billing (xem api/_lib/apiKeyPool.js).
     const analysis = await runInbodyOcr({
-      apiKey: process.env.ANTHROPIC_API_KEY,
       image,
       mediaType,
       previousRecord,
