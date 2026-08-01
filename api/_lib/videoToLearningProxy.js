@@ -28,6 +28,7 @@
 
 import { GoogleGenAI, FinishReason } from '@google/genai'
 import { fetchYoutubeTranscript, YoutubeTranscriptError } from './youtubeTranscript.js'
+import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { withApiKeyRotation, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 
 export class VideoToLearningProxyError extends Error {
@@ -119,11 +120,12 @@ async function callGemini({ promptText, videoUrl, envSource }) {
   }
 }
 
-function buildTranscriptOverridePrompt(originalPrompt, transcript) {
+function buildTranscriptOverridePrompt(originalPrompt, transcript, sourceLabel = 'video') {
+  const noun = sourceLabel === 'page' ? 'trang web' : 'video'
   return `${originalPrompt}
 
 ---
-GHI CHU QUAN TRONG: ban KHONG duoc xem truc tiep video. Thay vao do, duoi day la transcript (phu de) day du cua video - hay coi day la toan bo nhung gi ban "biet" ve video va dua hoan toan vao no, khong duoc noi rang ban thieu hinh anh hay khong xem duoc video:
+GHI CHU QUAN TRONG: ban KHONG duoc xem truc tiep ${noun}. Thay vao do, duoi day la toan bo noi dung van ban da trich ra tu ${noun} nay - hay coi day la toan bo nhung gi ban "biet" ve ${noun} va dua hoan toan vao no, khong duoc noi rang ban thieu hinh anh hay khong xem duoc ${noun}:
 """
 ${transcript}
 """`
@@ -201,4 +203,49 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
 
   const text = await callGemini({ promptText: prompt, videoUrl, envSource })
   return { text, source: 'gemini-fallback' }
+}
+
+// --- Nhánh "Website to Learning" (trang web bất kỳ, không phải YouTube) ---
+// Khác video: KHÔNG có bước "Gemini xem trực tiếp" (Gemini không xem web live
+// được) — nguồn nội dung LUÔN là text đã trích từ HTML (xem webpageText.js),
+// nên bước sinh spec ở đây chỉ là 1 lệnh gọi text thuần: Groq trước, Gemini
+// TEXT-ONLY (không đính videoUrl) dự phòng — y hệt bước 2 (sinh code) ở trên,
+// chỉ khác prompt có kèm nội dung trang web.
+export async function runPageToLearningGenerate({ prompt, pageUrl, envSource }) {
+  if (!prompt) throw new VideoToLearningProxyError('Missing prompt', 400)
+  if (!pageUrl) throw new VideoToLearningProxyError('Missing pageUrl', 400)
+
+  const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
+  const hasGemini = countApiKeyPool('GEMINI_API_KEY', { envSource }) > 0
+  if (!hasGroq && !hasGemini) {
+    throw new VideoToLearningProxyError(
+      'Chưa cấu hình GROQ_API_KEY lẫn GEMINI_API_KEY (hoặc các biến *_API_KEY1, *_API_KEY2, ...) trên server. Thêm ít nhất một trong hai trong Vercel → Settings → Environment Variables rồi redeploy.',
+      501,
+    )
+  }
+
+  let page
+  try {
+    page = await fetchWebpageText(pageUrl)
+  } catch (err) {
+    if (err instanceof WebpageTextError) throw new VideoToLearningProxyError(err.message, err.status)
+    throw new VideoToLearningProxyError(err?.message || 'Không đọc được nội dung trang web.', 502)
+  }
+
+  const finalPrompt = buildTranscriptOverridePrompt(prompt, `(Tiêu đề trang: ${page.title || 'không rõ'})\n\n${page.text}`, 'page')
+
+  if (hasGroq) {
+    try {
+      const text = await callGroq({ promptText: finalPrompt, jsonMode: true, envSource })
+      return { text, source: 'groq-page', pageTitle: page.title }
+    } catch (err) {
+      console.warn('[video-to-learning] Groq (page step) failed on all keys, falling back to Gemini:', err?.message || err)
+    }
+  }
+
+  if (!hasGemini) {
+    throw new VideoToLearningProxyError('Groq gặp sự cố ở tất cả các key và chưa cấu hình GEMINI_API_KEY để dự phòng.', 502)
+  }
+  const text = await callGemini({ promptText: finalPrompt, envSource })
+  return { text, source: 'gemini-fallback', pageTitle: page.title }
 }

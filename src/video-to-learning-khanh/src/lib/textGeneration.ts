@@ -10,10 +10,27 @@
 interface GenerateTextOptions {
   prompt: string;
   videoUrl?: string;
+  // Link trang web (không phải YouTube) — thay cho videoUrl, xem
+  // runPageToLearningGenerate() trong api/_lib/videoToLearningProxy.js.
+  // Chỉ truyền MỘT trong hai (videoUrl HOẶC pageUrl), không truyền cả 2.
+  pageUrl?: string;
+}
+
+interface GenerateTextResult {
+  text: string;
+  // 'groq-transcript' | 'groq-page' | 'gemini-fallback' | undefined (bước sinh code, không gắn nguồn)
+  source?: string;
+  pageTitle?: string;
 }
 
 export async function generateText(options: GenerateTextOptions): Promise<string> {
-  const { prompt, videoUrl } = options;
+  return (await generateTextWithMeta(options)).text;
+}
+
+// Bản đầy đủ trả thêm `source`/`pageTitle` — dùng khi cần lưu lịch sử (biết
+// AI nào đã trả lời) thay vì chỉ cần text như generateText() cũ.
+export async function generateTextWithMeta(options: GenerateTextOptions): Promise<GenerateTextResult> {
+  const { prompt, videoUrl, pageUrl } = options;
 
   const res = await fetch('/api/groq-proxy', {
     method: 'POST',
@@ -22,6 +39,7 @@ export async function generateText(options: GenerateTextOptions): Promise<string
       provider: 'video-to-learning',
       prompt,
       videoUrl,
+      pageUrl,
     }),
   });
 
@@ -31,5 +49,5 @@ export async function generateText(options: GenerateTextOptions): Promise<string
     throw new Error(data?.error || `Lỗi máy chủ (${res.status})`);
   }
 
-  return data.text ?? '';
+  return { text: data.text ?? '', source: data.source, pageTitle: data.pageTitle };
 }

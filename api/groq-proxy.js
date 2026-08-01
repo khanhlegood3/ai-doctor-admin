@@ -24,7 +24,8 @@ import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } fr
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
-import { runVideoToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
+import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
+import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
@@ -143,9 +144,18 @@ export default async function handler(req, res) {
   }
 
   // --- Nhánh Video to Learning (transcript YouTube miễn phí + Groq, dùng chung GROQ_API_KEY) ---
+  // Từ bản cập nhật hỗ trợ nhiều loại link: `pageUrl` (thay cho `videoUrl`)
+  // -> nhánh "Website to Learning" (xem runPageToLearningGenerate).
   if (body.provider === 'video-to-learning') {
-    console.log('[groq-proxy] (video-to-learning) hasVideoUrl:', Boolean(body.videoUrl))
+    console.log('[groq-proxy] (video-to-learning) hasVideoUrl:', Boolean(body.videoUrl), '| hasPageUrl:', Boolean(body.pageUrl))
     try {
+      if (body.pageUrl) {
+        const payload = await runPageToLearningGenerate({
+          prompt: body.prompt,
+          pageUrl: body.pageUrl,
+        })
+        return res.status(200).json(payload)
+      }
       const payload = await runVideoToLearningGenerate({
         prompt: body.prompt,
         videoUrl: body.videoUrl,
@@ -155,6 +165,54 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (video-to-learning) error:', err?.message || err)
       const status = err instanceof VideoToLearningProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Video to Learning proxy error' })
+    }
+  }
+
+  // --- Nhánh lịch sử Video to Learning (MongoDB, KHÔNG gọi AI) ---
+  // Dùng chung endpoint này (không tạo Serverless Function mới, xem lý do ở
+  // đầu file) để lưu/đọc lịch sử theo uuid — cho cả người dùng xem lại lịch
+  // sử của chính mình lẫn Admin xem lịch sử của bất kỳ user nào (action
+  // 'list' không phân biệt 2 trường hợp, đúng mô hình bảo mật hiện tại: admin
+  // gating hoàn toàn ở client, xem thêm affiliate-admin-stats.js).
+  if (body.provider === 'video-to-learning-history') {
+    console.log('[groq-proxy] (video-to-learning-history) action:', body.action)
+    try {
+      if (body.action === 'save') {
+        const payload = await saveHistoryEntry({
+          uuid: body.uuid,
+          userId: body.userId,
+          name: body.name,
+          type: body.type,
+          link: body.link,
+          title: body.title,
+          aiSource: body.aiSource,
+          status: body.status,
+          errorMessage: body.errorMessage,
+          specPreview: body.specPreview,
+        })
+        return res.status(201).json(payload)
+      }
+      if (body.action === 'list') {
+        const payload = await listHistoryEntries({ uuid: body.uuid, limit: body.limit })
+        return res.status(200).json(payload)
+      }
+      return res.status(400).json({ error: 'Unknown video-to-learning-history action' })
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning-history) error:', err?.message || err)
+      const status = err instanceof VideoToLearningHistoryError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video to Learning history error' })
+    }
+  }
+
+  // --- Nhánh thống kê Admin cho Video to Learning (MongoDB, chỉ đọc) ---
+  if (body.provider === 'video-to-learning-admin-stats') {
+    console.log('[groq-proxy] (video-to-learning-admin-stats) action:', body.action)
+    try {
+      const payload = await getAdminOverview({ recentLimit: body.recentLimit, perUserLimit: body.perUserLimit })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning-admin-stats) error:', err?.message || err)
+      return res.status(500).json({ error: err?.message || 'Video to Learning admin stats error' })
     }
   }
 
