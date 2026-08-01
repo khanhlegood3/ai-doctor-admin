@@ -35,6 +35,7 @@ import {
   Legend,
 } from 'chart.js'
 import { Bar, Radar } from 'react-chartjs-2'
+import RemixSucKhoeKOLCameraSection from './health-games/RemixSucKhoeKOLCameraSection.jsx'
 
 ChartJS.register(
   CategoryScale,
@@ -349,6 +350,16 @@ export default function HealthRemixWeb3Ecosystem() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Tính năng Remix Sức Khỏe KOL bằng camera AI có pose — đặt NGAY
+          DƯỚI khối "2 khung xương pose" (User vs KOL) phía trên. Camera
+          mặc định KHÔNG mở sẵn, người dùng tự bấm nút bật/tắt (giữ
+          nguyên cơ chế toggle cũ của AIPoseCompareLivePanel.jsx). */}
+      <section id="hr-camera-pose-compare" className="py-4">
+        <div className="max-w-7xl mx-auto px-4">
+          <RemixSucKhoeKOLCameraSection variant="light" />
         </div>
       </section>
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import NavButtons from './NavButtons.jsx'
 import { useApp } from '../context/AppContext'
-import AIPoseCompareLivePanel from './AIPoseCompareLivePanel.jsx'
+import RemixSucKhoeKOLCameraSection from './health-games/RemixSucKhoeKOLCameraSection.jsx'
 import AIPoseDuetPanel from './AIPoseDuetPanel.jsx'
 
 // Trang tĩnh độc lập (HTML/canvas/Tailwind CDN, không cần build) được nhúng
@@ -73,7 +73,7 @@ export default function RemixSucKhoeKOLPanel({ onNext, nextLabel, onPrev, prevLa
         ))}
       </div>
 
-      {tab === 'compare' && <AIPoseCompareLivePanel />}
+      {tab === 'compare' && <RemixSucKhoeKOLCameraSection variant="panel" hideHeader />}
       {tab === 'duet' && <AIPoseDuetPanel />}
 
       {tab === 'match' && (
