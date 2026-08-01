@@ -2,24 +2,24 @@
 // — KHÔNG an toàn vì biến VITE_ bị Vite nhúng thẳng vào file JS công khai,
 // ai mở DevTools cũng lấy được key. Giờ gọi qua proxy server-side dùng
 // chung endpoint /api/groq-proxy (field `provider: 'video-to-learning'`,
-// xem api/_lib/videoToLearningProxy.js) — key GEMINI_API_KEY chỉ tồn tại
-// trên server, client không bao giờ thấy.
+// xem api/_lib/videoToLearningProxy.js) — key chỉ tồn tại trên server.
+//
+// CẬP NHẬT: server giờ dùng transcript YouTube (miễn phí) + Groq (miễn
+// phí) thay vì Gemini (trả phí), nên không còn cần chọn modelName nữa.
 
 interface GenerateTextOptions {
-  modelName: string;
   prompt: string;
   videoUrl?: string;
 }
 
 export async function generateText(options: GenerateTextOptions): Promise<string> {
-  const { modelName, prompt, videoUrl } = options;
+  const { prompt, videoUrl } = options;
 
   const res = await fetch('/api/groq-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       provider: 'video-to-learning',
-      modelName,
       prompt,
       videoUrl,
     }),
