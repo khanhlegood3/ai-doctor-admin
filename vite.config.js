@@ -200,6 +200,7 @@ function geminiComicDevMiddleware(env) {
             try {
               const payload = await runVideoToLearningGenerate({
                 groqApiKey: env.GROQ_API_KEY,
+                geminiApiKey: env.GEMINI_API_KEY,
                 prompt: parsed.prompt,
                 videoUrl: parsed.videoUrl,
               })
