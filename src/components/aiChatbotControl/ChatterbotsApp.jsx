@@ -4,14 +4,14 @@
  * Original license: Apache-2.0, Copyright 2024 Google LLC
  *
  * Differences from the original App.tsx:
- * - Uses the FREE architecture: browser SpeechRecognition (STT) +
- *   browser SpeechSynthesis (TTS) + the project's existing free
- *   VITE_GEMINI_API_KEY `generateContent` endpoint (see
- *   lib/geminiTextClient.js and hooks/useVoiceCompanion.js), instead of the
- *   paid/quota-limited Gemini Live API used by the original demo.
- * - apiKey is passed in as a prop (resolved by AIChatbotControlPanel.jsx from
- *   import.meta.env.VITE_GEMINI_API_KEY) instead of reading process.env and
- *   throwing at module scope.
+ * - Uses the FREE + SAFE architecture: browser SpeechRecognition (STT) +
+ *   browser SpeechSynthesis (TTS) + a server-side proxy at /api/groq-proxy
+ *   (provider: 'ai-chatbot-control') that calls Gemini with GEMINI_API_KEY
+ *   — a server-only env var with no VITE_ prefix, so it never ships in the
+ *   browser bundle (see lib/geminiTextClient.js, hooks/useVoiceCompanion.js,
+ *   api/_lib/aiChatbotControlProxy.js). No API key is read on the client at
+ *   all, unlike the original demo (process.env.GEMINI_API_KEY, client-side)
+ *   or this project's earlier client-side VITE_GEMINI_API_KEY iteration.
  * - Rendered inside a bounded container (see AIChatbotControlPanel.jsx) rather
  *   than taking over the full viewport, so it behaves as one panel among the
  *   many others in the admin sidebar.
@@ -27,14 +27,13 @@ import { LiveAPIProvider } from './contexts/VoiceCompanionContext'
 import { useUI } from './lib/state'
 
 /**
- * Main application component that provides a streaming interface for Live API.
- * Manages video streaming state and provides controls for webcam/screen capture.
+ * Main application component for the AI chatbot control panel.
  */
-function ChatterbotsApp({ apiKey }) {
+function ChatterbotsApp() {
   const { showUserConfig, showAgentEdit } = useUI()
   return (
     <div className="App">
-      <LiveAPIProvider apiKey={apiKey}>
+      <LiveAPIProvider>
         <ErrorScreen />
         <Header />
 

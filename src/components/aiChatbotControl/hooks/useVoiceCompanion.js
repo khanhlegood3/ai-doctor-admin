@@ -1,14 +1,14 @@
 /**
- * Free replacement for the original chatterbots `use-live-api.ts` hook.
+ * Free-voice replacement for the original chatterbots `use-live-api.ts` hook.
  *
  * Instead of the paid Gemini Live API (bidirectional PCM audio streaming),
  * this drives the companion with:
  *  - the browser's free SpeechRecognition API for speech-to-text
- *  - the existing free VITE_GEMINI_API_KEY `generateContent` endpoint (see
- *    lib/geminiTextClient.js) for the reply text
+ *  - the server-side /api/groq-proxy ('ai-chatbot-control' provider) for the
+ *    reply text — the Gemini key (GEMINI_API_KEY) lives only on the server,
+ *    never in the browser bundle (see lib/geminiTextClient.js)
  *  - the browser's free SpeechSynthesis API for text-to-speech
- * No extra API key or billing is required beyond the Gemini key this project
- * already uses elsewhere.
+ * No client-side API key is needed at all.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgent, useUser } from '../lib/state'
@@ -30,7 +30,7 @@ function pickVoice(lang) {
   )
 }
 
-export function useVoiceCompanion({ apiKey }) {
+export function useVoiceCompanion() {
   const { current: agent } = useAgent()
   const user = useUser()
 
@@ -94,18 +94,14 @@ export function useVoiceCompanion({ apiKey }) {
 
   const askCompanion = useCallback(
     async userText => {
-      try {
-        const systemInstruction = createSystemInstructions(
-          agentRef.current,
-          userRef.current
-        )
-        const reply = await callGeminiAPI(apiKey, userText, systemInstruction)
-        speak(reply)
-      } catch (err) {
-        setError(err)
-      }
+      const systemInstruction = createSystemInstructions(
+        agentRef.current,
+        userRef.current
+      )
+      const reply = await callGeminiAPI(userText, systemInstruction)
+      speak(reply)
     },
-    [apiKey, speak]
+    [speak]
   )
 
   const startListening = useCallback(() => {
@@ -129,7 +125,9 @@ export function useVoiceCompanion({ apiKey }) {
 
     recognition.onresult = event => {
       const text = event.results?.[0]?.[0]?.transcript
-      if (text) askCompanion(text)
+      if (text) {
+        askCompanion(text).catch(err => setError(err))
+      }
     }
     recognition.onerror = event => {
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
@@ -148,10 +146,15 @@ export function useVoiceCompanion({ apiKey }) {
 
   const connect = useCallback(async () => {
     setError(null)
-    setConnected(true)
-    await askCompanion(
-      'Greet the user and introduce yourself and your role in one or two short sentences.'
-    )
+    try {
+      await askCompanion(
+        'Greet the user and introduce yourself and your role in one or two short sentences.'
+      )
+      setConnected(true)
+    } catch (err) {
+      setError(err)
+      setConnected(false)
+    }
   }, [askCompanion])
 
   const disconnect = useCallback(() => {

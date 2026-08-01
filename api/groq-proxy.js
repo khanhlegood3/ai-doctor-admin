@@ -23,7 +23,7 @@ import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
-import { runVideoToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
+import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
@@ -130,21 +130,20 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Nhánh Video to Learning (Gemini thật server-side, dùng chung GEMINI_API_KEY) ---
-  if (body.provider === 'video-to-learning') {
-    console.log('[groq-proxy] (video-to-learning) model:', body.modelName)
+  // --- Nhánh AI chatbot control (Gemini thật server-side, dùng chung GEMINI_API_KEY) ---
+  if (body.provider === 'ai-chatbot-control') {
+    console.log('[groq-proxy] (ai-chatbot-control) prompt length:', body.prompt?.length)
     try {
-      const payload = await runVideoToLearningGenerate({
+      const payload = await runAiChatbotControlGenerate({
         geminiApiKey: process.env.GEMINI_API_KEY,
-        modelName: body.modelName,
         prompt: body.prompt,
-        videoUrl: body.videoUrl,
+        systemInstruction: body.systemInstruction,
       })
       return res.status(200).json(payload)
     } catch (err) {
-      console.error('[groq-proxy] (video-to-learning) error:', err?.message || err)
-      const status = err instanceof VideoToLearningProxyError ? err.status : 500
-      return res.status(status).json({ error: err?.message || 'Video to Learning proxy error' })
+      console.error('[groq-proxy] (ai-chatbot-control) error:', err?.message || err)
+      const status = err instanceof AiChatbotControlProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'AI chatbot control proxy error' })
     }
   }
 

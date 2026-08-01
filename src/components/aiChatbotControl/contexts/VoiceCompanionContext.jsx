@@ -1,16 +1,17 @@
 /**
  * Replaces the original chatterbots LiveAPIContext.tsx (Gemini Live API,
- * paid/quota-limited) with a free version backed by the browser's Web
- * Speech APIs + the project's existing free Gemini generateContent key.
- * See hooks/useVoiceCompanion.js.
+ * paid/quota-limited, API key nhúng client) with a free version backed by
+ * the browser's Web Speech APIs + a server-side Gemini proxy (see
+ * hooks/useVoiceCompanion.js and lib/geminiTextClient.js). No API key ever
+ * reaches the browser.
  */
 import React, { createContext, useContext } from 'react'
 import { useVoiceCompanion } from '../hooks/useVoiceCompanion'
 
 const VoiceCompanionContext = createContext(undefined)
 
-export const LiveAPIProvider = ({ apiKey, children }) => {
-  const voiceCompanion = useVoiceCompanion({ apiKey })
+export const LiveAPIProvider = ({ children }) => {
+  const voiceCompanion = useVoiceCompanion()
 
   return (
     <VoiceCompanionContext.Provider value={voiceCompanion}>
