@@ -22,35 +22,34 @@ type TabKey = 'render' | 'code' | 'spec';
 type ExampleVideo = {
   title: string;
   url: string;
-  videoId: string;
-  badge?: string;
 };
 
-// Video mẫu để người dùng bấm thử nhanh, không cần tự tìm link YouTube.
+// Đúng 12 video mẫu từ file public/data/examples.json của dự án AI Studio gốc
+// "video-to-learning-app" (Aaron Wade) — bao gồm cả mục cuối (easter egg,
+// tiêu đề để trống có chủ đích trong bản gốc).
 const EXAMPLE_VIDEOS: ExampleVideo[] = [
-  {
-    title: 'How chords work',
-    url: 'https://www.youtube.com/watch?v=JfD0nHrJDC0',
-    videoId: 'JfD0nHrJDC0',
-    badge: 'MUSIC THEORY',
-  },
-  {
-    title: 'Understanding fractals',
-    url: 'https://www.youtube.com/watch?v=WFtTdf3I6Ug',
-    videoId: 'WFtTdf3I6Ug',
-  },
-  {
-    title: 'How to read Chinese characters',
-    url: 'https://www.youtube.com/watch?v=U0EySK4T2aY',
-    videoId: 'U0EySK4T2aY',
-    badge: 'TED-Ed',
-  },
-  {
-    title: 'Mitosis: quá trình phân chia tế bào',
-    url: 'https://www.youtube.com/watch?v=f-ldPgEfAHI',
-    videoId: 'f-ldPgEfAHI',
-  },
+  { title: 'How chords work', url: 'https://www.youtube.com/watch?v=JfD0nHrJDC0' },
+  { title: 'Understanding fractals', url: 'https://youtu.be/WFtTdf3I6Ug?si=8CO3POAroZcf9Vfj' },
+  { title: 'Logic behind Chinese characters', url: 'https://youtu.be/U0EySK4T2aY?si=HV_ZHWS8KdJZmZJP' },
+  { title: 'Magical mitosis', url: 'https://www.youtube.com/watch?v=f-ldPgEfAHI' },
+  { title: "History of Manhattan's Broadway", url: 'https://www.youtube.com/watch?v=erHe_WF4D1s' },
+  { title: 'The craft of the casserole', url: 'https://www.youtube.com/watch?v=hfCwwG8Ats0' },
+  { title: 'The craft of the cocktail', url: 'https://www.youtube.com/watch?v=AWnIqpsfyPU' },
+  { title: 'Calligraphy & handlettering', url: 'https://www.youtube.com/watch?v=sBoVGqiSzr4' },
+  { title: 'Making friends', url: 'https://www.youtube.com/watch?v=I9hJ_Rux9y0' },
+  { title: 'Hit more home runs', url: 'https://www.youtube.com/watch?v=zg_tqDklGcs' },
+  { title: 'Tie your shoes', url: 'https://www.youtube.com/watch?v=q44kByZmKDs' },
+  { title: '', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
 ];
+
+// Tách videoId từ nhiều dạng link YouTube (watch?v=, youtu.be/, embed/...),
+// giống hệt getThumbnailUrl trong ExampleGallery.tsx của bản gốc.
+function getYoutubeThumbnailUrl(url: string): string {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  const videoId = match && match[2].length === 11 ? match[2] : null;
+  return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '';
+}
 
 export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -211,7 +210,7 @@ export default function App() {
             <div className="grid grid-cols-2 gap-3">
               {EXAMPLE_VIDEOS.map((example) => (
                 <button
-                  key={example.videoId}
+                  key={example.url}
                   type="button"
                   onClick={() => handleExampleClick(example)}
                   disabled={isBusy}
@@ -219,18 +218,13 @@ export default function App() {
                 >
                   <div className="relative w-full bg-slate-800" style={{ paddingTop: '56.25%' }}>
                     <img
-                      src={`https://img.youtube.com/vi/${example.videoId}/hqdefault.jpg`}
-                      alt={example.title}
+                      src={getYoutubeThumbnailUrl(example.url)}
+                      alt={example.title || 'Ví dụ ẩn'}
                       className="absolute inset-0 w-full h-full object-cover"
                       loading="lazy"
                     />
-                    {example.badge && (
-                      <span className="absolute top-1 left-1 text-[10px] font-bold bg-sky-600 text-white px-1.5 py-0.5 rounded">
-                        {example.badge}
-                      </span>
-                    )}
                   </div>
-                  <div className="px-2 py-1.5 text-xs text-slate-300 group-hover:text-sky-400 line-clamp-2">
+                  <div className="px-2 py-1.5 text-xs text-slate-300 group-hover:text-sky-400 line-clamp-2 min-h-[2rem] flex items-center justify-center text-center">
                     {example.title}
                   </div>
                 </button>
