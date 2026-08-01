@@ -51,6 +51,7 @@ const AIHealthcareVisionControlPanel = lazy(() => import('./components/AIHealthc
 const AIInbodyPortalPanel = lazy(() => import('./components/AIInbodyPortalPanel.jsx'))
 const WaterDrinkChatBotPanel = lazy(() => import('./components/WaterDrinkChatBotPanel.jsx'))
 const RSSPortalPanel = lazy(() => import('./components/RSSPortalPanel.jsx'))
+const HeirloomRecipesPanel = lazy(() => import('./components/HeirloomRecipesPanel.jsx'))
 const CookingGuidePanel = lazy(() => import('./components/CookingGuidePanel.jsx'))
 const WikiMedVisionPanel = lazy(() => import('./components/WikiMedVisionPanel.jsx'))
 const FullDocumentSummarizationPanel = lazy(() => import('./components/FullDocumentSummarizationPanel.jsx'))
@@ -110,7 +111,7 @@ function PanelLoadingFallback() {
 }
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -297,6 +298,7 @@ export default function App() {
     xyzCameraAngle: 'Góc chụp toạ độ XYZ',
     cameraAngle3DStudio: '3D Camera Angle',
     organConnection: 'Ăn gì tốt hôm nay',
+    heirloomRecipes: t('nav_heirloomRecipes'),
     printPortal: 'Print Portal',
     patientReflect: 'Hero Reflection / Phản chiếu Siêu Anh Hùng',
     chatHistory: 'Lịch sử Chat với AI',
@@ -730,6 +732,7 @@ export default function App() {
             {active === 'stressRelief' && <StressReliefPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiInbodyPortal' && <AIInbodyPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'rssPortal' && <RSSPortalPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onOpenCookingGuide={() => setActive('cookingGuide')} />}
+            {active === 'heirloomRecipes' && <HeirloomRecipesPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'cookingGuide' && <CookingGuidePanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onBack={goPrev} />}
             {active === 'waterDrinkChatBot' && <WaterDrinkChatBotPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'wikiMedVision' && <WikiMedVisionPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}

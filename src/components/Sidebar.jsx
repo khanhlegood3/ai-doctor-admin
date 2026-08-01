@@ -53,6 +53,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
     { id: 'stressRelief', label: t('stressRelief'), step: '02b' },
     { id: 'waterDrinkChatBot', label: t('waterDrinkChatBot'), step: '02c' },
     { id: 'organConnection', label: t('nav_organConnection'), step: '02d' },
+    { id: 'heirloomRecipes', label: t('nav_heirloomRecipes'), step: '02e0' },
     { id: 'cookingGuide', label: t('nav_cookingGuide'), step: '02e' },
     { id: 'medicalAssetStore', label: t('nav_medicalAssetStore'), step: '03' },
     { id: 'medicalVisualPlayground', label: t('nav_medicalVisualPlayground'), step: '04' },
