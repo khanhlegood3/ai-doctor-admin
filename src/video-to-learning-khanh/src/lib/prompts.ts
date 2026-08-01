@@ -1,6 +1,11 @@
+// CẬP NHẬT: prompt này giờ được dùng với TRANSCRIPT (phụ đề) của video thay
+// vì gửi thẳng file video cho Gemini xem (xem api/_lib/videoToLearningProxy.js
+// — server sẽ tự nối transcript vào cuối prompt này trước khi gửi cho Groq).
+// Vì vậy văn bản không còn nói "the attached video" mà nói "the transcript
+// provided below".
 export const SPEC_FROM_VIDEO_PROMPT = `You are a pedagogist and product designer with deep expertise in crafting engaging learning experiences via interactive web apps.
 
-Examine the contents of the attached video. Then, write a detailed and carefully considered spec for an interactive web app designed to complement the video and reinforce its key idea or ideas. The recipient of the spec does not have access to the video, so the spec must be thorough and self-contained (the spec must not mention that it is based on a video). Here is an example of a spec written in response to a video about functional harmony:
+You will be given the transcript (captions/subtitles) of a video below — spoken content only, no visuals. Examine the transcript carefully. Then, write a detailed and carefully considered spec for an interactive web app designed to complement the video and reinforce its key idea or ideas. The recipient of the spec does not have access to the video or its transcript, so the spec must be thorough and self-contained (the spec must not mention that it is based on a video or a transcript). Here is an example of a spec written in response to a video about functional harmony:
 
 "In music, chords create expectations of movement toward certain other chords and resolution towards a tonal center. This is called functional harmony.
 
@@ -13,7 +18,7 @@ SPECIFICATIONS:
 4. The app must provide a way for users to play different chords in sequence and see the results.
 [etc.]"
 
-The goal of the app that is to be built based on the spec is to enhance understanding through simple and playful design. The provided spec should not be overly complex, i.e., a junior web developer should be able to implement it in a single html file (with all styles and scripts inline). Most importantly, the spec must clearly outline the core mechanics of the app, and those mechanics must be highly effective in reinforcing the given video's key idea(s).
+The goal of the app that is to be built based on the spec is to enhance understanding through simple and playful design. The provided spec should not be overly complex, i.e., a junior web developer should be able to implement it in a single html file (with all styles and scripts inline). Most importantly, the spec must clearly outline the core mechanics of the app, and those mechanics must be highly effective in reinforcing the given video's key idea(s), based only on what is said in the transcript.
 
 Provide the result as a JSON object containing a single field called "spec", whose value is the spec for the web app.`;
 
