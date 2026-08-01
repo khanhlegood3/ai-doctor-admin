@@ -560,31 +560,6 @@
   font-size: 24px;
 }
 
-/* UserSettings */
-.ai-chatbot-control-root .userSettings {
-  max-width: 480px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.ai-chatbot-control-root .userSettings p {
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-@media (min-width: 768px) {
-  .ai-chatbot-control-root .userSettings p {
-    font-size: 18px;
-  }
-}
-
-.ai-chatbot-control-root .userSettings form {
-  margin-top: 10px;
-  padding-top: 20px;
-  border-top: 1px solid var(--gray-800);
-}
-
 .ai-chatbot-control-root .userSettingsButton {
   display: flex;
   align-items: center;
@@ -608,10 +583,6 @@
   .ai-chatbot-control-root .userSettingsButton .user-name {
     display: block;
   }
-}
-
-.ai-chatbot-control-root .userSettingsButton .icon {
-  font-size: 30px;
 }
 
 .ai-chatbot-control-root .userSettingsButton:hover {

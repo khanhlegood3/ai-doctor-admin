@@ -10,8 +10,10 @@
  *   — a server-only env var with no VITE_ prefix, so it never ships in the
  *   browser bundle (see lib/geminiTextClient.js, hooks/useVoiceCompanion.js,
  *   api/_lib/aiChatbotControlProxy.js). No API key is read on the client at
- *   all, unlike the original demo (process.env.GEMINI_API_KEY, client-side)
- *   or this project's earlier client-side VITE_GEMINI_API_KEY iteration.
+ *   all.
+ * - No "Your name / Your info" popup: that info is synced automatically
+ *   from the user's real Profile (AuthContext) by AIChatbotControlPanel.jsx,
+ *   so the original UserSettings modal was removed entirely.
  * - Rendered inside a bounded container (see AIChatbotControlPanel.jsx) rather
  *   than taking over the full viewport, so it behaves as one panel among the
  *   many others in the admin sidebar.
@@ -22,7 +24,6 @@ import ControlTray from './components/console/control-tray/ControlTray'
 import ErrorScreen from './components/demo/ErrorScreen'
 import KeynoteCompanion from './components/demo/keynote-companion/KeynoteCompanion'
 import Header from './components/Header'
-import UserSettings from './components/UserSettings'
 import { LiveAPIProvider } from './contexts/VoiceCompanionContext'
 import { useUI } from './lib/state'
 
@@ -30,14 +31,13 @@ import { useUI } from './lib/state'
  * Main application component for the AI chatbot control panel.
  */
 function ChatterbotsApp() {
-  const { showUserConfig, showAgentEdit } = useUI()
+  const { showAgentEdit } = useUI()
   return (
     <div className="App">
       <LiveAPIProvider>
         <ErrorScreen />
         <Header />
 
-        {showUserConfig && <UserSettings />}
         {showAgentEdit && <AgentEdit />}
         <div className="streaming-console">
           <main>

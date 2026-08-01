@@ -17,7 +17,7 @@ import { useUI } from '../../../lib/state'
 function ControlTray({ children }) {
   const connectButtonRef = useRef(null)
 
-  const { showAgentEdit, showUserConfig } = useUI()
+  const { showAgentEdit } = useUI()
   const {
     connected,
     connect,
@@ -29,10 +29,10 @@ function ControlTray({ children }) {
 
   // Stop the current agent if the user is editing the agent or user config
   useEffect(() => {
-    if (showAgentEdit || showUserConfig) {
+    if (showAgentEdit) {
       if (connected) disconnect()
     }
-  }, [showUserConfig, showAgentEdit, connected, disconnect])
+  }, [showAgentEdit, connected, disconnect])
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {

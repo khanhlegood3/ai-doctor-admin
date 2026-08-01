@@ -9,7 +9,7 @@ import { useAgent, useUI, useUser } from '../lib/state'
 import c from 'classnames'
 
 export default function Header() {
-  const { showUserConfig, setShowUserConfig, setShowAgentEdit } = useUI()
+  const { setShowAgentEdit } = useUI()
   const { name } = useUser()
   const { current, setCurrent, availablePresets, availablePersonal, addAgent } =
     useAgent()
@@ -102,13 +102,9 @@ export default function Header() {
           </div>
         </div>
       </div>
-      <button
-        className="userSettingsButton"
-        onClick={() => setShowUserConfig(!showUserConfig)}
-      >
-        <p className='user-name'>{name || 'Your name'}</p>
-        <span className="icon">tune</span>
-      </button>
+      <div className="userSettingsButton" title={name ? undefined : 'Cập nhật tên trong Hồ sơ cá nhân'}>
+        <p className="user-name">{name || 'Guest'}</p>
+      </div>
     </header>
   )
 }

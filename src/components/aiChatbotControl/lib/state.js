@@ -7,6 +7,9 @@ import { Charlotte, Paul, Shane, Penny } from './presets/agents'
 
 /**
  * User
+ * name/info are now synced automatically from the app's real Profile
+ * (AuthContext) by AIChatbotControlPanel.jsx — no manual "Your name / Your
+ * info" popup anymore.
  */
 export const useUser = create(set => ({
   name: '',
@@ -59,8 +62,6 @@ export const useAgent = create(set => ({
  * UI
  */
 export const useUI = create(set => ({
-  showUserConfig: true,
-  setShowUserConfig: (show) => set({ showUserConfig: show }),
   showAgentEdit: false,
   setShowAgentEdit: (show) => set({ showAgentEdit: show }),
 }))
