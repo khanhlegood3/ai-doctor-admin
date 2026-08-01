@@ -199,8 +199,7 @@ function geminiComicDevMiddleware(env) {
           if (parsed.provider === 'video-to-learning') {
             try {
               const payload = await runVideoToLearningGenerate({
-                geminiApiKey: env.GEMINI_API_KEY,
-                modelName: parsed.modelName,
+                groqApiKey: env.GROQ_API_KEY,
                 prompt: parsed.prompt,
                 videoUrl: parsed.videoUrl,
               })
