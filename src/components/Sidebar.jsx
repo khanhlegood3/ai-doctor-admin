@@ -135,6 +135,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
 
   const ADMIN_STEPS = user?.isAdmin ? [
     { id: 'make3DModel', label: t('admin_make3DModel'), step: 'CULTS', icon: '🧙‍♀️' },
+    { id: 'videoToLearningAdmin', label: t('admin_videoToLearningAdmin'), step: 'V2L', icon: '📊' },
     { id: 'my3dAsset', label: t('admin_my3dAsset'), step: 'GLB', icon: '🧊' },
     { id: 'twoDTo3DAsset', label: t('admin_twoDTo3DAsset'), step: '05b', icon: '🖼️' },
     { id: 'xyzCameraAngle', label: t('xyzCameraAngle'), step: '05b2', icon: '📐' },

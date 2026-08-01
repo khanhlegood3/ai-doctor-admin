@@ -90,6 +90,7 @@ const AffiliateSystemPanel = lazy(() => import('./components/AffiliateSystemPane
 const AffiliateWebhookAdmin = lazy(() => import('./components/admin/AffiliateWebhookAdmin.jsx'))
 const MoralisPlaygroundAdmin = lazy(() => import('./components/admin/MoralisPlaygroundAdmin.jsx'))
 const AffiliateSystemAdminPanel = lazy(() => import('./components/admin/AffiliateSystemAdminPanel.jsx'))
+const VideoToLearningAdminPanel = lazy(() => import('./components/admin/VideoToLearningAdminPanel.jsx'))
 const RoleMembershipAdminPanel = lazy(() => import('./components/admin/RoleMembershipAdminPanel.jsx'))
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'))
 const LandingPageZeroToForever = lazy(() => import('./pages/landingPageZeroToForever.jsx'))
@@ -113,7 +114,7 @@ function PanelLoadingFallback() {
 }
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'dinoJump', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'dinoJump', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'videoToLearningAdmin']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -290,6 +291,7 @@ export default function App() {
     vibeTracking: t('vibeTracking'),
     vibeCheck: t('vibeCheck'),
     videoToLearning: t('videoToLearning'),
+    videoToLearningAdmin: t('admin_videoToLearningAdmin'),
     dinoJump: 'AI camera control dino jump',
     stressRelief: t('stressRelief'),
     aiInbodyPortal: t('aiInbodyPortal'),
@@ -424,7 +426,7 @@ export default function App() {
   // của người dùng. Đưa vào ADMIN_ONLY_PANELS để tránh user thật nhầm lẫn đây
   // là hoa hồng/tuyến dưới thật của họ (xem thêm Sidebar.jsx — đã tách sang
   // nhóm menu riêng "Mô Phỏng (Nội Bộ)" ngay sau nhóm Admin).
-  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'roleMembershipAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle']
+  const ADMIN_ONLY_PANELS = ['adminConcept', 'affiliateAdmin', 'roleMembershipAdmin', 'affiliateControl', 'moralisPlaygroundAdmin', 'affiliateWebhookAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'videoToLearningAdmin']
   const visiblePanels = user?.isAdmin ? PANELS : PANELS.filter(id => !ADMIN_ONLY_PANELS.includes(id))
 
   useEffect(() => {
@@ -733,6 +735,10 @@ export default function App() {
             {active === 'vibeTracking' && <VibeTrackingPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'vibeCheck' && <VibeCheckPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'videoToLearning' && <VideoToLearningPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
+            {active === 'videoToLearningAdmin' && user?.isAdmin && <VideoToLearningAdminPanel />}
+            {active === 'videoToLearningAdmin' && !user?.isAdmin && (
+              <div style={{ padding: 40, textAlign: 'center', color: '#ff5252' }}>🔒 Admin only</div>
+            )}
             {active === 'dinoJump' && <DinoJumpPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiHealthcareVisionControl' && <AIHealthcareVisionControlPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} onViewMedicalRecord={() => setActive('upload')} />}
             {active === 'stressRelief' && <StressReliefPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
