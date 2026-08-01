@@ -148,13 +148,12 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Nhánh Video to Learning (Gemini thật server-side, dùng chung GEMINI_API_KEY) ---
+  // --- Nhánh Video to Learning (transcript YouTube miễn phí + Groq, dùng chung GROQ_API_KEY) ---
   if (body.provider === 'video-to-learning') {
-    console.log('[groq-proxy] (video-to-learning) model:', body.modelName)
+    console.log('[groq-proxy] (video-to-learning) hasVideoUrl:', Boolean(body.videoUrl))
     try {
       const payload = await runVideoToLearningGenerate({
-        geminiApiKey: process.env.GEMINI_API_KEY,
-        modelName: body.modelName,
+        groqApiKey: process.env.GROQ_API_KEY,
         prompt: body.prompt,
         videoUrl: body.videoUrl,
       })
@@ -165,6 +164,7 @@ export default async function handler(req, res) {
       return res.status(status).json({ error: err?.message || 'Video to Learning proxy error' })
     }
   }
+
 
   // --- Nhánh Comic Hero (text: Groq | ảnh: Pollinations ẩn danh) ---
   if (body.provider === 'gemini-comic') {
