@@ -21,6 +21,7 @@ import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
 import AnatomyHoverOverlay from '../components/AnatomyHoverOverlay.jsx'
 import HeroPopupCornerCloseButtons from '../components/heroPanels/HeroPopupCornerCloseButtons.jsx'
+import PoseCameraDinoJumpSection from '../components/health-games/PoseCameraDinoJumpSection.jsx'
 
 /**
  * landingPageZeroToForever.jsx
@@ -71,7 +72,18 @@ function getNavItems(t) {
     { key: 'community', label: t.nav.community },
     { key: 'technology', label: t.nav.technology },
     { key: 'partners', label: t.nav.partners },
-    { key: 'products', label: t.nav.products },
+    {
+      key: 'products',
+      label: t.nav.products,
+      // 2 mục con của menu "Sản phẩm": Game sức khỏe (trang mới,
+      // đặt tính năng camera-AI-pose khủng long nhảy ngay trên đầu
+      // trang) + Remix sức khỏe (trang "Sản phẩm" hiện có, giữ nguyên
+      // toàn bộ nội dung Remix Sức Khỏe KOL cũ).
+      children: [
+        { key: 'gameSucKhoe', label: t.nav.gameSucKhoe },
+        { key: 'products', label: t.nav.remixSucKhoe },
+      ],
+    },
   ]
 }
 
@@ -369,10 +381,13 @@ function ThemeToggle({ theme, setTheme }) {
 function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage, theme, setTheme }) {
   const NAV_ITEMS = getNavItems(t)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [openDropdownKey, setOpenDropdownKey] = useState(null)
+  const [mobileDropdownKey, setMobileDropdownKey] = useState(null)
 
   const goToPage = (key) => {
     setPage(key)
     setMobileMenuOpen(false)
+    setOpenDropdownKey(null)
   }
 
   return (
@@ -382,19 +397,57 @@ function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage
           <img src={zofoLogo} alt="Zero to Forever" className="h-10 md:h-12 w-auto object-contain" />
         </button>
         <div className="hidden lg:flex space-x-8 text-sm font-medium">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => setPage(item.key)}
-              className={
-                page === item.key
-                  ? 'border-b-2 border-white pb-1'
-                  : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent'
-              }
-            >
-              {item.label}
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) =>
+            item.children ? (
+              <div
+                key={item.key}
+                className="relative"
+                onMouseEnter={() => setOpenDropdownKey(item.key)}
+                onMouseLeave={() => setOpenDropdownKey((cur) => (cur === item.key ? null : cur))}
+              >
+                <button
+                  onClick={() => goToPage(item.key)}
+                  className={
+                    item.children.some((c) => c.key === page) || page === item.key
+                      ? 'border-b-2 border-white pb-1 flex items-center gap-1'
+                      : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent flex items-center gap-1'
+                  }
+                >
+                  {item.label}
+                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${openDropdownKey === item.key ? 'rotate-90' : 'rotate-0'}`} />
+                </button>
+                {openDropdownKey === item.key && (
+                  <div className="absolute left-0 top-full pt-3 min-w-[200px]">
+                    <div className="rounded-2xl border border-white/15 bg-[#0B132B]/95 backdrop-blur-md shadow-2xl overflow-hidden py-1">
+                      {item.children.map((child) => (
+                        <button
+                          key={child.key}
+                          onClick={() => goToPage(child.key)}
+                          className={`w-full text-left px-4 py-2.5 text-sm transition ${
+                            page === child.key ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {child.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                key={item.key}
+                onClick={() => setPage(item.key)}
+                className={
+                  page === item.key
+                    ? 'border-b-2 border-white pb-1'
+                    : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent'
+                }
+              >
+                {item.label}
+              </button>
+            )
+          )}
         </div>
         <div className="hidden lg:flex items-center space-x-3">
           <LanguageToggle language={language} setLanguage={setLanguage} />
@@ -431,17 +484,46 @@ function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage
       {mobileMenuOpen && (
         <div className="lg:hidden mt-4 rounded-2xl border border-white/15 bg-[#0B132B]/95 backdrop-blur-md shadow-2xl overflow-hidden">
           <div className="flex flex-col divide-y divide-white/10">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => goToPage(item.key)}
-                className={`text-left px-5 py-3 text-sm font-medium transition ${
-                  page === item.key ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.children ? (
+                <div key={item.key}>
+                  <button
+                    onClick={() => setMobileDropdownKey((cur) => (cur === item.key ? null : item.key))}
+                    className={`w-full text-left px-5 py-3 text-sm font-medium transition flex items-center justify-between ${
+                      item.children.some((c) => c.key === page) ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {item.label}
+                    <ChevronRight className={`w-4 h-4 transition-transform ${mobileDropdownKey === item.key ? 'rotate-90' : 'rotate-0'}`} />
+                  </button>
+                  {mobileDropdownKey === item.key && (
+                    <div className="bg-black/20">
+                      {item.children.map((child) => (
+                        <button
+                          key={child.key}
+                          onClick={() => goToPage(child.key)}
+                          className={`w-full text-left pl-9 pr-5 py-3 text-sm transition ${
+                            page === child.key ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          {child.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  key={item.key}
+                  onClick={() => goToPage(item.key)}
+                  className={`text-left px-5 py-3 text-sm font-medium transition ${
+                    page === item.key ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            )}
           </div>
           <div className="flex flex-col gap-3 p-5 border-t border-white/10">
             <button
@@ -744,8 +826,18 @@ export default function LandingPageZeroToForever({
       {/* ══════════════════════════ TRANG CHỦ ══════════════════════════ */}
       {page === 'home' && (
         <>
+          {/* Khủng long nhảy bằng camera AI có pose — đặt NGAY TRÊN ĐẦU
+              trang landing (trước cả Hero), camera mặc định mở luôn,
+              user tự chọn ẩn/hiện camera qua checkbox trong game. */}
+          <div className="zofo-hero-section pt-28 pb-6 px-6 lg:px-12 relative overflow-hidden">
+            <div className="zofo-stars"></div>
+            <div className="container mx-auto max-w-5xl relative z-10">
+              <PoseCameraDinoJumpSection lang={language} variant="hero" />
+            </div>
+          </div>
+
           {/* Hero Section */}
-          <header className="zofo-hero-section min-h-[90vh] flex items-center pt-24 pb-32 px-6 lg:px-12 relative overflow-hidden">
+          <header className="zofo-hero-section min-h-[90vh] flex items-center pt-8 pb-32 px-6 lg:px-12 relative overflow-hidden">
             <div className="zofo-stars"></div>
             <div className="absolute inset-0 zofo-hero-glow"></div>
             <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
@@ -1688,7 +1780,40 @@ export default function LandingPageZeroToForever({
         </>
       )}
 
-      {/* ══════════════════════ SẢN PHẨM CỦA CHÚNG TÔI ══════════════════════ */}
+      {/* ══════════════════════ GAME SỨC KHỎE (submenu "Sản phẩm") ══════════════════════ */}
+      {page === 'gameSucKhoe' && (
+        <>
+          <PageHero
+            icon={Gamepad2}
+            eyebrow={language === 'vi' ? 'SẢN PHẨM · GAME SỨC KHỎE' : 'PRODUCTS · HEALTH GAMES'}
+            title={language === 'vi' ? 'Game Sức Khỏe' : 'Health Games'}
+            subtitle={
+              language === 'vi'
+                ? 'Vận động thật ngoài đời, AI camera theo dõi tư thế theo thời gian thực và biến thành game — bắt đầu ngay với "Khủng Long Nhảy" bên dưới.'
+                : 'Move for real, AI camera tracks your pose in real time and turns it into a game — jump right in with "Dino Jump" below.'
+            }
+          />
+
+          {/* Tính năng khủng long nhảy bằng camera AI có pose — đặt ngay
+              trên đầu trang sub-menu "Game sức khỏe", dùng lại cùng
+              component với đầu trang landing. */}
+          <section className="container mx-auto max-w-5xl px-4 lg:px-8 -mt-10 pb-16">
+            <div className="rounded-3xl bg-[#0B132B] p-2">
+              <PoseCameraDinoJumpSection lang={language} variant="hero" />
+            </div>
+          </section>
+
+          <CTABand
+            onGetStarted={onGetStarted}
+            onOpenQR={openQRModal}
+            title={t.partners.cta.title}
+            subtitle={t.partners.cta.subtitle}
+            t={t}
+          />
+        </>
+      )}
+
+      {/* ══════════════════════ SẢN PHẨM CỦA CHÚNG TÔI (submenu "Remix sức khỏe") ══════════════════════ */}
       {page === 'products' && (
         <>
           <PageHero

@@ -383,7 +383,10 @@ const DinoGame: React.FC = () => {
     // --- REACT STATE ---
     const [isLoading, setIsLoading] = useState(true);
     const [status, setStatus] = useState("Stand back and JUMP to control!");
-    const [showVision, setShowVision] = useState(false);
+    // Mặc định MỞ camera feed ngay khi load (trước đây false = ẩn mặc
+    // định). Người dùng vẫn tự ẩn/hiện được qua checkbox bên dưới —
+    // giữ nguyên cơ chế toggle cũ, chỉ đổi giá trị khởi tạo.
+    const [showVision, setShowVision] = useState(true);
     const [gameRunning, setGameRunning] = useState(false);
     const [canRestart, setCanRestart] = useState(false);
     const [modelLoaded, setModelLoaded] = useState(false);
@@ -918,7 +921,7 @@ const DinoGame: React.FC = () => {
                         }}
                         className={`mr-2 w-4 h-4 accent-[${GAME_CONFIG.COLORS.FOCUS}] focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] focus:ring-offset-2 focus:ring-offset-[#f7f7f7] rounded cursor-pointer`}
                     />
-                    Show Camera Feed (Debug)
+                    Show Camera Feed
                 </label>
             </div>
 
