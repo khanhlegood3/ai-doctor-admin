@@ -154,6 +154,7 @@ export default async function handler(req, res) {
     try {
       const payload = await runVideoToLearningGenerate({
         groqApiKey: process.env.GROQ_API_KEY,
+        geminiApiKey: process.env.GEMINI_API_KEY,
         prompt: body.prompt,
         videoUrl: body.videoUrl,
       })
