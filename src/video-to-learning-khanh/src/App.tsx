@@ -19,6 +19,39 @@ import { getYoutubeEmbedUrl, validateYoutubeUrl } from './lib/youtube';
 type LoadingState = 'idle' | 'loading-spec' | 'loading-code' | 'ready' | 'error';
 type TabKey = 'render' | 'code' | 'spec';
 
+type ExampleVideo = {
+  title: string;
+  url: string;
+  videoId: string;
+  badge?: string;
+};
+
+// Video mẫu để người dùng bấm thử nhanh, không cần tự tìm link YouTube.
+const EXAMPLE_VIDEOS: ExampleVideo[] = [
+  {
+    title: 'How chords work',
+    url: 'https://www.youtube.com/watch?v=JfD0nHrJDC0',
+    videoId: 'JfD0nHrJDC0',
+    badge: 'MUSIC THEORY',
+  },
+  {
+    title: 'Understanding fractals',
+    url: 'https://www.youtube.com/watch?v=WFtTdf3I6Ug',
+    videoId: 'WFtTdf3I6Ug',
+  },
+  {
+    title: 'How to read Chinese characters',
+    url: 'https://www.youtube.com/watch?v=U0EySK4T2aY',
+    videoId: 'U0EySK4T2aY',
+    badge: 'TED-Ed',
+  },
+  {
+    title: 'Mitosis: quá trình phân chia tế bào',
+    url: 'https://www.youtube.com/watch?v=f-ldPgEfAHI',
+    videoId: 'f-ldPgEfAHI',
+  },
+];
+
 export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,13 +98,7 @@ export default function App() {
     }
   };
 
-  const handleSubmit = async () => {
-    const value = inputRef.current?.value.trim() || '';
-    if (!value || isBusy) {
-      inputRef.current?.focus();
-      return;
-    }
-
+  const submitUrl = async (value: string) => {
     setValidating(true);
     setVideoUrl('');
 
@@ -86,6 +113,22 @@ export default function App() {
 
     setVideoUrl(value);
     await generateFromVideo(value);
+  };
+
+  const handleSubmit = async () => {
+    const value = inputRef.current?.value.trim() || '';
+    if (!value || isBusy) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    await submitUrl(value);
+  };
+
+  const handleExampleClick = async (example: ExampleVideo) => {
+    if (isBusy) return;
+    if (inputRef.current) inputRef.current.value = example.url;
+    await submitUrl(example.url);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -161,6 +204,38 @@ export default function App() {
                 Video sẽ hiện ở đây sau khi bạn dán link
               </div>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-slate-300">Ví dụ</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {EXAMPLE_VIDEOS.map((example) => (
+                <button
+                  key={example.videoId}
+                  type="button"
+                  onClick={() => handleExampleClick(example)}
+                  disabled={isBusy}
+                  className="group text-left rounded-lg overflow-hidden bg-slate-900 border border-slate-800 hover:border-sky-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="relative w-full bg-slate-800" style={{ paddingTop: '56.25%' }}>
+                    <img
+                      src={`https://img.youtube.com/vi/${example.videoId}/hqdefault.jpg`}
+                      alt={example.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    {example.badge && (
+                      <span className="absolute top-1 left-1 text-[10px] font-bold bg-sky-600 text-white px-1.5 py-0.5 rounded">
+                        {example.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="px-2 py-1.5 text-xs text-slate-300 group-hover:text-sky-400 line-clamp-2">
+                    {example.title}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
           <p className="text-xs text-slate-500">
