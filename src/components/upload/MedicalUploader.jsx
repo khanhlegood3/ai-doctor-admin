@@ -18,6 +18,7 @@ import { buildImageConvertedInBodyRecord, parseInBodyCsv, recordsToInBodyCsv, su
 import { convertInBodyImageToCsv, fileToBase64Promise } from '../../lib/inbodyImageConvert.js'
 import { useTTS } from '../../lib/groqAiClient.js'
 import { isHeicFile, ensureBrowserSafeImage } from '../../lib/heicConvert.js'
+import { loadPdfJs } from '../../lib/pdfjsLoader.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TYPE_COLORS = {
@@ -1081,8 +1082,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
 
       // Scanned PDFs need to be rasterized to an image first for vision OCR
       if (isPdf) {
-        const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+        const pdfjs = await loadPdfJs()
         const binary = atob(b64)
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
@@ -1217,8 +1217,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
         ])
       } else if (isPdf) {
         // Try text-layer extraction first
-        const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+        const pdfjs = await loadPdfJs()
         const binary = atob(b64)
         const bytes = new Uint8Array(binary.length)
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)

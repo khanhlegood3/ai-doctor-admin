@@ -12,6 +12,7 @@
 //   Step 3 — buildImageConvertedInBodyRecord → recordsToInBodyCsv → CSV string
 
 import { buildImageConvertedInBodyRecord, parseInBodyCsv, recordsToInBodyCsv } from './inbodyCsv.js'
+import { loadPdfJs } from './pdfjsLoader.js'
 
 // ── System prompt for full metrics extraction (JSON) ──────────────────────────
 export const INBODY_OCR_SYSTEM_PROMPT = `Bạn là chuyên gia phân tích kết quả InBody (máy đo thành phần cơ thể).
@@ -75,12 +76,10 @@ export function parseGroqInBodyJson(text) {
   }
 }
 
-// ── Extract PDF text via pdf.js CDN ───────────────────────────────────────────
+// ── Extract PDF text via pdf.js (self-hosted, dùng chung qua pdfjsLoader) ─────
 export async function extractPdfTextForInBody(file) {
   try {
-    const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-    pdfjs.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+    const pdfjs = await loadPdfJs()
     const ab  = await file.arrayBuffer()
     const pdf = await pdfjs.getDocument({ data: ab }).promise
     const texts = []
@@ -97,9 +96,7 @@ export async function extractPdfTextForInBody(file) {
 // ── Render PDF page to canvas → base64 JPEG ───────────────────────────────────
 export async function pdfPageToImageForInBody(file, pageNum = 1) {
   try {
-    const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-    pdfjs.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+    const pdfjs = await loadPdfJs()
     const ab     = await file.arrayBuffer()
     const pdf    = await pdfjs.getDocument({ data: ab }).promise
     const page   = await pdf.getPage(Math.min(pageNum, pdf.numPages))

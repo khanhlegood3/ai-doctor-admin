@@ -6,6 +6,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import NavButtons from './NavButtons.jsx'
 import { isHeicFile, convertHeicToJpeg } from '../lib/heicConvert.js'
+import { loadPdfJs } from '../lib/pdfjsLoader.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const OCR_MODES = [
@@ -181,9 +182,7 @@ export default function DocumentOCRPanel({ onNext, nextLabel, onPrev, prevLabel 
   // ── Render PDF page to canvas → base64 JPEG ──
   const pdfPageToImage = async (file, pageNum = 1) => {
     try {
-      const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+      const pdfjs = await loadPdfJs()
       const ab     = await file.arrayBuffer()
       const pdf    = await pdfjs.getDocument({ data: ab }).promise
       const page   = await pdf.getPage(Math.min(pageNum, pdf.numPages))
@@ -199,9 +198,7 @@ export default function DocumentOCRPanel({ onNext, nextLabel, onPrev, prevLabel 
   // ── Extract text from PDF via pdf.js (for text-layer PDFs) ──
   const extractPdfText = async (file) => {
     try {
-      const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs')
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+      const pdfjs = await loadPdfJs()
       const ab  = await file.arrayBuffer()
       const pdf = await pdfjs.getDocument({ data: ab }).promise
       const texts = []
