@@ -49,11 +49,27 @@ const DEFAULT_TEXT_MODEL = 'gemini-3.1-flash-lite'
 export async function runAiChatbotControlGenerate({
   prompt,
   systemInstruction,
+  history,
   envSource,
 }) {
   if (!prompt) {
     throw new AiChatbotControlProxyError('Missing prompt', 400)
   }
+
+  // Lịch sử hội thoại (nếu có) → Gemini "contents" nhiều turn, role 'user'/'model'
+  // (Gemini dùng 'model' thay vì 'assistant'). Giới hạn 20 tin nhắn gần nhất để
+  // tránh prompt phình quá to — đủ ngữ cảnh cho hội thoại thoại tự nhiên.
+  const historyContents = Array.isArray(history)
+    ? history
+        .filter((m) => m && typeof m.text === 'string' && m.text.trim())
+        .slice(-20)
+        .map((m) => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.text }],
+        }))
+    : []
+
+  const contents = [...historyContents, { role: 'user', parts: [{ text: prompt }] }]
 
   try {
     return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
@@ -66,7 +82,7 @@ export async function runAiChatbotControlGenerate({
             config: {
               ...(systemInstruction ? { systemInstruction } : {}),
             },
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            contents,
           })
 
           const response = await withTimeout(modelPromise, timeoutMs)

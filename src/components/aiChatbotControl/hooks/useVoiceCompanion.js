@@ -9,11 +9,19 @@
  *    never in the browser bundle (see lib/geminiTextClient.js)
  *  - the browser's free SpeechSynthesis API for text-to-speech
  * No client-side API key is needed at all.
+ *
+ * Lịch sử hội thoại (messages) được lưu vào CÙNG IndexedDB mà toàn dự án dùng
+ * chung — src/lib/globalChatbotStorage.js (DB 'global-ai-chatbot-db', khoá
+ * theo uuid của user, cùng pattern với GlobalAIChatbot.jsx / trang "Anh
+ * Hùng" / trang "Lịch sử Chat với AI"). Nhờ vậy hội thoại với companion ở
+ * đây cũng tự động hiện trong "Lịch sử Chat với AI" — không cần store riêng.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgent, useUser } from '../lib/state'
 import { createSystemInstructions } from '../lib/prompts'
 import { callGeminiAPI } from '../lib/geminiTextClient'
+import { useAuth } from '../../../context/AuthContext'
+import { getGlobalChatHistory, saveGlobalChatHistory, clearGlobalChatHistory } from '../../../lib/globalChatbotStorage.js'
 
 function detectIsVietnamese(text) {
   return /[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(
@@ -30,22 +38,60 @@ function pickVoice(lang) {
   )
 }
 
+function makeMessage(role, text) {
+  return { id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString(), role, text }
+}
+
 export function useVoiceCompanion() {
   const { current: agent } = useAgent()
   const user = useUser()
+  const { user: authUser } = useAuth()
+  const userKey = authUser?.uuid || null
 
   const [connected, setConnected] = useState(false)
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
   const [volume, setVolume] = useState(0)
   const [error, setError] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
 
   const recognitionRef = useRef(null)
   const volumeIntervalRef = useRef(null)
   const agentRef = useRef(agent)
   const userRef = useRef(user)
+  const messagesRef = useRef(messages)
   agentRef.current = agent
   userRef.current = user
+  messagesRef.current = messages
+
+  // Nạp lịch sử đã lưu ngay khi biết danh tính user (uuid) — kể cả khách
+  // (guest, ownerKeyOf(null) === 'guest') vẫn có lịch sử riêng, không mất dữ liệu.
+  useEffect(() => {
+    let cancelled = false
+    setHistoryLoaded(false)
+    getGlobalChatHistory(userKey).then(history => {
+      if (!cancelled) {
+        setMessages(history)
+        setHistoryLoaded(true)
+      }
+    })
+    return () => { cancelled = true }
+  }, [userKey])
+
+  const pushMessage = useCallback((role, text) => {
+    setMessages(prev => {
+      const next = [...prev, makeMessage(role, text)]
+      saveGlobalChatHistory(userKey, next)
+      return next
+    })
+  }, [userKey])
+
+  const clearHistory = useCallback(() => {
+    setMessages([])
+    clearGlobalChatHistory(userKey)
+  }, [userKey])
+
 
   const stopVolumeAnimation = useCallback(() => {
     if (volumeIntervalRef.current) {
@@ -93,15 +139,20 @@ export function useVoiceCompanion() {
   )
 
   const askCompanion = useCallback(
-    async userText => {
+    async (userText, { recordUserMessage = true } = {}) => {
       const systemInstruction = createSystemInstructions(
         agentRef.current,
         userRef.current
       )
-      const reply = await callGeminiAPI(userText, systemInstruction)
+      // Lịch sử TRƯỚC câu hỏi này — câu hỏi hiện tại đi riêng qua `prompt`,
+      // không lặp lại trong `history` (tránh Gemini nhận 2 lần cùng 1 câu).
+      const priorHistory = messagesRef.current
+      if (recordUserMessage) pushMessage('user', userText)
+      const reply = await callGeminiAPI(userText, systemInstruction, priorHistory)
+      pushMessage('assistant', reply)
       speak(reply)
     },
-    [speak]
+    [speak, pushMessage]
   )
 
   const startListening = useCallback(() => {
@@ -147,9 +198,16 @@ export function useVoiceCompanion() {
   const connect = useCallback(async () => {
     setError(null)
     try {
-      await askCompanion(
-        'Greet the user and introduce yourself and your role in one or two short sentences.'
-      )
+      // Chỉ tự động chào khi CHƯA có lịch sử (hội thoại mới hoàn toàn) — nếu
+      // user đã có lịch sử cũ (mở lại trang, bấm connect lần 2...), giữ nguyên
+      // im lặng chờ user nói tiếp, tránh chèn thêm lời chào lặp lại vào lịch sử
+      // đã lưu mỗi lần bấm connect.
+      if (messagesRef.current.length === 0) {
+        await askCompanion(
+          'Greet the user and introduce yourself and your role in one or two short sentences.',
+          { recordUserMessage: false }
+        )
+      }
       setConnected(true)
     } catch (err) {
       setError(err)
@@ -186,5 +244,8 @@ export function useVoiceCompanion() {
     connect,
     disconnect,
     startListening,
+    messages,
+    historyLoaded,
+    clearHistory,
   }
 }

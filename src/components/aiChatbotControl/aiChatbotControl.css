@@ -312,6 +312,92 @@
   overflow-y: auto;
 }
 
+/* Transcript panel — lịch sử hội thoại đồng bộ qua globalChatbotStorage.js */
+.ai-chatbot-control-root .transcript-panel {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid var(--border-stroke);
+  border-radius: 12px;
+  background: var(--Neutral-5, var(--gray-900));
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ai-chatbot-control-root .transcript-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.ai-chatbot-control-root .transcript-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.ai-chatbot-control-root .transcript-clear {
+  background: none;
+  border: 1px solid var(--border-stroke);
+  border-radius: 8px;
+  color: var(--gray-200);
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-chatbot-control-root .transcript-clear.confirming {
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+.ai-chatbot-control-root .transcript-panel-body {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ai-chatbot-control-root .transcript-empty {
+  color: var(--gray-300);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.ai-chatbot-control-root .transcript-line {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.ai-chatbot-control-root .transcript-role {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--accent-blue-headers);
+}
+
+.ai-chatbot-control-root .transcript-line-user .transcript-role {
+  color: var(--accent-green);
+}
+
+.ai-chatbot-control-root .transcript-text {
+  color: var(--text);
+  word-break: break-word;
+}
+
 @keyframes ai-chatbot-control-hover {
   from {
     transform: translateY(0);

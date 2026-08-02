@@ -136,6 +136,7 @@ export default async function handler(req, res) {
       const payload = await runAiChatbotControlGenerate({
         prompt: body.prompt,
         systemInstruction: body.systemInstruction,
+        history: body.history,
       })
       return res.status(200).json(payload)
     } catch (err) {

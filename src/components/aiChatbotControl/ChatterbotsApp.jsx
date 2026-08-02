@@ -24,6 +24,7 @@ import ControlTray from './components/console/control-tray/ControlTray'
 import ErrorScreen from './components/demo/ErrorScreen'
 import KeynoteCompanion from './components/demo/keynote-companion/KeynoteCompanion'
 import Header from './components/Header'
+import TranscriptPanel from './components/TranscriptPanel'
 import { LiveAPIProvider } from './contexts/VoiceCompanionContext'
 import { useUI } from './lib/state'
 
@@ -44,6 +45,8 @@ function ChatterbotsApp() {
             <div className="main-app-area">
               <KeynoteCompanion />
             </div>
+
+            <TranscriptPanel />
 
             <ControlTray></ControlTray>
           </main>
