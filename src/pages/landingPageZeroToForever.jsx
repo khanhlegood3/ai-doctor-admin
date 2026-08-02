@@ -722,7 +722,20 @@ export default function LandingPageZeroToForever({
   onWatchVideo = () => {},
   onDownloadApp = () => {},
 }) {
-  const [page, setPage] = useState('home')
+  // Cho phép deep-link trực tiếp vào 1 trang con qua ?page=xxx (vd link
+  // "Game sức khỏe" trong caption cuối game Dino Jump trỏ về
+  // "/?page=gameSucKhoe"). Chỉ nhận các key hợp lệ đã biết, còn lại rơi
+  // về 'home' như cũ để không bị phá bởi giá trị lạ.
+  const VALID_PAGE_KEYS = ['home', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
+  const [page, setPage] = useState(() => {
+    if (typeof window === 'undefined') return 'home'
+    try {
+      const requested = new URLSearchParams(window.location.search).get('page')
+      return VALID_PAGE_KEYS.includes(requested) ? requested : 'home'
+    } catch {
+      return 'home'
+    }
+  })
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Game hóa / Zero to Hero" trong

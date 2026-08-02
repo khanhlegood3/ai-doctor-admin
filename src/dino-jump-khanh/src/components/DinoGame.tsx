@@ -895,7 +895,7 @@ const DinoGame: React.FC = () => {
                             {canRestart ? "JUMP TO RESTART" : "..."}
                         </div>
                         <div className="text-white/90 text-[8px] font-['Press_Start_2P'] bg-black/40 p-1 md:p-2 rounded">
-                            Powered By <a href="https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker" target="_blank" rel="noopener noreferrer" className={`text-[${GAME_CONFIG.COLORS.FOCUS}] no-underline hover:underline focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] rounded-sm`}>MediaPipe Pose Landmarker</a>
+                            <a href="/?page=gameSucKhoe" target="_top" className={`text-[${GAME_CONFIG.COLORS.FOCUS}] no-underline hover:underline focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] rounded-sm`}>Game Sức Khỏe by Zero to Forever Foundation</a>
                         </div>
                     </div>
                 )}
