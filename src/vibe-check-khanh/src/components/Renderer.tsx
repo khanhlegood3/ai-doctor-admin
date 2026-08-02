@@ -101,7 +101,7 @@ const scaffolds: {[key in ModeKey]: (code: string) => string} = {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.8/p5.js"></script>
+  <script src="/vendor/p5.min.js"></script>
   <style>
     body {
       padding: 0;
@@ -178,7 +178,7 @@ ${code}`,
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Fullscreen Shader – Three.js (ESM)</title>
+    <title>Fullscreen Shader – Three.js (self-hosted ESM, /vendor/three.module.js)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
@@ -187,7 +187,7 @@ ${code}`,
   </head>
   <body>
     <script type="module">
-      import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+      import * as THREE from "/vendor/three.module.js";
 
       // --- Your fragment shader (as provided) ---
       const fragmentShader = /* glsl */ \`

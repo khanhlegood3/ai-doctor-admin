@@ -43,6 +43,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# generated at predev/prebuild by scripts-copy-*.mjs (self-hosted vendor assets,
+# not committed — regenerated fresh on every dev/build/deploy)
+/public/wasm
+/public/models
+/public/vendor
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
