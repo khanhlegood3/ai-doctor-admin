@@ -739,7 +739,7 @@ export default function LandingPageZeroToForever({
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Game hóa / Zero to Hero" trong
-  // Feature Pillars — cùng 1 trò chơi (/games/bao-ve-co-the-auto.html) mở khi
+  // Feature Pillars — cùng 1 trò chơi (/src/games/body-protection-html.html?game=auto) mở khi
   // bấm Cấp 1 "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel).
   const [showGamePopup, setShowGamePopup] = useState(false)
   // Popup Super Hero Captain  Game — mở khi bấm logo che badge Framer ở Hero
@@ -2021,7 +2021,7 @@ export default function LandingPageZeroToForever({
                 border: '1px solid rgba(255,255,255,0.1)', background: '#000',
               }}>
                 <iframe
-                  src="/games/bao-ve-co-the-auto.html"
+                  src="/src/games/body-protection-html.html?game=auto"
                   title={language === 'en' ? 'Body protection game' : 'Game bảo vệ cơ thể'}
                   className="h-[min(62vh,520px)] w-full"
                   style={{ display: 'block', border: 'none' }}
