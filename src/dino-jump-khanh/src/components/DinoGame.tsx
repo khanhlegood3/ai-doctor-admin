@@ -393,8 +393,16 @@ const DinoGame: React.FC = () => {
     const [hasStarted, setHasStarted] = useState(false);
     const [cameraReady, setCameraReady] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
+    // Chế độ "Camera làm nền chơi game" — giống các game Bảo Vệ Cơ Thể
+    // (bao-ve-co-the-camera-key.html): vẽ trực tiếp khung hình camera mờ
+    // làm nền của CHÍNH canvas chơi game, thay vì tách riêng 1 khung
+    // camera nhỏ (320x240) bên dưới → tối ưu không gian màn hình, đặc
+    // biệt hữu ích trên mobile. Mặc định TẮT (giữ hành vi cũ), người
+    // dùng tự bật qua nút toggle.
+    const [cameraAsBackground, setCameraAsBackground] = useState(false);
 
     const mutedRef = useRef(false);
+    const cameraAsBackgroundRef = useRef(false);
 
     // --- ENGINE STATE (Mutable) ---
     const engineRef = useRef<GameEngineState>({
@@ -431,6 +439,10 @@ const DinoGame: React.FC = () => {
     useEffect(() => {
         mutedRef.current = isMuted;
     }, [isMuted]);
+
+    useEffect(() => {
+        cameraAsBackgroundRef.current = cameraAsBackground;
+    }, [cameraAsBackground]);
 
     // --- GAME LOGIC ---
 
@@ -499,8 +511,24 @@ const DinoGame: React.FC = () => {
         const ctx = canvas.getContext('2d', { alpha: false })!; // Optimize for no transparency
 
         // 1. Draw Background (Clear)
-        ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // "Camera làm nền" ON: vẽ khung camera (mirror) mờ phủ kín canvas
+        // game rồi phủ thêm 1 lớp trắng bán trong suốt để chữ/vật thể
+        // trong game vẫn đọc được rõ — thay thế cho khung camera nhỏ
+        // riêng, tiết kiệm không gian màn hình. Nếu camera chưa sẵn sàng,
+        // fallback về nền trắng như cũ.
+        const video = videoRef.current;
+        if (cameraAsBackgroundRef.current && video && video.readyState >= 2 && video.videoWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.restore();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         // Set global styles for the frame
         ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
@@ -907,7 +935,7 @@ const DinoGame: React.FC = () => {
             </div>
 
             {/* CONTROLS */}
-            <div className="mt-2 text-xs text-[#888] text-center font-['Press_Start_2P'] flex gap-4">
+            <div className="mt-2 text-xs text-[#888] text-center font-['Press_Start_2P'] flex flex-wrap items-center justify-center gap-4">
                 <label className="cursor-pointer flex items-center justify-center hover:text-[#535353] transition-colors">
                     <input 
                         type="checkbox" 
@@ -923,11 +951,22 @@ const DinoGame: React.FC = () => {
                     />
                     Show Camera Feed
                 </label>
+                {/* Chế độ camera-làm-nền: đưa camera vào làm màn hình mặc
+                    định của game, giống các game Bảo Vệ Cơ Thể, để tối
+                    ưu không gian (không cần khung camera riêng bên dưới). */}
+                <button
+                    type="button"
+                    onClick={() => setCameraAsBackground((v) => !v)}
+                    className={`px-2 py-1 rounded border transition-colors ${cameraAsBackground ? 'bg-[#535353] text-white border-[#535353]' : 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]'}`}
+                    title="Use the live camera as the game's background instead of a separate preview box"
+                >
+                    {cameraAsBackground ? '✅ Camera as Background' : '🖼️ Use Camera as Background'}
+                </button>
             </div>
 
             {/* VISION CONTAINER */}
             <div 
-                className={`relative w-[320px] h-[240px] border-2 border-[#ccc] rounded-lg overflow-hidden bg-black ${showVision ? 'block' : 'hidden'}`}
+                className={`relative w-[320px] h-[240px] border-2 border-[#ccc] rounded-lg overflow-hidden bg-black ${showVision && !cameraAsBackground ? 'block' : 'hidden'}`}
             >
                 <video 
                     ref={videoRef} 
