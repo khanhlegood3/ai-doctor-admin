@@ -26,6 +26,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
+import { fetchYoutubeClipAsBase64, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
@@ -216,6 +217,23 @@ export default async function handler(req, res) {
     }
   }
 
+
+  // --- Nhánh AI Pose thật cho video KOL (trang Remix Sức Khoẻ từ KOL) ---
+  // Tải 1 clip YouTube NGẮN về server rồi trả base64 cho client — xem giới
+  // hạn/rủi ro chi tiết ở đầu api/_lib/kolYoutubeDownload.js. Nhánh này CỐ Ý
+  // fail rõ ràng (không phải bug) khi video dài/nặng hoặc bị YouTube chặn —
+  // client sẽ tự fallback sang cho user chọn file để upload thủ công.
+  if (body.provider === 'kol-youtube-fetch') {
+    console.log('[groq-proxy] (kol-youtube-fetch) youtubeUrl:', body.youtubeUrl)
+    try {
+      const payload = await fetchYoutubeClipAsBase64(body.youtubeUrl)
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (kol-youtube-fetch) error:', err?.message || err)
+      const status = err instanceof KolYoutubeDownloadError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'KOL YouTube fetch error' })
+    }
+  }
 
   // --- Nhánh Comic Hero (text: Groq | ảnh: Pollinations ẩn danh) ---
   if (body.provider === 'gemini-comic') {

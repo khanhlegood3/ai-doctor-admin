@@ -7,6 +7,7 @@ import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } fr
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
+import { fetchYoutubeClipAsBase64, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -211,6 +212,21 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
               res.end(JSON.stringify({ error: error?.message || 'Video to Learning proxy error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'kol-youtube-fetch') {
+            try {
+              const payload = await fetchYoutubeClipAsBase64(parsed.youtubeUrl)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[kol-youtube-fetch-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error instanceof KolYoutubeDownloadError ? error.status : 500
+              res.end(JSON.stringify({ error: error?.message || 'KOL YouTube fetch error' }))
             }
             return
           }

@@ -24,6 +24,7 @@ export function useMediaPipeVision() {
     object: null,
     faceMode: 'VIDEO',
     poseMode: 'VIDEO',
+    poseNumPoses: 1,
     objectMode: 'VIDEO',
     FaceLandmarker: null,
     PoseLandmarker: null,
@@ -47,9 +48,10 @@ export function useMediaPipeVision() {
     }
   }, [])
 
-  const ensureLoaded = useCallback(async ({ face = true, pose = true, object = false } = {}) => {
+  const ensureLoaded = useCallback(async ({ face = true, pose = true, object = false, poseNumPoses = 1 } = {}) => {
     const v = visionRef.current
-    if ((!face || v.face) && (!pose || v.pose) && (!object || v.object)) {
+    const poseAlreadyReadyForCount = v.pose && v.poseNumPoses === poseNumPoses
+    if ((!face || v.face) && (!pose || poseAlreadyReadyForCount) && (!object || v.object)) {
       if (status !== 'ready') setStatus('ready')
       return
     }
@@ -78,12 +80,19 @@ export function useMediaPipeVision() {
         })
         v.faceMode = 'VIDEO'
       }
-      if (pose && !v.pose) {
+      if (pose && !poseAlreadyReadyForCount) {
+        // poseNumPoses > 1 (vd trang Remix KOL: 1-2 người trong video) cần
+        // tạo lại landmarker nếu số người yêu cầu đổi so với lần tạo trước
+        // (PoseLandmarker không hỗ trợ đổi numPoses qua setOptions()).
+        if (v.pose) {
+          try { v.pose.close() } catch { /* ignore */ }
+        }
         v.pose = await createLandmarker(PoseLandmarker, v.fileset, POSE_MODEL_URL, {
           runningMode: 'VIDEO',
-          numPoses: 1,
+          numPoses: poseNumPoses,
         })
         v.poseMode = 'VIDEO'
+        v.poseNumPoses = poseNumPoses
       }
       if (object && !v.object) {
         v.object = await createLandmarker(ObjectDetector, v.fileset, OBJECT_MODEL_URL, {
