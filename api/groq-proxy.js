@@ -28,6 +28,7 @@ import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningP
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './_lib/kolR2Upload.js'
+import { initVideoAnalyzerUpload, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './_lib/videoAnalyzerProxy.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
@@ -253,6 +254,45 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (kol-r2-upload-url) error:', err?.message || err)
       const status = err instanceof KolR2UploadError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'KOL R2 upload URL error' })
+    }
+  }
+
+  // --- Nhánh Video Analyzer (Gemini thật server-side, cần GEMINI_API_KEY) ---
+  // Chuyển đổi từ video-analyzer.zip. 3 action, xem chi tiết ở
+  // api/_lib/videoAnalyzerProxy.js:
+  //   initUpload -> mở resumable-upload session, trả uploadUrl (client PUT
+  //                 bytes video thẳng lên Google, không qua function này)
+  //   checkFile  -> poll trạng thái xử lý video (PROCESSING -> ACTIVE)
+  //   generate   -> generateContent thật kèm function calling, trả về
+  //                 timecodes đã parse sẵn
+  if (body.provider === 'video-analyzer') {
+    console.log('[groq-proxy] (video-analyzer) action:', body.action)
+    try {
+      if (body.action === 'initUpload') {
+        const payload = await initVideoAnalyzerUpload({
+          mimeType: body.mimeType,
+          numBytes: body.numBytes,
+          displayName: body.displayName,
+        })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'checkFile') {
+        const payload = await checkVideoAnalyzerFile({ fileName: body.fileName })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'generate') {
+        const payload = await generateVideoAnalyzerContent({
+          promptText: body.promptText,
+          fileUri: body.fileUri,
+          mimeType: body.mimeType,
+        })
+        return res.status(200).json(payload)
+      }
+      return res.status(400).json({ error: 'Unknown video-analyzer action' })
+    } catch (err) {
+      console.error('[groq-proxy] (video-analyzer) error:', err?.message || err)
+      const status = err instanceof VideoAnalyzerProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video Analyzer proxy error' })
     }
   }
 

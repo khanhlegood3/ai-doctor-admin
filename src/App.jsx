@@ -44,6 +44,7 @@ const PatientRecordPanel = lazy(() => import('./components/PatientRecordPanel.js
 const Protein3DPanel = lazy(() => import('./components/Protein3DPanel.jsx'))
 const AIHealthcareVisionPanel = lazy(() => import('./components/AIHealthcareVisionPanel.jsx'))
 const VisionSyncPanel = lazy(() => import('./components/VisionSyncPanel.jsx'))
+const VideoAnalyzerPanel = lazy(() => import('./components/VideoAnalyzerPanel.jsx'))
 const RemixSucKhoeKOLPanel = lazy(() => import('./components/RemixSucKhoeKOLPanel.jsx'))
 const VibeTrackingPanel = lazy(() => import('./components/VibeTrackingPanel.jsx'))
 const VibeCheckPanel = lazy(() => import('./components/VibeCheckPanel.jsx'))
@@ -114,7 +115,7 @@ function PanelLoadingFallback() {
 }
 
 // Thứ tự này đồng bộ menu chính và nút điều hướng qua/lại giữa các màn hình.
-const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'dinoJump', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'videoToLearningAdmin']
+const PANELS = ['bodyProtectionJourney', 'affiliateGame', 'hero3DMap', 'myPainPathBody', 'myPainPathBodyPixel', 'myPainPathNoiTang', 'myPainPathNoiTangPixel', 'healthJourneyGame', 'medicalAssetStore', 'medicalVisualPlayground', 'medicalVisualCameraAngle3D', 'myRewardHealth', 'affiliateControl', 'affiliate', 'rssPortal', 'waterDrinkChatBot', 'wikiMedVision', 'fullDocSummarization', 'documentOCR', 'cameraAngle3DStudio', 'organConnection', 'heirloomRecipes', 'cookingGuide', 'healthJourney', 'lunchJourney', 'dinnerJourney', 'upload', 'imaging', 'checkin', 'family', 'record', 'familyRelationship', 'matrix3dBody', 'omnidirectional3dBody', 'twin', 'telemedicine', 'statAnalysis', 'swarm', 'consensus', 'varCheck', 'protein3d', 'aiHealthcareVision', 'visionSync', 'videoAnalyzer', 'remixSucKhoeKOL', 'vibeTracking', 'vibeCheck', 'videoToLearning', 'dinoJump', 'aiHealthcareVisionControl', 'stressRelief', 'aiInbodyPortal', 'printPortal', 'patientReflect', 'chatHistory', 'affiliateAdmin', 'roleMembershipAdmin', 'make3DModel', 'my3dAsset', 'twoDTo3DAsset', 'xyzCameraAngle', 'videoToLearningAdmin']
 
 const VIP_PRO_PANEL_IDS = new Set([
   'myPainPathBody',
@@ -287,6 +288,7 @@ export default function App() {
     aiHealthcareVision: t('aiHealthcareVision'),
     aiHealthcareVisionControl: t('aiHealthcareVisionControl'),
     visionSync: t('visionSync'),
+    videoAnalyzer: t('videoAnalyzer'),
     remixSucKhoeKOL: t('remixSucKhoeKOL'),
     vibeTracking: t('vibeTracking'),
     vibeCheck: t('vibeCheck'),
@@ -731,6 +733,7 @@ export default function App() {
             {active === 'protein3d' && <Protein3DPanel     onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'aiHealthcareVision' && <AIHealthcareVisionPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'visionSync' && <VisionSyncPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
+            {active === 'videoAnalyzer' && <VideoAnalyzerPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'remixSucKhoeKOL' && <RemixSucKhoeKOLPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'vibeTracking' && <VibeTrackingPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}
             {active === 'vibeCheck' && <VibeCheckPanel onNext={goNext} nextLabel={nextLabel} onPrev={goPrev} prevLabel={prevLabel} />}

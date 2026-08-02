@@ -9,6 +9,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckP
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
+import { initVideoAnalyzerUpload, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -217,6 +218,40 @@ function geminiComicDevMiddleware(env) {
             return
           }
 
+          if (parsed.provider === 'video-analyzer') {
+            try {
+              let payload
+              if (parsed.action === 'initUpload') {
+                payload = await initVideoAnalyzerUpload({
+                  mimeType: parsed.mimeType,
+                  numBytes: parsed.numBytes,
+                  displayName: parsed.displayName,
+                  envSource: env,
+                })
+              } else if (parsed.action === 'checkFile') {
+                payload = await checkVideoAnalyzerFile({ fileName: parsed.fileName, envSource: env })
+              } else if (parsed.action === 'generate') {
+                payload = await generateVideoAnalyzerContent({
+                  promptText: parsed.promptText,
+                  fileUri: parsed.fileUri,
+                  mimeType: parsed.mimeType,
+                  envSource: env,
+                })
+              } else {
+                throw new VideoAnalyzerProxyError('Unknown video-analyzer action', 400)
+              }
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[video-analyzer-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Video Analyzer proxy error' }))
+            }
+            return
+          }
+
           if (parsed.provider === 'kol-youtube-fetch') {
             try {
               const payload = await fetchYoutubeClipToR2(parsed.youtubeUrl, { envSource: env })
@@ -292,6 +327,7 @@ export default defineConfig(({ mode }) => {
           dinoJumpKhanh: resolve(__dirname, 'src/dino-jump-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
+          videoAnalyzerKhanh: resolve(__dirname, 'src/video-analyzer-khanh/index.html'),
           humanTankCameraKeyReact: resolve(__dirname, 'src/games/human-tank-camera-key.html'),
           coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
           bodyProtectionHtmlReact: resolve(__dirname, 'src/games/body-protection-html.html'),
