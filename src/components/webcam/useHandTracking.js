@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath'
+import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath'
 
 // Hand Landmarker riêng cho tính năng Touchless Control (Medical Visual
 // Playground) — TÁCH RIÊNG khỏi useMediaPipeVision.js (Face/Pose/Object) vì
@@ -7,7 +8,23 @@ import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath'
 // tránh việc các trang khác (đang dùng useMediaPipeVision cho Face/Pose)
 // vô tình tải thêm model Hand không dùng tới.
 const WASM_URL = MEDIAPIPE_VISION_WASM_URL
-const HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+const HAND_MODEL_URLS = MEDIAPIPE_MODEL_URLS.hand
+// Cùng bug đã sửa ở useMediaPipeVision.js: không có timeout thì delegate GPU
+// treo là treo vĩnh viễn, Retry vô dụng. Và model giờ thử local
+// (public/models/, xem scripts-copy-mediapipe-models.mjs) trước khi rơi về CDN.
+const CREATE_LANDMARKER_TIMEOUT_MS = 15_000
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`))
+    }, ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (err) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
 
 /**
  * status: 'idle' | 'loading' | 'ready' | 'error'
@@ -31,20 +48,41 @@ export function useHandTracking() {
 
     v.loadingPromise = (async () => {
       const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision')
-      if (!v.fileset) v.fileset = await FilesetResolver.forVisionTasks(WASM_URL)
+      if (!v.fileset) {
+        v.fileset = await withTimeout(
+          FilesetResolver.forVisionTasks(WASM_URL),
+          CREATE_LANDMARKER_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
+        )
+      }
+
+      const createWithDelegateFallback = (modelAssetPath) =>
+        withTimeout(
+          HandLandmarker.createFromOptions(v.fileset, {
+            baseOptions: { modelAssetPath, delegate: 'GPU' },
+            runningMode: 'VIDEO',
+            numHands: 1,
+          }),
+          CREATE_LANDMARKER_TIMEOUT_MS,
+          'HandLandmarker GPU delegate init',
+        ).catch((gpuError) => {
+          console.warn('HandLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError)
+          return withTimeout(
+            HandLandmarker.createFromOptions(v.fileset, {
+              baseOptions: { modelAssetPath, delegate: 'CPU' },
+              runningMode: 'VIDEO',
+              numHands: 1,
+            }),
+            CREATE_LANDMARKER_TIMEOUT_MS,
+            'HandLandmarker CPU delegate init',
+          )
+        })
+
       try {
-        v.landmarker = await HandLandmarker.createFromOptions(v.fileset, {
-          baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: 'GPU' },
-          runningMode: 'VIDEO',
-          numHands: 1,
-        })
-      } catch (gpuError) {
-        console.warn('HandLandmarker GPU delegate failed, retrying on CPU:', gpuError)
-        v.landmarker = await HandLandmarker.createFromOptions(v.fileset, {
-          baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate: 'CPU' },
-          runningMode: 'VIDEO',
-          numHands: 1,
-        })
+        v.landmarker = await createWithDelegateFallback(HAND_MODEL_URLS.local)
+      } catch (localError) {
+        console.warn('HandLandmarker local model failed, falling back to CDN:', localError)
+        v.landmarker = await createWithDelegateFallback(HAND_MODEL_URLS.cdn)
       }
     })()
 

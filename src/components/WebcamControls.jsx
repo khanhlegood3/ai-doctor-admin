@@ -7,13 +7,57 @@ import {
 import { FaceLandmarker, FilesetResolver, DrawingUtils, ObjectDetector } from '@mediapipe/tasks-vision'
 import { useApp } from '../context/AppContext'
 import { MEDIAPIPE_VISION_WASM_URL } from '../lib/mediapipeWasmPath'
+import { MEDIAPIPE_MODEL_URLS } from '../lib/mediapipeModelPath'
 
 // WASM files served directly from node_modules via Vite ?url import — no CDN, no public/wasm copy needed.
 const MEDIAPIPE_WASM_URL = MEDIAPIPE_VISION_WASM_URL
-const FACE_LANDMARKER_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
-const OBJECT_DETECTOR_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
+// Model .task/.tflite: thử local trước (public/models/, xem
+// scripts-copy-mediapipe-models.mjs), rơi về CDN gốc của Google nếu lỗi/thiếu.
+const FACE_LANDMARKER_MODEL_URLS = MEDIAPIPE_MODEL_URLS.face
+const OBJECT_DETECTOR_MODEL_URLS = MEDIAPIPE_MODEL_URLS.object
+
+// BUG tương tự đã sửa ở useMediaPipeVision.js: FilesetResolver.forVisionTasks()
+// và createFromOptions() không có timeout thì delegate GPU treo là treo vĩnh
+// viễn (đặc biệt Safari iOS/WebGL) — component sẽ kẹt mãi ở "loading" không
+// bao giờ báo lỗi cho người dùng biết mà retry.
+const INIT_TIMEOUT_MS = 15_000
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`))
+    }, ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (err) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
+
+/** Thử model local trước, GPU trước rồi CPU nếu GPU treo/lỗi; nếu cả local
+ * lẫn GPU/CPU đều lỗi thì rơi về model CDN gốc (cũng thử GPU rồi CPU). */
+async function createLandmarkerRobust(Klass, fileset, modelUrls, extraOptions, label) {
+  const tryDelegates = (modelAssetPath) =>
+    withTimeout(
+      Klass.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: 'GPU' }, ...extraOptions }),
+      INIT_TIMEOUT_MS,
+      `${label} GPU delegate init`,
+    ).catch((gpuError) => {
+      console.warn(`${label} GPU delegate failed/timed out, retrying on CPU:`, gpuError)
+      return withTimeout(
+        Klass.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
+        INIT_TIMEOUT_MS,
+        `${label} CPU delegate init`,
+      )
+    })
+
+  try {
+    return await tryDelegates(modelUrls.local)
+  } catch (localError) {
+    console.warn(`${label} local model failed, falling back to CDN:`, localError)
+    return tryDelegates(modelUrls.cdn)
+  }
+}
 
 /**
  * WebcamControls
@@ -158,15 +202,16 @@ export default function WebcamControls({
     let cancelled = false
     ;(async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL)
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: FACE_LANDMARKER_MODEL_URL,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numFaces: 1,
-        })
+        const vision = await withTimeout(
+          FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL),
+          INIT_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
+        )
+        const landmarker = await createLandmarkerRobust(
+          FaceLandmarker, vision, FACE_LANDMARKER_MODEL_URLS,
+          { runningMode: 'VIDEO', numFaces: 1 },
+          'FaceLandmarker',
+        )
         if (cancelled) {
           landmarker.close?.()
           return
@@ -186,16 +231,16 @@ export default function WebcamControls({
     let cancelled = false
     ;(async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL)
-        const detector = await ObjectDetector.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: OBJECT_DETECTOR_MODEL_URL,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          scoreThreshold: 0.5,
-          maxResults: 5,
-        })
+        const vision = await withTimeout(
+          FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL),
+          INIT_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
+        )
+        const detector = await createLandmarkerRobust(
+          ObjectDetector, vision, OBJECT_DETECTOR_MODEL_URLS,
+          { runningMode: 'VIDEO', scoreThreshold: 0.5, maxResults: 5 },
+          'ObjectDetector',
+        )
         if (cancelled) {
           detector.close?.()
           return
@@ -222,31 +267,32 @@ export default function WebcamControls({
 
   const getImageLandmarker = async () => {
     if (imageLandmarkerRef.current) return imageLandmarkerRef.current
-    const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL)
-    const landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: FACE_LANDMARKER_MODEL_URL,
-        delegate: 'GPU',
-      },
-      runningMode: 'IMAGE',
-      numFaces: 1,
-    })
+    const vision = await withTimeout(
+      FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL),
+      INIT_TIMEOUT_MS,
+      'MediaPipe WASM fileset load',
+    )
+    const landmarker = await createLandmarkerRobust(
+      FaceLandmarker, vision, FACE_LANDMARKER_MODEL_URLS,
+      { runningMode: 'IMAGE', numFaces: 1 },
+      'FaceLandmarker (image)',
+    )
     imageLandmarkerRef.current = landmarker
     return landmarker
   }
 
   const getImageObjectDetector = async () => {
     if (imageObjectDetectorRef.current) return imageObjectDetectorRef.current
-    const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL)
-    const detector = await ObjectDetector.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: OBJECT_DETECTOR_MODEL_URL,
-        delegate: 'GPU',
-      },
-      runningMode: 'IMAGE',
-      scoreThreshold: 0.5,
-      maxResults: 5,
-    })
+    const vision = await withTimeout(
+      FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL),
+      INIT_TIMEOUT_MS,
+      'MediaPipe WASM fileset load',
+    )
+    const detector = await createLandmarkerRobust(
+      ObjectDetector, vision, OBJECT_DETECTOR_MODEL_URLS,
+      { runningMode: 'IMAGE', scoreThreshold: 0.5, maxResults: 5 },
+      'ObjectDetector (image)',
+    )
     imageObjectDetectorRef.current = detector
     return detector
   }

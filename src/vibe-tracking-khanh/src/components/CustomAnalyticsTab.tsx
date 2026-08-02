@@ -2,6 +2,52 @@ import React, { useEffect, useRef, useState } from 'react';
 import { HandLandmarker, FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand, Play, Pause, Square } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
+import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+
+// BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
+// tải từ CDN ngoài, không timeout, không fallback CPU nếu GPU treo. Giờ dùng
+// WASM local + model tự host (public/models/) với fallback CDN.
+const INIT_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
+/** Thử model local trước, GPU trước rồi CPU nếu GPU treo/lỗi; rơi về CDN nếu local lỗi. */
+async function createLandmarkerRobust<T>(
+  createFromOptions: (opts: any) => Promise<T>,
+  modelUrls: { local: string; cdn: string },
+  extraOptions: Record<string, unknown>,
+  label: string,
+): Promise<T> {
+  const tryDelegates = (modelAssetPath: string) =>
+    withTimeout(
+      createFromOptions({ baseOptions: { modelAssetPath, delegate: 'GPU' }, ...extraOptions }),
+      INIT_TIMEOUT_MS,
+      `${label} GPU delegate init`,
+    ).catch((gpuError: unknown) => {
+      console.warn(`${label} GPU delegate failed/timed out, retrying on CPU:`, gpuError);
+      return withTimeout(
+        createFromOptions({ baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
+        INIT_TIMEOUT_MS,
+        `${label} CPU delegate init`,
+      );
+    });
+
+  try {
+    return await tryDelegates(modelUrls.local);
+  } catch (localError) {
+    console.warn(`${label} local model failed, falling back to CDN:`, localError);
+    return tryDelegates(modelUrls.cdn);
+  }
+}
 
 const targetBlendshapes = [
   'mouthPucker', 'mouthFunnel', 'mouthSmileLeft', 'mouthSmileRight', 'jawOpen'
@@ -175,26 +221,23 @@ export default function SignLanguageAnalyticsTab() {
     let active = true;
     async function setupModel() {
       try {
-        const filesetResolver = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm'
+        const filesetResolver = await withTimeout(
+          FilesetResolver.forVisionTasks(MEDIAPIPE_VISION_WASM_URL),
+          INIT_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
         );
-        const hLandmarker = await HandLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numHands: 2,
-        });
-        const fLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numFaces: 1,
-          outputFaceBlendshapes: true,
-        });
+        const hLandmarker = await createLandmarkerRobust(
+          (opts) => HandLandmarker.createFromOptions(filesetResolver, opts),
+          MEDIAPIPE_MODEL_URLS.hand,
+          { runningMode: 'VIDEO', numHands: 2 },
+          'HandLandmarker',
+        );
+        const fLandmarker = await createLandmarkerRobust(
+          (opts) => FaceLandmarker.createFromOptions(filesetResolver, opts),
+          MEDIAPIPE_MODEL_URLS.face,
+          { runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true },
+          'FaceLandmarker',
+        );
         if (active) {
           setHandLandmarker(hLandmarker);
           setFaceLandmarker(fLandmarker);

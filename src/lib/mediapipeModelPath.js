@@ -24,4 +24,8 @@ export const MEDIAPIPE_MODEL_URLS = {
     local: `${MODELS_BASE_URL}/efficientdet_lite0.tflite`,
     cdn: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
   },
+  hand: {
+    local: `${MODELS_BASE_URL}/hand_landmarker.task`,
+    cdn: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+  },
 }

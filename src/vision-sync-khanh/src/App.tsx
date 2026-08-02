@@ -6,6 +6,23 @@ import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { motion, AnimatePresence } from 'motion/react';
 import * as Tone from 'tone';
+import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath';
+import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath';
+
+// BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
+// tải từ CDN ngoài, không timeout, không fallback CPU nếu GPU treo. Giờ dùng
+// WASM local + model tự host (public/models/) với fallback CDN.
+const INIT_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
 
 let hoverSynth: Tone.Synth | null = null;
 
@@ -469,19 +486,44 @@ export default function App() {
         objectModelRef.current = cocoModel;
 
         await yieldToBrowser();
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        const vision = await withTimeout(
+          FilesetResolver.forVisionTasks(MEDIAPIPE_VISION_WASM_URL),
+          INIT_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
         );
 
         await yieldToBrowser();
-        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-          },
-          outputFaceBlendshapes: true,
-          runningMode: "VIDEO",
-          numFaces: 1
-        });
+        const createWithDelegateFallback = (modelAssetPath: string) =>
+          withTimeout(
+            FaceLandmarker.createFromOptions(vision, {
+              baseOptions: { modelAssetPath, delegate: 'GPU' },
+              outputFaceBlendshapes: true,
+              runningMode: "VIDEO",
+              numFaces: 1,
+            }),
+            INIT_TIMEOUT_MS,
+            'FaceLandmarker GPU delegate init',
+          ).catch((gpuError) => {
+            console.warn('FaceLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError);
+            return withTimeout(
+              FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath, delegate: 'CPU' },
+                outputFaceBlendshapes: true,
+                runningMode: "VIDEO",
+                numFaces: 1,
+              }),
+              INIT_TIMEOUT_MS,
+              'FaceLandmarker CPU delegate init',
+            );
+          });
+
+        let faceLandmarker;
+        try {
+          faceLandmarker = await createWithDelegateFallback(MEDIAPIPE_MODEL_URLS.face.local);
+        } catch (localError) {
+          console.warn('FaceLandmarker local model failed, falling back to CDN:', localError);
+          faceLandmarker = await createWithDelegateFallback(MEDIAPIPE_MODEL_URLS.face.cdn);
+        }
         faceLandmarkerRef.current = faceLandmarker;
 
         await yieldToBrowser();

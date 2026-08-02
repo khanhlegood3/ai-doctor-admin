@@ -2,6 +2,24 @@ import { useEffect, useRef, useState } from 'react';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { Activity, AudioLines, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
+import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+
+// BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
+// tải từ CDN ngoài (cdn.jsdelivr.net, storage.googleapis.com), không timeout,
+// không fallback CPU nếu GPU treo — camera có thể kẹt vô hạn ở "loading".
+// Giờ dùng WASM local + model tự host (public/models/) với fallback CDN.
+const INIT_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
 
 const DEADZONE = 2.0;
 const LERP_VAL = 0.05;
@@ -75,18 +93,42 @@ export default function VibeVizTab() {
     let active = true;
     async function setupModel() {
       try {
-        const filesetResolver = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32/wasm'
+        const filesetResolver = await withTimeout(
+          FilesetResolver.forVisionTasks(MEDIAPIPE_VISION_WASM_URL),
+          INIT_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
         );
-        const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-            delegate: 'GPU',
-          },
-          outputFaceBlendshapes: true,
-          runningMode: 'VIDEO',
-          numFaces: 4,
-        });
+        const createWithDelegateFallback = (modelAssetPath: string) =>
+          withTimeout(
+            FaceLandmarker.createFromOptions(filesetResolver, {
+              baseOptions: { modelAssetPath, delegate: 'GPU' },
+              outputFaceBlendshapes: true,
+              runningMode: 'VIDEO',
+              numFaces: 4,
+            }),
+            INIT_TIMEOUT_MS,
+            'FaceLandmarker GPU delegate init',
+          ).catch((gpuError) => {
+            console.warn('FaceLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError);
+            return withTimeout(
+              FaceLandmarker.createFromOptions(filesetResolver, {
+                baseOptions: { modelAssetPath, delegate: 'CPU' },
+                outputFaceBlendshapes: true,
+                runningMode: 'VIDEO',
+                numFaces: 4,
+              }),
+              INIT_TIMEOUT_MS,
+              'FaceLandmarker CPU delegate init',
+            );
+          });
+
+        let landmarker;
+        try {
+          landmarker = await createWithDelegateFallback(MEDIAPIPE_MODEL_URLS.face.local);
+        } catch (localError) {
+          console.warn('FaceLandmarker local model failed, falling back to CDN:', localError);
+          landmarker = await createWithDelegateFallback(MEDIAPIPE_MODEL_URLS.face.cdn);
+        }
         if (active) {
           setFaceLandmarker(landmarker);
           setIsModelLoading(false);
