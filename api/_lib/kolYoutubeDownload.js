@@ -4,21 +4,30 @@
 // user: 2 nguồn video được hỗ trợ song song — dán link YouTube HOẶC upload
 // file trực tiếp, ưu tiên cái nào xử lý được thì dùng).
 //
-// GIỚI HẠN THỰC TẾ (đọc kỹ trước khi debug lỗi 'download thất bại'):
-//   1. Vercel Serverless Function (kể cả trên Vercel Pro) có giới hạn KÍCH
-//      THƯỚC RESPONSE ~4.5 MB — không thể trả cả 1 video YouTube dài/nét cao
-//      qua endpoint này. Vì vậy chỉ chấp nhận clip NGẮN (mặc định ≤ 90 giây)
-//      và ép về định dạng progressive nhỏ nhất có sẵn (thường 360p).
+// CẬP NHẬT (chuyển sang R2): trước đây hàm này trả video dạng base64 thẳng
+// trong JSON response, bị trần ~4.5MB response của Vercel Serverless
+// Function chặn (chỉ nhận clip ≤ 90s, ép chất lượng thấp nhất). Giờ server
+// tải video xong thì UPLOAD THẲNG lên Cloudflare R2 (xem r2Storage.js) rồi
+// chỉ trả về 1 URL — bỏ hẳn giới hạn 4.5MB, cho phép clip dài/nét hơn hẳn.
+//
+// GIỚI HẠN CÒN LẠI (đọc kỹ trước khi debug lỗi 'download thất bại'):
+//   1. Vercel Serverless Function vẫn có giới hạn THỜI GIAN CHẠY và BỘ NHỚ
+//      (buffer cả video vào RAM trước khi upload) — vẫn cần trần hợp lý cho
+//      độ dài/dung lượng clip, chỉ là trần đó giờ cao hơn nhiều so với khi
+//      còn bị giới hạn bởi response size.
 //   2. Tải video YouTube về từ server (datacenter IP của Vercel) rất dễ bị
 //      YouTube chặn/giới hạn tốc độ, hoặc thư viện ytdl-core bị hỏng khi
 //      YouTube đổi cấu trúc nội bộ — đây là rủi ro CỐ HỮU của cách này, không
 //      phải bug có thể sửa triệt để 100%.
-//   3. Vì 2 lý do trên, nhánh này LUÔN được thiết kế để THẤT BẠI RÕ RÀNG (ném
-//      lỗi có message dễ hiểu) thay vì treo hoặc trả dữ liệu hỏng — để phía
-//      client có thể fallback ngay sang "hãy tải video về máy rồi chọn file
-//      để upload thủ công" (luôn hoạt động 100%, xem KolVideoLibraryPanel.jsx).
+//   3. Vì các lý do trên, nhánh này LUÔN được thiết kế để THẤT BẠI RÕ RÀNG
+//      (ném lỗi có message dễ hiểu) thay vì treo hoặc trả dữ liệu hỏng — để
+//      phía client có thể fallback ngay sang "hãy tải video về máy rồi chọn
+//      file để upload thủ công" (giờ cũng đi qua R2 — xem
+//      kol-r2-upload-url provider ở groq-proxy.js — luôn hoạt động, xem
+//      KolVideoLibraryPanel.jsx).
 
 import ytdl from '@distube/ytdl-core'
+import { uploadBufferToR2, genR2Key, R2StorageError } from './r2Storage.js'
 
 export class KolYoutubeDownloadError extends Error {
   constructor(message, status = 422) {
@@ -28,23 +37,28 @@ export class KolYoutubeDownloadError extends Error {
   }
 }
 
-const DEFAULT_MAX_DURATION_SECONDS = 90
-// Để dư margin so với trần response ~4.5MB của Vercel (base64 làm phình thêm ~33%).
-const DEFAULT_MAX_BYTES = 3.2 * 1024 * 1024
+// Không còn bị ép bởi trần response ~4.5MB nữa (video đi thẳng lên R2, chỉ
+// trả về 1 URL nhỏ) — nới rộng hợp lý, vẫn chặn để tránh 1 request ăn hết bộ
+// nhớ/thời gian chạy của function (mặc định Vercel: 1024MB RAM, ~60-300s
+// tuỳ gói). Có thể chỉnh lại qua opts nếu cần.
+const DEFAULT_MAX_DURATION_SECONDS = 300
+const DEFAULT_MAX_BYTES = 80 * 1024 * 1024 // 80MB
 
 /**
- * Tải 1 clip YouTube NGẮN về server, trả lại dưới dạng base64 để nhúng vào
- * JSON response (đồng bộ với các nhánh khác của groq-proxy.js).
+ * Tải 1 clip YouTube về server rồi upload thẳng lên R2, trả lại URL public
+ * (đồng bộ với các nhánh khác của groq-proxy.js).
  *
  * @param {string} youtubeUrl
  * @param {object} [opts]
  * @param {number} [opts.maxDurationSeconds]
  * @param {number} [opts.maxBytes]
- * @returns {Promise<{ base64: string, mimeType: string, title: string, durationSeconds: number }>}
+ * @param {Record<string,string>} [opts.envSource]
+ * @returns {Promise<{ url: string, mimeType: string, title: string, durationSeconds: number, size: number }>}
  */
-export async function fetchYoutubeClipAsBase64(youtubeUrl, opts = {}) {
+export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
   const maxDurationSeconds = opts.maxDurationSeconds || DEFAULT_MAX_DURATION_SECONDS
   const maxBytes = opts.maxBytes || DEFAULT_MAX_BYTES
+  const envSource = opts.envSource || process.env
 
   if (!youtubeUrl || typeof youtubeUrl !== 'string') {
     throw new KolYoutubeDownloadError('Thiếu link YouTube.', 400)
@@ -72,7 +86,7 @@ export async function fetchYoutubeClipAsBase64(youtubeUrl, opts = {}) {
 
   let format
   try {
-    format = ytdl.chooseFormat(info.formats, { quality: 'lowest', filter: 'audioandvideo' })
+    format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' })
   } catch {
     format = null
   }
@@ -102,7 +116,7 @@ export async function fetchYoutubeClipAsBase64(youtubeUrl, opts = {}) {
   } catch (err) {
     if (String(err?.message) === 'EXCEEDS_MAX_BYTES') {
       throw new KolYoutubeDownloadError(
-        `Video vượt quá dung lượng ${(maxBytes / 1024 / 1024).toFixed(1)}MB cho phép tải qua server. Hãy tải video về máy rồi chọn "Chọn file để tải lên" thay thế.`,
+        `Video vượt quá dung lượng ${(maxBytes / 1024 / 1024).toFixed(0)}MB cho phép tải qua server. Hãy tải video về máy rồi chọn "Chọn file để tải lên" thay thế.`,
       )
     }
     console.error('[kolYoutubeDownload] download stream failed:', err?.message || err)
@@ -112,10 +126,27 @@ export async function fetchYoutubeClipAsBase64(youtubeUrl, opts = {}) {
   }
 
   const buffer = Buffer.concat(chunks)
+  const mimeType = (format.mimeType || 'video/mp4').split(';')[0]
+  const ext = mimeType.split('/')[1] || 'mp4'
+  const key = genR2Key('kol-videos/youtube', ext)
+
+  let uploaded
+  try {
+    uploaded = await uploadBufferToR2({ buffer, key, contentType: mimeType, envSource })
+  } catch (err) {
+    console.error('[kolYoutubeDownload] R2 upload failed:', err?.message || err)
+    const status = err instanceof R2StorageError ? err.status : 500
+    throw new KolYoutubeDownloadError(
+      'Tải video từ YouTube thành công nhưng lưu lên R2 thất bại. Hãy thử lại, hoặc tải video về máy rồi chọn "Chọn file để tải lên" thay thế.',
+      status,
+    )
+  }
+
   return {
-    base64: buffer.toString('base64'),
-    mimeType: (format.mimeType || 'video/mp4').split(';')[0],
+    url: uploaded.url,
+    mimeType,
     title: info.videoDetails?.title || 'Video YouTube',
     durationSeconds,
+    size: uploaded.size,
   }
 }

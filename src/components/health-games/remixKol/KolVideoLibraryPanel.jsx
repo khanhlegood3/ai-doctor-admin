@@ -16,7 +16,6 @@ import {
   saveKolRawVideo,
   deleteKolVideo,
   findLatestPosedFor,
-  base64ToVideoDataUrl,
   KOL_VIDEO_KIND,
 } from './kolVideoStorage.js'
 import { fetchYoutubeClipViaServer } from './kolYoutubeFetchClient.js'
@@ -63,14 +62,15 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
     setUploadError('')
     setFetchingYoutube(true)
     try {
-      const { base64, mimeType, title, durationSeconds } = await fetchYoutubeClipViaServer(url)
+      const { url: r2Url, mimeType, title, durationSeconds, size } = await fetchYoutubeClipViaServer(url)
       await saveKolRawVideo({
-        dataUrl: base64ToVideoDataUrl(base64, mimeType),
+        r2Url,
         mimeType,
         title,
         sourceType: 'youtube',
         youtubeUrl: url,
         durationSeconds,
+        size,
       }, { user })
       setYoutubeUrl('')
       await load()

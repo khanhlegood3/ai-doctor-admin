@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../../../context/AppContext'
 import { useMediaPipeVision } from '../../webcam/useMediaPipeVision.js'
 import { drawPose } from '../../webcam/drawOverlay.js'
-import { dataUrlToObjectUrl } from './kolVideoStorage.js'
+import { dataUrlToObjectUrl, resolveKolVideoUrl } from './kolVideoStorage.js'
 import '../../AIPoseDuetPanel.css'
 
 export default function KolRemixPlayerPanel({ posedVideo, onBack }) {
@@ -20,8 +20,9 @@ export default function KolRemixPlayerPanel({ posedVideo, onBack }) {
 
   useEffect(() => {
     let cancelled = false
-    if (!posedVideo?.dataUrl) return
-    dataUrlToObjectUrl(posedVideo.dataUrl).then((url) => {
+    const sourceUrl = resolveKolVideoUrl(posedVideo)
+    if (!sourceUrl) return
+    dataUrlToObjectUrl(sourceUrl).then((url) => {
       if (cancelled) { URL.revokeObjectURL(url); return }
       objectUrlRef.current = url
       if (posedVideoRef.current) posedVideoRef.current.src = url

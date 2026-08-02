@@ -7,7 +7,8 @@ import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } fr
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
-import { fetchYoutubeClipAsBase64, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
+import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
+import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -218,7 +219,7 @@ function geminiComicDevMiddleware(env) {
 
           if (parsed.provider === 'kol-youtube-fetch') {
             try {
-              const payload = await fetchYoutubeClipAsBase64(parsed.youtubeUrl)
+              const payload = await fetchYoutubeClipToR2(parsed.youtubeUrl, { envSource: env })
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = 200
               res.end(JSON.stringify(payload))
@@ -227,6 +228,21 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error instanceof KolYoutubeDownloadError ? error.status : 500
               res.end(JSON.stringify({ error: error?.message || 'KOL YouTube fetch error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'kol-r2-upload-url') {
+            try {
+              const payload = await createKolR2UploadUrl({ kind: parsed.kind, contentType: parsed.contentType, envSource: env })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[kol-r2-upload-url-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error instanceof KolR2UploadError ? error.status : 500
+              res.end(JSON.stringify({ error: error?.message || 'KOL R2 upload URL error' }))
             }
             return
           }

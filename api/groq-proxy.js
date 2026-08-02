@@ -26,7 +26,8 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
-import { fetchYoutubeClipAsBase64, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
+import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
+import { createKolR2UploadUrl, KolR2UploadError } from './_lib/kolR2Upload.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
@@ -219,19 +220,38 @@ export default async function handler(req, res) {
 
 
   // --- Nhánh AI Pose thật cho video KOL (trang Remix Sức Khoẻ từ KOL) ---
-  // Tải 1 clip YouTube NGẮN về server rồi trả base64 cho client — xem giới
-  // hạn/rủi ro chi tiết ở đầu api/_lib/kolYoutubeDownload.js. Nhánh này CỐ Ý
-  // fail rõ ràng (không phải bug) khi video dài/nặng hoặc bị YouTube chặn —
-  // client sẽ tự fallback sang cho user chọn file để upload thủ công.
+  // Tải 1 clip YouTube về server rồi UPLOAD THẲNG LÊN R2 (xem r2Storage.js),
+  // trả về URL — xem giới hạn/rủi ro chi tiết ở đầu
+  // api/_lib/kolYoutubeDownload.js. Nhánh này CỐ Ý fail rõ ràng (không phải
+  // bug) khi video dài/nặng hoặc bị YouTube chặn — client sẽ tự fallback
+  // sang cho user chọn file để upload thủ công (nhánh 'kol-r2-upload-url'
+  // ngay dưới).
   if (body.provider === 'kol-youtube-fetch') {
     console.log('[groq-proxy] (kol-youtube-fetch) youtubeUrl:', body.youtubeUrl)
     try {
-      const payload = await fetchYoutubeClipAsBase64(body.youtubeUrl)
+      const payload = await fetchYoutubeClipToR2(body.youtubeUrl)
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (kol-youtube-fetch) error:', err?.message || err)
       const status = err instanceof KolYoutubeDownloadError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'KOL YouTube fetch error' })
+    }
+  }
+
+  // --- Nhánh sinh presigned upload URL R2 cho video KOL ---
+  // Dùng khi user tự chọn file (kind: 'raw') hoặc video kết quả AI Pose ghép
+  // ra ở client (kind: 'posed') — trình duyệt PUT thẳng lên R2 bằng URL trả
+  // về đây, KHÔNG đi qua function này nữa nên không bị giới hạn kích thước
+  // request/response của Vercel. Xem api/_lib/kolR2Upload.js.
+  if (body.provider === 'kol-r2-upload-url') {
+    console.log('[groq-proxy] (kol-r2-upload-url) kind:', body.kind, '| contentType:', body.contentType)
+    try {
+      const payload = await createKolR2UploadUrl({ kind: body.kind, contentType: body.contentType })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (kol-r2-upload-url) error:', err?.message || err)
+      const status = err instanceof KolR2UploadError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'KOL R2 upload URL error' })
     }
   }
 

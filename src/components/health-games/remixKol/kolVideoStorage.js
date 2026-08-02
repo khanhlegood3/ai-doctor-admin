@@ -2,14 +2,21 @@
 // Lưu video KOL (bản THÔ do user dán link YouTube hoặc upload file, và bản
 // ĐÃ GHÉP POSE do AI xử lý thật bằng MediaPipe) vào IndexedDB — dùng CHUNG
 // kho lưu trữ với trang Record/Upload (src/lib/medicalStorage.js), đúng
-// pattern đã có ở comicIssueStorage.js: không tải file .webm/.mp4 xuống máy
-// người dùng, mà lưu lại thành 1 "thư viện" (xem KolVideoLibraryPanel.jsx)
-// để mở lại/Make Pose/Remix bất cứ lúc nào.
+// pattern đã có ở comicIssueStorage.js: mở lại/Make Pose/Remix bất cứ lúc
+// nào qua 1 "thư viện" (xem KolVideoLibraryPanel.jsx).
+//
+// CẬP NHẬT (chuyển sang R2): bản thân file video KHÔNG còn lưu base64 trong
+// IndexedDB nữa (dễ vỡ quota trình duyệt với video dài) — chỉ lưu lại 1 URL
+// R2 (`r2Url`) trỏ tới file thật, IndexedDB giờ chỉ giữ metadata + thumbnail
+// nhỏ. Record cũ (nếu còn trong IndexedDB từ trước khi refactor) vẫn có
+// field `dataUrl`/`base64Data` — các hàm dưới đây ưu tiên `r2Url`, fallback
+// về `dataUrl` để không phá vỡ dữ liệu cũ của user.
 //
 // 1 video "thô" có thể có NHIỀU video "đã pose" liên kết tới nó (mỗi lần
 // bấm "Make Pose" tạo 1 bản ghép mới) — liên kết qua field `linkedRawId`.
-import { saveRecord, getAllRecords, getRecord, deleteRecord, fileToDataUrl } from '../../../lib/medicalStorage.js'
+import { saveRecord, getAllRecords, getRecord, deleteRecord } from '../../../lib/medicalStorage.js'
 import { notifyUpload } from '../../../hooks/useMedicalData.js'
+import { uploadKolFileToR2 } from './kolYoutubeFetchClient.js'
 
 export const KOL_VIDEO_SOURCE_MODULE = 'remix-suc-khoe-kol'
 
@@ -32,6 +39,11 @@ export function captureVideoThumbnail(videoUrl) {
       video.muted = true
       video.playsInline = true
       video.preload = 'metadata'
+      // URL R2 là cross-origin (khác domain web app) — PHẢI có crossOrigin +
+      // bucket bật CORS cho phép GET (xem hướng dẫn ở đầu r2Storage.js),
+      // nếu không canvas.toDataURL() bên dưới sẽ ném SecurityError (tainted
+      // canvas) và promise sẽ resolve('') qua nhánh onError/catch.
+      if (/^https?:\/\//i.test(videoUrl)) video.crossOrigin = 'anonymous'
       video.src = videoUrl
 
       const cleanup = () => {
@@ -91,27 +103,43 @@ export async function dataUrlToObjectUrl(dataUrl) {
 }
 
 /**
+ * URL để PHÁT video của 1 record — ưu tiên `r2Url` (record mới), fallback
+ * `dataUrl` (record cũ còn sót lại từ trước khi refactor sang R2).
+ */
+export function resolveKolVideoUrl(record) {
+  return record?.r2Url || record?.dataUrl || ''
+}
+
+/**
  * Lưu 1 video KOL "thô" (chưa xử lý pose) vào thư viện.
  * @param {object} params
- * @param {File} [params.file] - nếu user chọn file trực tiếp
- * @param {string} [params.dataUrl] - nếu video đến từ base64 server-fetch (YouTube)
+ * @param {File} [params.file] - nếu user chọn file trực tiếp; sẽ được upload
+ *   THẲNG lên R2 từ trình duyệt (presigned URL), không đi qua base64/IndexedDB
+ * @param {string} [params.r2Url] - nếu video đã có sẵn URL R2 (nhánh YouTube,
+ *   server đã tải + upload hộ — xem kolYoutubeFetchClient.js)
  * @param {string} [params.mimeType]
  * @param {string} [params.title]
  * @param {'upload'|'youtube'} params.sourceType
  * @param {string} [params.youtubeUrl]
  * @param {number} [params.durationSeconds]
+ * @param {number} [params.size]
  * @param {object} ctx - { user }
  */
 export async function saveKolRawVideo(params, ctx = {}) {
   const { file, mimeType, title, sourceType, youtubeUrl, durationSeconds } = params
   const { user } = ctx
 
-  const dataUrl = params.dataUrl || (file ? await fileToDataUrl(file) : null)
-  if (!dataUrl) throw new Error('Thiếu dữ liệu video để lưu.')
+  let r2Url = params.r2Url || ''
+  let size = params.size || 0
 
-  const base64Data = dataUrl.split(',')[1] || ''
-  const size = Math.round((base64Data.length * 3) / 4)
-  const thumbnail = await captureVideoThumbnail(dataUrl)
+  if (!r2Url && file) {
+    const uploaded = await uploadKolFileToR2(file, 'raw')
+    r2Url = uploaded.url
+    size = uploaded.size
+  }
+  if (!r2Url) throw new Error('Thiếu dữ liệu video để lưu.')
+
+  const thumbnail = await captureVideoThumbnail(r2Url)
 
   const record = {
     id: genId('kol_raw'),
@@ -121,8 +149,7 @@ export async function saveKolRawVideo(params, ctx = {}) {
     type: 'video',
     mimeType: mimeType || file?.type || 'video/mp4',
     size,
-    dataUrl,
-    base64Data,
+    r2Url,
     thumbnail,
     title: title || file?.name || 'Video KOL',
     kind: KOL_VIDEO_KIND.RAW,
@@ -159,15 +186,10 @@ export async function saveKolPosedVideo(params, ctx = {}) {
   const { user } = ctx
   if (!blob) throw new Error('Thiếu dữ liệu video pose để lưu.')
 
-  const dataUrl = await new Promise((resolveDataUrl, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolveDataUrl(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-  const base64Data = dataUrl.split(',')[1] || ''
-  const size = Math.round((base64Data.length * 3) / 4)
-  const thumbnail = await captureVideoThumbnail(dataUrl)
+  const uploaded = await uploadKolFileToR2(blob, 'posed')
+  const r2Url = uploaded.url
+  const size = uploaded.size
+  const thumbnail = await captureVideoThumbnail(r2Url)
 
   const record = {
     id: genId('kol_posed'),
@@ -177,8 +199,7 @@ export async function saveKolPosedVideo(params, ctx = {}) {
     type: 'video',
     mimeType: mimeType || blob.type || 'video/webm',
     size,
-    dataUrl,
-    base64Data,
+    r2Url,
     thumbnail,
     title: title || 'Video KOL (đã ghép Pose AI)',
     kind: KOL_VIDEO_KIND.POSED,

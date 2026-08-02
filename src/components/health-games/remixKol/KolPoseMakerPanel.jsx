@@ -3,8 +3,12 @@
 // trong thư viện (thô, do user upload file hoặc server tải từ YouTube).
 //
 // Cách hoạt động:
-//   1. Phát video nguồn (đã lưu dạng dataURL/Blob cùng-origin — KHÔNG phải
-//      iframe YouTube, nên đọc pixel được, không dính CORS).
+//   1. Phát video nguồn: video giờ được lưu trên R2 (`r2Url`, xem
+//      kolVideoStorage.js) — fetch() bytes về rồi tạo Blob URL cùng-origin
+//      từ đó (KHÔNG gán thẳng URL R2 cross-origin vào <video src>), giữ
+//      nguyên tính chất "đọc pixel được, không dính CORS/tainted canvas"
+//      như bản dataURL/Blob cũ. Bucket R2 vẫn cần bật CORS cho phép GET để
+//      bước fetch() này thành công (xem r2Storage.js).
 //   2. Mỗi khung hình: chạy PoseLandmarker (MediaPipe Tasks Vision,
 //      numPoses tối đa 2 người) để lấy toạ độ khung xương thật.
 //   3. Vẽ khung hình gốc + khung xương lên 1 canvas offscreen, capture
@@ -23,7 +27,7 @@ import { useApp } from '../../../context/AppContext'
 import { useAuth } from '../../../context/AuthContext'
 import { useMediaPipeVision } from '../../webcam/useMediaPipeVision.js'
 import { drawPose } from '../../webcam/drawOverlay.js'
-import { saveKolPosedVideo, dataUrlToObjectUrl } from './kolVideoStorage.js'
+import { saveKolPosedVideo, dataUrlToObjectUrl, resolveKolVideoUrl } from './kolVideoStorage.js'
 import '../../AIPoseDuetPanel.css'
 
 const RECORDER_MIME_CANDIDATES = [
@@ -65,8 +69,9 @@ export default function KolPoseMakerPanel({ rawVideo, onSaved, onCancel }) {
   // Load video nguồn dạng Blob URL (nhẹ hơn gán thẳng dataURL dài vào <video>).
   useEffect(() => {
     let cancelled = false
-    if (!rawVideo?.dataUrl) return
-    dataUrlToObjectUrl(rawVideo.dataUrl).then((url) => {
+    const sourceUrl = resolveKolVideoUrl(rawVideo)
+    if (!sourceUrl) return
+    dataUrlToObjectUrl(sourceUrl).then((url) => {
       if (cancelled) { URL.revokeObjectURL(url); return }
       objectUrlRef.current = url
       if (videoRef.current) videoRef.current.src = url
