@@ -9,13 +9,11 @@
 // riêng), panel này chỉ cần sinh REPLY DẠNG TEXT — giọng nói vào/ra vẫn
 // chạy hoàn toàn miễn phí ở trình duyệt (Web SpeechRecognition +
 // SpeechSynthesis, xem src/components/aiChatbotControl/hooks/useVoiceCompanion.js).
-// Model dùng `gemini-2.5-flash` qua @google/genai SDK — model chuẩn (không
-// phải preview date-stamped) đã được xác nhận hoạt động với SDK này ở tính
-// năng Vibe Check (xem src/vibe-check-khanh/src/lib/models.ts). LƯU Ý: model
-// `gemini-2.5-flash-preview-09-2025` dùng ở AffiliateSystemControlPanel.jsx
-// chỉ hoạt động qua REST fetch thẳng, KHÔNG dùng được với
-// `ai.models.generateContent()` của SDK — dùng nhầm model đó từng gây lỗi
-// 502 (Gemini trả lỗi cho model không hợp lệ, proxy bắt được và trả 502).
+// Model dùng `gemini-3.1-flash-lite` qua @google/genai SDK — model stable
+// mới hơn, low-latency/cost-effective cho các tác vụ chat text nhẹ. Trước đây
+// dùng `gemini-2.5-flash`, nhưng Google có thể trả 404 cho user/API key mới
+// ("This model models/gemini-2.5-flash is no longer available to new users"),
+// khiến proxy biến thành 502 ở production.
 // Gọi từ SERVER thay vì client, dùng chung biến GEMINI_API_KEY (không có tiền tố
 // VITE_, nên KHÔNG bao giờ lọt vào bundle trình duyệt) — biến này đã có sẵn
 // trong project, dùng chung với Vibe Check / Vision Sync Live Music.
@@ -46,7 +44,7 @@ const withTimeout = (promise, ms) => {
   return Promise.race([promise, timeout])
 }
 
-const DEFAULT_TEXT_MODEL = 'gemini-2.5-flash'
+const DEFAULT_TEXT_MODEL = 'gemini-3.1-flash-lite'
 
 export async function runAiChatbotControlGenerate({
   prompt,

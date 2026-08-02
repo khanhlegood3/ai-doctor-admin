@@ -5,9 +5,10 @@
  */
 
 /**
- * Default text-generation model to use. This is the same free-tier
- * `generateContent` model already used elsewhere in this project (see
- * AffiliateSystemControlPanel.jsx), unlike the paid/quota-limited Gemini
- * Live API (native-audio-dialog) that the original chatterbots demo used.
+ * Default text-generation model to use when this panel needs to display a
+ * model label. Actual generation runs server-side in
+ * api/_lib/aiChatbotControlProxy.js with the same stable Gemini model, unlike
+ * the paid/quota-limited Gemini Live API (native-audio-dialog) that the
+ * original chatterbots demo used.
  */
-export const DEFAULT_TEXT_MODEL = 'gemini-2.5-flash-preview-09-2025'
+export const DEFAULT_TEXT_MODEL = 'gemini-3.1-flash-lite'
