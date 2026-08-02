@@ -51,6 +51,7 @@ export function useVoiceCompanion() {
   const [connected, setConnected] = useState(false)
   const [listening, setListening] = useState(false)
   const [speaking, setSpeaking] = useState(false)
+  const [thinking, setThinking] = useState(false)
   const [volume, setVolume] = useState(0)
   const [error, setError] = useState(null)
   const [messages, setMessages] = useState([])
@@ -167,15 +168,20 @@ export function useVoiceCompanion() {
       // không lặp lại trong `history` (tránh Gemini nhận 2 lần cùng 1 câu).
       const priorHistory = messagesRef.current
       if (recordUserMessage) pushMessage('user', userText)
-      const reply = await callGeminiAPI(userText, systemInstruction, priorHistory)
-      pushMessage('assistant', reply)
-      speak(reply)
+      setThinking(true)
+      try {
+        const reply = await callGeminiAPI(userText, systemInstruction, priorHistory)
+        pushMessage('assistant', reply)
+        speak(reply)
+      } finally {
+        setThinking(false)
+      }
     },
     [speak, pushMessage]
   )
 
   const startListening = useCallback(() => {
-    if (!connected || speaking || listening) return
+    if (!connected || speaking || listening || thinking) return
     const SpeechRecognitionImpl =
       window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognitionImpl) {
@@ -232,7 +238,7 @@ export function useVoiceCompanion() {
     setListening(true)
     setListenHint(null)
     recognition.start()
-  }, [connected, speaking, listening, askCompanion])
+  }, [connected, speaking, listening, thinking, askCompanion])
 
   const connect = useCallback(async () => {
     setError(null)
@@ -277,6 +283,7 @@ export function useVoiceCompanion() {
     connected,
     listening,
     speaking,
+    thinking,
     volume,
     error,
     setError,

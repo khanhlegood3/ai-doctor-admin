@@ -20,7 +20,6 @@
  */
 import React from 'react'
 import AgentEdit from './components/AgentEdit'
-import ControlTray from './components/console/control-tray/ControlTray'
 import ErrorScreen from './components/demo/ErrorScreen'
 import KeynoteCompanion from './components/demo/keynote-companion/KeynoteCompanion'
 import Header from './components/Header'
@@ -47,8 +46,6 @@ function ChatterbotsApp() {
             </div>
 
             <TranscriptPanel />
-
-            <ControlTray></ControlTray>
           </main>
         </div>
       </LiveAPIProvider>
