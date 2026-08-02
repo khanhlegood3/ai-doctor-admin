@@ -55,8 +55,13 @@ export function useVoiceCompanion() {
   const [error, setError] = useState(null)
   const [messages, setMessages] = useState([])
   const [historyLoaded, setHistoryLoaded] = useState(false)
+  // Gợi ý nhẹ khi mic không bắt được giọng nói (KHÔNG phải lỗi thật, xem
+  // recognition.onerror bên dưới) — tự ẩn sau vài giây, giúp user biết để
+  // kiểm tra micro thay vì thấy im lặng khó hiểu.
+  const [listenHint, setListenHint] = useState(null)
 
   const recognitionRef = useRef(null)
+  const utteranceRef = useRef(null)
   const volumeIntervalRef = useRef(null)
   const agentRef = useRef(agent)
   const userRef = useRef(user)
@@ -91,6 +96,12 @@ export function useVoiceCompanion() {
     setMessages([])
     clearGlobalChatHistory(userKey)
   }, [userKey])
+
+  useEffect(() => {
+    if (!listenHint) return
+    const t = setTimeout(() => setListenHint(null), 6000)
+    return () => clearTimeout(t)
+  }, [listenHint])
 
 
   const stopVolumeAnimation = useCallback(() => {
@@ -128,11 +139,19 @@ export function useVoiceCompanion() {
       utterance.onend = () => {
         setSpeaking(false)
         stopVolumeAnimation()
+        utteranceRef.current = null
       }
       utterance.onerror = () => {
         setSpeaking(false)
         stopVolumeAnimation()
+        utteranceRef.current = null
       }
+      // QUAN TRỌNG: Chrome không giữ strong reference tới SpeechSynthesisUtterance
+      // — nếu không lưu lại ở đâu đó (ví dụ biến ref này), garbage collector có
+      // thể dọn utterance giữa chừng, khiến speak() chạy nhưng KHÔNG phát ra
+      // tiếng gì (không lỗi, không log, im lặng hoàn toàn). Đây là bug đã biết
+      // của Chrome (crbug liên quan tới SpeechSynthesisUtterance bị GC sớm).
+      utteranceRef.current = utterance
       window.speechSynthesis.speak(utterance)
     },
     [startVolumeAnimation, stopVolumeAnimation]
@@ -177,11 +196,30 @@ export function useVoiceCompanion() {
     recognition.onresult = event => {
       const text = event.results?.[0]?.[0]?.transcript
       if (text) {
+        setListenHint(null)
         askCompanion(text).catch(err => setError(err))
       }
     }
     recognition.onerror = event => {
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      console.warn('[useVoiceCompanion] recognition error:', event.error)
+      if (event.error === 'no-speech') {
+        // Mic có quyền truy cập nhưng không bắt được tiếng nói — thường do
+        // thiết bị mic sai/tắt tiếng ở cấp hệ điều hành hoặc trong Chrome
+        // (kiểm tra icon ổ khoá cạnh URL → Micro), KHÔNG phải lỗi của app.
+        setListenHint(
+          'Không nghe thấy giọng nói. Hãy kiểm tra đúng micro đang chọn trong Chrome (biểu tượng ổ khoá cạnh URL) rồi thử lại.'
+        )
+        return
+      }
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setError(
+          new Error(
+            'Trình duyệt đã chặn quyền micro. Vào biểu tượng ổ khoá cạnh URL → Micro → Cho phép, rồi tải lại trang.'
+          )
+        )
+        return
+      }
+      if (event.error !== 'aborted') {
         setError(new Error(`Lỗi nhận diện giọng nói: ${event.error}`))
       }
     }
@@ -192,6 +230,7 @@ export function useVoiceCompanion() {
 
     recognitionRef.current = recognition
     setListening(true)
+    setListenHint(null)
     recognition.start()
   }, [connected, speaking, listening, askCompanion])
 
@@ -247,5 +286,6 @@ export function useVoiceCompanion() {
     messages,
     historyLoaded,
     clearHistory,
+    listenHint,
   }
 }

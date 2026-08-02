@@ -25,6 +25,7 @@ function ControlTray({ children }) {
     listening,
     speaking,
     startListening,
+    listenHint,
   } = useLiveAPIContext()
 
   // Stop the current agent if the user is editing the agent or user config
@@ -80,6 +81,8 @@ function ControlTray({ children }) {
         </div>
         <span className="text-indicator">Streaming</span>
       </div>
+
+      {listenHint && <div className="listen-hint">{listenHint}</div>}
     </section>
   )
 }

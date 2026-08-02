@@ -557,6 +557,23 @@
   gap: 1rem;
 }
 
+.ai-chatbot-control-root .listen-hint {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 320px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--Neutral-90, #e8f0f8);
+  background: var(--Neutral-10, #1c1f21);
+  border: 1px solid var(--accent-red);
+  border-radius: 10px;
+  padding: 8px 12px;
+  z-index: 13;
+}
+
 @keyframes ai-chatbot-control-opacity-pulse {
   0% {
     opacity: 0.9;
