@@ -294,6 +294,7 @@ export default defineConfig(({ mode }) => {
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
           humanTankCameraKeyReact: resolve(__dirname, 'src/games/human-tank-camera-key.html'),
           coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
+          bodyProtectionHtmlReact: resolve(__dirname, 'src/games/body-protection-html.html'),
         },
       },
     },

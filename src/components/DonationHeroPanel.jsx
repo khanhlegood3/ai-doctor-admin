@@ -372,7 +372,7 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
                         </div>
                         <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-950">
                           <iframe
-                            src="/games/bao-ve-co-the-auto.html"
+                            src="/src/games/body-protection-html.html?game=auto"
                             title={t.bodyProtectionPreviewTitle}
                             className="h-[min(62vh,520px)] w-full"
                             loading="lazy"
