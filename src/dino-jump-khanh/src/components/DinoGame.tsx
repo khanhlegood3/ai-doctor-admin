@@ -4,6 +4,8 @@
 */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
+import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
 
 // --- TYPES & INTERFACES ---
 
@@ -848,23 +850,68 @@ const DinoGame: React.FC = () => {
     };
 
     useEffect(() => {
+        // Trước đây: import cả thư viện lẫn WASM từ CDN jsdelivr, và model từ
+        // storage.googleapis.com — 3 lần gọi mạng ngoài, không timeout, không
+        // fallback. Giờ: dùng package @mediapipe/tasks-vision đã cài (không
+        // qua CDN), WASM local (public/wasm/, xem scripts-copy-mediapipe-wasm.mjs),
+        // và model tự host (public/models/, xem scripts-copy-mediapipe-models.mjs)
+        // — thử local trước, rơi về CDN gốc nếu local lỗi/thiếu. Mọi bước đều
+        // có timeout để tránh treo vô hạn như bug đã gặp ở Remix Sức Khỏe KOL.
+        const INIT_STEP_TIMEOUT_MS = 15_000;
+
+        function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+                }, ms);
+                promise.then(
+                    (value) => { clearTimeout(timer); resolve(value); },
+                    (err) => { clearTimeout(timer); reject(err); },
+                );
+            });
+        }
+
         const initMediaPipe = async () => {
             try {
-                // @ts-ignore
-                const { PoseLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/+esm");
-                
-                const vision = await FilesetResolver.forVisionTasks(
-                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+                const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+
+                const vision = await withTimeout(
+                    FilesetResolver.forVisionTasks(MEDIAPIPE_VISION_WASM_URL),
+                    INIT_STEP_TIMEOUT_MS,
+                    'MediaPipe WASM fileset load',
                 );
-                
-                visionRef.current.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-                    baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-                        delegate: "GPU"
-                    },
-                    runningMode: "VIDEO",
-                    numPoses: 1
-                });
+
+                const createPoseLandmarker = (modelAssetPath: string, delegate: 'GPU' | 'CPU') =>
+                    withTimeout(
+                        PoseLandmarker.createFromOptions(vision, {
+                            baseOptions: { modelAssetPath, delegate },
+                            runningMode: 'VIDEO',
+                            numPoses: 1,
+                        }),
+                        INIT_STEP_TIMEOUT_MS,
+                        `Pose model init (${delegate}, ${modelAssetPath})`,
+                    );
+
+                let poseLandmarker;
+                try {
+                    // Thử model tự host trước, GPU trước rồi CPU nếu GPU treo/lỗi.
+                    try {
+                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'GPU');
+                    } catch (gpuErr) {
+                        console.warn('MediaPipe GPU delegate failed/timed out (local model), falling back to CPU:', gpuErr);
+                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'CPU');
+                    }
+                } catch (localErr) {
+                    console.warn('MediaPipe local pose model failed, falling back to CDN:', localErr);
+                    try {
+                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'GPU');
+                    } catch (gpuErr) {
+                        console.warn('MediaPipe GPU delegate failed/timed out (CDN model), falling back to CPU:', gpuErr);
+                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'CPU');
+                    }
+                }
+
+                visionRef.current.poseLandmarker = poseLandmarker;
 
                 setIsLoading(false);
                 setModelLoaded(true);

@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState } from 'react'
 import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath'
+import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath'
 
 // WASM files served directly from node_modules via Vite ?url import — no CDN, no public/wasm copy needed.
-// Model .task/.tflite files are still fetched from Google Storage at runtime (too large to bundle).
+// Model .task/.tflite files: tự host trong public/models/ (xem
+// scripts-copy-mediapipe-models.mjs + mediapipeModelPath.js), thử local
+// trước — nếu lỗi/thiếu file mới fallback về storage.googleapis.com.
 const WASM_URL = MEDIAPIPE_VISION_WASM_URL
-const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
-const POSE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
-const OBJECT_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
+const MODEL_URLS = MEDIAPIPE_MODEL_URLS
 
 // BUG ĐÃ SỬA (camera kẹt mãi ở "Loading AI pose model...", nút Retry không
 // có tác dụng): FilesetResolver.forVisionTasks() và Klass.createFromOptions()
@@ -62,9 +63,12 @@ export function useMediaPipeVision() {
     // sau (Retry, hoặc bật lại camera) bỏ qua thẳng CPU thay vì tốn thêm
     // 15s chờ GPU treo lại lần nữa trên cùng thiết bị.
     gpuFailed: { face: false, pose: false, object: false },
+    // Nhớ "model local đã lỗi/thiếu" theo từng loại, để không tốn thêm
+    // timeout thử lại local mỗi lần — đi thẳng CDN cho các lần sau.
+    localModelFailed: { face: false, pose: false, object: false },
   })
 
-  const createLandmarker = useCallback(async (Klass, fileset, modelAssetPath, extraOptions, gpuFailedKey) => {
+  const createWithDelegateFallback = useCallback(async (Klass, fileset, modelAssetPath, extraOptions, gpuFailedKey) => {
     const v = visionRef.current
     if (!v.gpuFailed[gpuFailedKey]) {
       try {
@@ -90,6 +94,23 @@ export function useMediaPipeVision() {
       `CPU delegate init (${gpuFailedKey})`,
     )
   }, [])
+
+  // Thử model tự host (local, nhanh) trước; nếu lỗi/thiếu file (404, mạng
+  // hỏng, v.v.) mới rơi về CDN gốc của Google. Bọc riêng từng đường dẫn bằng
+  // GPU->CPU fallback ở trên, để lỗi delegate và lỗi nguồn model không lẫn
+  // vào nhau khi debug.
+  const createLandmarker = useCallback(async (Klass, fileset, modelUrls, extraOptions, key) => {
+    const v = visionRef.current
+    if (!v.localModelFailed[key]) {
+      try {
+        return await createWithDelegateFallback(Klass, fileset, modelUrls.local, extraOptions, key)
+      } catch (localError) {
+        console.warn(`MediaPipe local model failed for "${key}", falling back to CDN:`, localError)
+        v.localModelFailed[key] = true
+      }
+    }
+    return createWithDelegateFallback(Klass, fileset, modelUrls.cdn, extraOptions, key)
+  }, [createWithDelegateFallback])
 
   const ensureLoaded = useCallback(async ({ face = true, pose = true, object = false, poseNumPoses = 1 } = {}) => {
     const v = visionRef.current
@@ -119,7 +140,7 @@ export function useMediaPipeVision() {
         )
       }
       if (face && !v.face) {
-        v.face = await createLandmarker(FaceLandmarker, v.fileset, FACE_MODEL_URL, {
+        v.face = await createLandmarker(FaceLandmarker, v.fileset, MODEL_URLS.face, {
           runningMode: 'VIDEO',
           numFaces: 1,
           outputFaceBlendshapes: false,
@@ -134,7 +155,7 @@ export function useMediaPipeVision() {
         if (v.pose) {
           try { v.pose.close() } catch { /* ignore */ }
         }
-        v.pose = await createLandmarker(PoseLandmarker, v.fileset, POSE_MODEL_URL, {
+        v.pose = await createLandmarker(PoseLandmarker, v.fileset, MODEL_URLS.pose, {
           runningMode: 'VIDEO',
           numPoses: poseNumPoses,
         }, 'pose')
@@ -142,7 +163,7 @@ export function useMediaPipeVision() {
         v.poseNumPoses = poseNumPoses
       }
       if (object && !v.object) {
-        v.object = await createLandmarker(ObjectDetector, v.fileset, OBJECT_MODEL_URL, {
+        v.object = await createLandmarker(ObjectDetector, v.fileset, MODEL_URLS.object, {
           runningMode: 'VIDEO',
           scoreThreshold: 0.5,
           maxResults: 5,
