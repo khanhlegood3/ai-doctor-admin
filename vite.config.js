@@ -292,6 +292,8 @@ export default defineConfig(({ mode }) => {
           dinoJumpKhanh: resolve(__dirname, 'src/dino-jump-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
+          humanTankCameraKeyReact: resolve(__dirname, 'src/games/human-tank-camera-key.html'),
+          coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
         },
       },
     },
