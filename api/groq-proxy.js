@@ -28,7 +28,7 @@ import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningP
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './_lib/kolR2Upload.js'
-import { initVideoAnalyzerUpload, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './_lib/videoAnalyzerProxy.js'
+import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './_lib/videoAnalyzerProxy.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
 function parseBody(req) {
@@ -257,21 +257,28 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Nhánh Video Analyzer (Gemini thật server-side, cần GEMINI_API_KEY) ---
-  // Chuyển đổi từ video-analyzer.zip. 3 action, xem chi tiết ở
-  // api/_lib/videoAnalyzerProxy.js:
-  //   initUpload -> mở resumable-upload session, trả uploadUrl (client PUT
-  //                 bytes video thẳng lên Google, không qua function này)
-  //   checkFile  -> poll trạng thái xử lý video (PROCESSING -> ACTIVE)
-  //   generate   -> generateContent thật kèm function calling, trả về
-  //                 timecodes đã parse sẵn
+  // --- Nhánh Video Analyzer (R2 relay + Gemini thật server-side) ---
+  // Chuyển đổi từ video-analyzer.zip. 4 action, xem chi tiết ở
+  // api/_lib/videoAnalyzerProxy.js (đã đổi từ upload thẳng-lên-Google sang
+  // relay qua R2 vì Google chặn CORS khi session upload được mở từ server):
+  //   initR2Upload  -> ký presigned PUT URL lên R2, client PUT bytes video
+  //                    thẳng lên R2 (không qua function này)
+  //   uploadToGemini -> server tải bytes vừa upload từ R2 rồi đẩy sang
+  //                    Gemini File API (server-to-server, không CORS)
+  //   checkFile     -> poll trạng thái xử lý video (PROCESSING -> ACTIVE)
+  //   generate      -> generateContent thật kèm function calling, trả về
+  //                    timecodes đã parse sẵn
   if (body.provider === 'video-analyzer') {
     console.log('[groq-proxy] (video-analyzer) action:', body.action)
     try {
-      if (body.action === 'initUpload') {
-        const payload = await initVideoAnalyzerUpload({
+      if (body.action === 'initR2Upload') {
+        const payload = await createVideoAnalyzerR2UploadUrl({ mimeType: body.mimeType })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'uploadToGemini') {
+        const payload = await uploadVideoAnalyzerFromR2({
+          publicUrl: body.publicUrl,
           mimeType: body.mimeType,
-          numBytes: body.numBytes,
           displayName: body.displayName,
         })
         return res.status(200).json(payload)

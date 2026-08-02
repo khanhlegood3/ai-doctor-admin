@@ -9,7 +9,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckP
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
-import { initVideoAnalyzerUpload, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
+import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -221,10 +221,12 @@ function geminiComicDevMiddleware(env) {
           if (parsed.provider === 'video-analyzer') {
             try {
               let payload
-              if (parsed.action === 'initUpload') {
-                payload = await initVideoAnalyzerUpload({
+              if (parsed.action === 'initR2Upload') {
+                payload = await createVideoAnalyzerR2UploadUrl({ mimeType: parsed.mimeType, envSource: env })
+              } else if (parsed.action === 'uploadToGemini') {
+                payload = await uploadVideoAnalyzerFromR2({
+                  publicUrl: parsed.publicUrl,
                   mimeType: parsed.mimeType,
-                  numBytes: parsed.numBytes,
                   displayName: parsed.displayName,
                   envSource: env,
                 })

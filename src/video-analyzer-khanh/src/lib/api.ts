@@ -4,21 +4,26 @@
  */
 // ĐÃ ĐỔI: bản gốc gọi thẳng @google/genai với API key nhúng client
 // (process.env.GEMINI_API_KEY, xem README video-analyzer.zip) — không an
-// toàn để deploy thật. Ở đây thay bằng 3 bước gọi qua Serverless Function
+// toàn để deploy thật. Ở đây thay bằng luồng qua Serverless Function
 // /api/groq-proxy (provider: 'video-analyzer'), server dùng GEMINI_API_KEY
 // thật (biến môi trường, không lộ ra client) — xem
 // api/_lib/videoAnalyzerProxy.js:
 //
-//   1. initUpload  -> mở resumable-upload session với Gemini File API, trả
-//                      về `uploadUrl` (đã có quyền ghi tạm thời từ Google).
-//   2. Trình duyệt PUT thẳng bytes video LÊN GOOGLE bằng uploadUrl đó
-//      (không qua server của mình nữa) -> tránh giới hạn kích thước body
-//      của Vercel Serverless Function, giống mô hình presigned URL đã dùng
-//      cho video KOL/R2 (xem kolR2Upload.js).
-//   3. checkFile   -> poll trạng thái xử lý (PROCESSING -> ACTIVE) vì Gemini
-//                      cần thời gian xử lý video sau khi nhận đủ bytes.
-//   4. generate    -> generateContent thật kèm function calling, trả về
-//                      timecodes đã parse sẵn.
+//   1. initR2Upload  -> ký presigned PUT URL lên Cloudflare R2. Trình duyệt
+//                        PUT bytes video thẳng lên R2 (bucket đã bật CORS
+//                        cho origin thật của app — xem r2Storage.js).
+//      LƯU Ý: ĐÃ THỬ mở resumable-upload session thẳng với Gemini File API
+//      ở server rồi trả uploadUrl cho trình duyệt PUT trực tiếp lên Google
+//      — nhưng bị CHẶN BỞI CORS (Google chỉ cấp CORS cho session mở ngay từ
+//      trình duyệt, không phải từ server) nên phải đổi sang relay qua R2.
+//   2. uploadToGemini -> SAU KHI R2 upload xong, server tải bytes từ R2 rồi
+//                        đẩy sang Gemini File API (server-to-server, không
+//                        qua trình duyệt nên không bị CORS).
+//   3. checkFile      -> poll trạng thái xử lý (PROCESSING -> ACTIVE) vì
+//                        Gemini cần thời gian xử lý video sau khi nhận đủ
+//                        bytes.
+//   4. generate       -> generateContent thật kèm function calling, trả về
+//                        timecodes đã parse sẵn.
 
 export type UploadedVideoFile = {
   uri: string
@@ -41,30 +46,25 @@ async function proxyCall(action: string, extra: Record<string, unknown>) {
 async function uploadFile(file: File): Promise<UploadedVideoFile> {
   const mimeType = file.type || 'video/mp4';
 
-  console.log('Uploading...');
-  const { uploadUrl } = await proxyCall('initUpload', {
-    mimeType,
-    numBytes: file.size,
-    displayName: file.name,
-  });
+  console.log('Uploading to R2...');
+  const { uploadUrl, publicUrl } = await proxyCall('initR2Upload', { mimeType });
 
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Length': String(file.size),
-      'X-Goog-Upload-Offset': '0',
-      'X-Goog-Upload-Command': 'upload, finalize',
-    },
+  const r2Res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType },
     body: file,
   });
-
-  if (!uploadRes.ok) {
-    throw new Error(`Video upload failed (${uploadRes.status})`);
+  if (!r2Res.ok) {
+    throw new Error(`Video upload to R2 failed (${r2Res.status})`);
   }
+  console.log('Uploaded to R2. Sending to Gemini...');
 
-  const uploadData = await uploadRes.json();
-  let fileResource = uploadData.file;
-  console.log('Uploaded.');
+  let fileResource = await proxyCall('uploadToGemini', {
+    publicUrl,
+    mimeType,
+    displayName: file.name,
+  });
+  console.log('Sent to Gemini.');
 
   console.log('Getting...');
   while (fileResource.state === 'PROCESSING') {
@@ -96,3 +96,4 @@ async function generateContent(
 }
 
 export { generateContent, uploadFile };
+
