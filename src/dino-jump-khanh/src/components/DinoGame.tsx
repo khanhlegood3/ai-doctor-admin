@@ -23,6 +23,18 @@ interface VisionState {
     lastPredictionTime: number;
 }
 
+// --- CAMERA MODE (1 toggle nhiều trạng thái) ---
+type CameraMode = 'background' | 'below' | 'hidden' | 'off';
+
+const CAMERA_MODE_ORDER: CameraMode[] = ['background', 'below', 'hidden', 'off'];
+
+const CAMERA_MODE_INFO: Record<CameraMode, { icon: string; label: string; hint: string }> = {
+    background: { icon: '🖼️', label: 'Camera: Background', hint: 'Live camera fills the game background' },
+    below: { icon: '📷', label: 'Camera: Below', hint: 'Small camera preview under the game' },
+    hidden: { icon: '🙈', label: 'Camera: Hidden', hint: 'Camera hidden — gesture indicator only' },
+    off: { icon: '⌨️', label: 'Camera: Off (Space/Tap)', hint: 'No camera — use the Space key or the on-screen button' },
+};
+
 // Entity Interfaces for Pooling
 interface GameObject {
     active: boolean;
@@ -383,26 +395,23 @@ const DinoGame: React.FC = () => {
     // --- REACT STATE ---
     const [isLoading, setIsLoading] = useState(true);
     const [status, setStatus] = useState("Stand back and JUMP to control!");
-    // Mặc định MỞ camera feed ngay khi load (trước đây false = ẩn mặc
-    // định). Người dùng vẫn tự ẩn/hiện được qua checkbox bên dưới —
-    // giữ nguyên cơ chế toggle cũ, chỉ đổi giá trị khởi tạo.
-    const [showVision, setShowVision] = useState(true);
     const [gameRunning, setGameRunning] = useState(false);
     const [canRestart, setCanRestart] = useState(false);
     const [modelLoaded, setModelLoaded] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
     const [cameraReady, setCameraReady] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
-    // Chế độ "Camera làm nền chơi game" — giống các game Bảo Vệ Cơ Thể
-    // (bao-ve-co-the-camera-key.html): vẽ trực tiếp khung hình camera mờ
-    // làm nền của CHÍNH canvas chơi game, thay vì tách riêng 1 khung
-    // camera nhỏ (320x240) bên dưới → tối ưu không gian màn hình, đặc
-    // biệt hữu ích trên mobile. Mặc định TẮT (giữ hành vi cũ), người
-    // dùng tự bật qua nút toggle.
-    const [cameraAsBackground, setCameraAsBackground] = useState(false);
-
+    // --- CAMERA MODE (1 toggle nhiều trạng thái, thay cho 2 toggle cũ
+    // showVision + cameraAsBackground) ---
+    // 'background' (mặc định): camera mở sẵn, làm nền mờ của canvas game.
+    // 'below'                : camera mở, hiển thị khung xem nhỏ bên dưới game.
+    // 'hidden'                : camera mở, KHÔNG hiển thị hình ảnh camera —
+    //                           chỉ còn chấm báo hiệu cử chỉ (vẫn "thấy cử chỉ").
+    // 'off'                   : tắt hẳn camera — chơi bằng phím Space vật lý
+    //                           hoặc nút bấm ảo luôn hiển thị trên màn hình.
+    const [cameraMode, setCameraMode] = useState<CameraMode>('background');
+    const cameraModeRef = useRef<CameraMode>('background');
     const mutedRef = useRef(false);
-    const cameraAsBackgroundRef = useRef(false);
 
     // --- ENGINE STATE (Mutable) ---
     const engineRef = useRef<GameEngineState>({
@@ -441,8 +450,8 @@ const DinoGame: React.FC = () => {
     }, [isMuted]);
 
     useEffect(() => {
-        cameraAsBackgroundRef.current = cameraAsBackground;
-    }, [cameraAsBackground]);
+        cameraModeRef.current = cameraMode;
+    }, [cameraMode]);
 
     // --- GAME LOGIC ---
 
@@ -517,7 +526,7 @@ const DinoGame: React.FC = () => {
         // riêng, tiết kiệm không gian màn hình. Nếu camera chưa sẵn sàng,
         // fallback về nền trắng như cũ.
         const video = videoRef.current;
-        if (cameraAsBackgroundRef.current && video && video.readyState >= 2 && video.videoWidth > 0) {
+        if (cameraModeRef.current === 'background' && video && video.readyState >= 2 && video.videoWidth > 0) {
             ctx.save();
             ctx.globalAlpha = 0.5;
             ctx.scale(-1, 1);
@@ -644,7 +653,7 @@ const DinoGame: React.FC = () => {
             }
         } else if (!engine.gameRunning && engine.canRestart) {
             resetGame();
-        } else if (!engine.hasStarted && engine.cameraReady) {
+        } else if (!engine.hasStarted && (engine.cameraReady || cameraModeRef.current === 'off')) {
             manualStart();
         }
     };
@@ -809,6 +818,35 @@ const DinoGame: React.FC = () => {
         }
     };
 
+    // Dừng hẳn camera + vòng lặp nhận diện pose — dùng khi chuyển sang
+    // cameraMode 'off' (không cần webcam nữa, điều khiển bằng Space/nút ảo).
+    const stopCamera = () => {
+        const video = videoRef.current;
+        const stream = video?.srcObject as MediaStream | null;
+        if (stream) {
+            stream.getTracks().forEach((tr) => tr.stop());
+        }
+        if (video) video.srcObject = null;
+        cancelAnimationFrame(engineRef.current.visionAnimationId);
+        setCameraReady(false);
+        engineRef.current.cameraReady = false;
+    };
+
+    // 1 toggle nhiều trạng thái: background -> below -> hidden -> off -> (lặp).
+    // Gọi enableCam()/stopCamera() NGAY TRONG cùng lần click (user-gesture)
+    // để trình duyệt không chặn prompt xin quyền camera (getUserMedia cần
+    // gesture thật, không thể gọi an toàn từ useEffect).
+    const cycleCameraMode = () => {
+        const currentIndex = CAMERA_MODE_ORDER.indexOf(cameraModeRef.current);
+        const next = CAMERA_MODE_ORDER[(currentIndex + 1) % CAMERA_MODE_ORDER.length];
+        if (next === 'off') {
+            stopCamera();
+        } else if (!engineRef.current.cameraReady && visionRef.current.poseLandmarker) {
+            enableCam();
+        }
+        setCameraMode(next);
+    };
+
     useEffect(() => {
         const initMediaPipe = async () => {
             try {
@@ -844,6 +882,22 @@ const DinoGame: React.FC = () => {
         };
     }, []);
 
+    // Phím Space vật lý — điều khiển thay thế, luôn hoạt động (không chỉ khi
+    // cameraMode = 'off'), song song với AI camera. handleJumpSignal chỉ đọc
+    // từ refs nên đóng gói 1 lần ở đây vẫn luôn "current".
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.code !== 'Space' && e.key !== ' ') return;
+            // Không chặn Space khi người dùng đang gõ vào input/textarea khác trên trang.
+            const target = e.target as HTMLElement | null;
+            if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+            e.preventDefault();
+            handleJumpSignal();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
+
     return (
         <div className="flex flex-col items-center gap-5 w-full max-w-4xl relative">
             
@@ -855,6 +909,17 @@ const DinoGame: React.FC = () => {
                     height={GAME_CONFIG.CANVAS_HEIGHT}
                     className="bg-white border-2 border-[#333] rounded-lg shadow-md max-w-full"
                 />
+
+                {/* GESTURE INDICATOR — tách khỏi khung camera 320x240 để vẫn
+                    hiển thị được ở cameraMode 'hidden' (ẩn camera, vẫn thấy
+                    cử chỉ) lẫn 'background'/'below'. Ẩn hẳn khi mode = 'off'. */}
+                {cameraMode !== 'off' && (
+                    <div
+                        ref={jumpSignalRef}
+                        title="Gesture detected"
+                        className="absolute top-[4%] right-[2.5%] z-20 w-4 h-4 bg-[#ccc] rounded-full transition-all duration-100 [&.active]:bg-[#ff5252] [&.active]:shadow-[0_0_10px_#ff5252]"
+                    ></div>
+                )}
 
                 {/* MUTE BUTTON */}
                 <button
@@ -883,14 +948,14 @@ const DinoGame: React.FC = () => {
                 {/* START SCREEN */}
                 {(!gameRunning && !canRestart && !hasStarted) && (
                     <div className="absolute top-0 left-0 w-full h-full bg-white/80 flex flex-col items-center justify-center z-10 rounded-lg">
-                        {isLoading ? (
+                        {(isLoading && cameraMode !== 'off') ? (
                             <>
                                 <div className="w-8 h-8 border-4 border-[#f3f3f3] border-t-[#535353] rounded-full animate-spin mb-5"></div>
                                 <p className="font-['Press_Start_2P'] text-xs text-[#535353]">Loading AI Model...</p>
                             </>
                         ) : (
                             <div className="flex flex-col items-center gap-4">
-                                {!cameraReady ? (
+                                {(!cameraReady && cameraMode !== 'off') ? (
                                     <button 
                                         onClick={enableCam} 
                                         className={`px-5 py-3 bg-transparent border-2 border-[#535353] text-[#535353] font-['Press_Start_2P'] text-base cursor-pointer hover:bg-[#535353] hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] focus:ring-offset-2`}
@@ -906,7 +971,7 @@ const DinoGame: React.FC = () => {
                                             START GAME
                                         </button>
                                         <p className="font-['Press_Start_2P'] text-xs text-[#535353] animate-pulse">
-                                            OR JUMP TO START
+                                            {cameraMode === 'off' ? 'OR PRESS SPACE / TAP TO START' : 'OR JUMP TO START'}
                                         </p>
                                     </>
                                 )}
@@ -936,37 +1001,27 @@ const DinoGame: React.FC = () => {
 
             {/* CONTROLS */}
             <div className="mt-2 text-xs text-[#888] text-center font-['Press_Start_2P'] flex flex-wrap items-center justify-center gap-4">
-                <label className="cursor-pointer flex items-center justify-center hover:text-[#535353] transition-colors">
-                    <input 
-                        type="checkbox" 
-                        checked={showVision} 
-                        onChange={(e) => setShowVision(e.target.checked)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                setShowVision(!showVision);
-                            }
-                        }}
-                        className={`mr-2 w-4 h-4 accent-[${GAME_CONFIG.COLORS.FOCUS}] focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] focus:ring-offset-2 focus:ring-offset-[#f7f7f7] rounded cursor-pointer`}
-                    />
-                    Show Camera Feed
-                </label>
-                {/* Chế độ camera-làm-nền: đưa camera vào làm màn hình mặc
-                    định của game, giống các game Bảo Vệ Cơ Thể, để tối
-                    ưu không gian (không cần khung camera riêng bên dưới). */}
+                {/* 1 toggle nhiều trạng thái thay cho 2 toggle cũ (Show Camera
+                    Feed checkbox + Camera as Background button): click để
+                    xoay vòng background -> below -> hidden -> off. */}
                 <button
                     type="button"
-                    onClick={() => setCameraAsBackground((v) => !v)}
-                    className={`px-2 py-1 rounded border transition-colors ${cameraAsBackground ? 'bg-[#535353] text-white border-[#535353]' : 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]'}`}
-                    title="Use the live camera as the game's background instead of a separate preview box"
+                    onClick={cycleCameraMode}
+                    className={`px-2 py-1 rounded border transition-colors ${cameraMode === 'off' ? 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]' : 'bg-[#535353] text-white border-[#535353]'}`}
+                    title={`${CAMERA_MODE_INFO[cameraMode].hint} — click to switch camera mode`}
                 >
-                    {cameraAsBackground ? '✅ Camera as Background' : '🖼️ Use Camera as Background'}
+                    {CAMERA_MODE_INFO[cameraMode].icon} {CAMERA_MODE_INFO[cameraMode].label}
                 </button>
             </div>
 
-            {/* VISION CONTAINER */}
+            {/* VISION CONTAINER — chỉ HIỂN THỊ (CSS) khung xem camera nhỏ ở
+                mode 'below'; các mode khác dùng class "hidden" chứ KHÔNG
+                unmount <video>/<canvas>, để camera vẫn tiếp tục stream và
+                predictWebcam() vẫn tiếp tục nhận diện pose bình thường ở mode
+                'background' (vẽ thẳng vào canvas game, xem runGameLoop) và
+                'hidden' (không vẽ gì, chỉ còn chấm báo hiệu cử chỉ ở trên). */}
             <div 
-                className={`relative w-[320px] h-[240px] border-2 border-[#ccc] rounded-lg overflow-hidden bg-black ${showVision && !cameraAsBackground ? 'block' : 'hidden'}`}
+                className={`relative w-[320px] h-[240px] border-2 border-[#ccc] rounded-lg overflow-hidden bg-black ${cameraMode === 'below' ? 'block' : 'hidden'}`}
             >
                 <video 
                     ref={videoRef} 
@@ -978,11 +1033,21 @@ const DinoGame: React.FC = () => {
                     ref={outputCanvasRef} 
                     className="absolute top-0 left-0 w-full h-full scale-x-[-1]"
                 ></canvas>
-                <div 
-                    ref={jumpSignalRef}
-                    className="absolute top-[10px] right-[10px] w-5 h-5 bg-[#ccc] rounded-full transition-all duration-100 [&.active]:bg-[#ff5252] [&.active]:shadow-[0_0_10px_#ff5252]"
-                ></div>
             </div>
+
+            {/* NÚT NHẢY ẢO — luôn hiển thị trên màn hình (không chỉ khi tắt
+                camera), để chơi được bằng cảm ứng bất cứ lúc nào, song song
+                với AI camera và phím Space vật lý. */}
+            <button
+                type="button"
+                onClick={handleJumpSignal}
+                onTouchStart={(e) => { e.preventDefault(); handleJumpSignal(); }}
+                className={`w-full max-w-xs py-4 rounded-xl text-white font-['Press_Start_2P'] text-xs tracking-wide select-none touch-manipulation transition-colors focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] focus:ring-offset-2`}
+                style={{ background: GAME_CONFIG.COLORS.PRIMARY }}
+                aria-label="Jump (Space key)"
+            >
+                ⬆ JUMP (SPACE)
+            </button>
         </div>
     );
 };

@@ -426,8 +426,8 @@ export default function AIPoseCompareLivePanel() {
 
       <p className="text-[11px] text-slate-500 text-center px-4">
         {t(
-          'Dùng MediaPipe Pose Landmarker (AI thị giác thật, chạy ngay trên trình duyệt) để đo góc khớp tay/chân của bạn và so khớp với tư thế mục tiêu — không phải mô phỏng.',
-          'Powered by MediaPipe Pose Landmarker (real on-device computer vision), measuring your joint angles and matching them against the target pose — not a simulation.'
+          'Powered by Zero to Forever Foundation Platform — AI thị giác thật, chạy ngay trên trình duyệt, đo góc khớp tay/chân của bạn và so khớp với tư thế mục tiêu, không phải mô phỏng.',
+          'Powered by Zero to Forever Foundation Platform — real on-device computer vision, measuring your joint angles and matching them against the target pose, not a simulation.'
         )}
       </p>
     </div>

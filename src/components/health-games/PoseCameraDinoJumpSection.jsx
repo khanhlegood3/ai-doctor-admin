@@ -75,6 +75,9 @@ export default function PoseCameraDinoJumpSection({
             referrerPolicy="strict-origin-when-cross-origin"
           />
         </div>
+        <p className="text-[11px] text-gray-400 text-center mt-3">
+          {lang === 'vi' ? 'Powered by Zero to Forever Foundation Platform' : 'Powered by Zero to Forever Foundation Platform'}
+        </p>
       </section>
     )
   }
@@ -98,6 +101,9 @@ export default function PoseCameraDinoJumpSection({
           referrerPolicy="strict-origin-when-cross-origin"
         />
       </section>
+      <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginTop: 10 }}>
+        Powered by Zero to Forever Foundation Platform
+      </p>
     </div>
   )
 }
