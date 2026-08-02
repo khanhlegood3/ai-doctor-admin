@@ -8,6 +8,33 @@ const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_lan
 const POSE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
 const OBJECT_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite'
 
+// BUG ĐÃ SỬA (camera kẹt mãi ở "Loading AI pose model...", nút Retry không
+// có tác dụng): FilesetResolver.forVisionTasks() và Klass.createFromOptions()
+// không có timeout. Trên một số thiết bị (đặc biệt Safari iOS qua WebGL),
+// khởi tạo delegate 'GPU' có thể treo VĨNH VIỄN — promise không bao giờ
+// resolve lẫn reject. Khi đó v.loadingPromise kẹt ở trạng thái pending mãi
+// mãi, status không bao giờ chuyển sang 'error', và vì ensureLoaded() có
+// `if (v.loadingPromise) return v.loadingPromise`, bấm "Thử lại" chỉ await
+// lại CHÍNH promise đã kẹt đó — không hề bắt đầu lần thử mới.
+// → Bọc mọi bước tải bằng withTimeout(): khi hết giờ, promise sẽ reject thật
+// sự, status chuyển 'error', loadingPromise được dọn sạch (finally), và lần
+// Retry tiếp theo mới thực sự chạy lại. Lưu ý: đây không thể "hủy" lệnh gọi
+// MediaPipe gốc đang treo (Tasks Vision không có API hủy), chỉ ngừng chờ nó.
+const FILESET_TIMEOUT_MS = 15_000
+const CREATE_LANDMARKER_TIMEOUT_MS = 15_000
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`))
+    }, ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (err) => { clearTimeout(timer); reject(err) },
+    )
+  })
+}
+
 /**
  * Lazily loads MediaPipe Tasks Vision (FaceLandmarker + PoseLandmarker) and exposes
  * helpers to run detection on a live <video> element or a static <img> element.
@@ -31,21 +58,37 @@ export function useMediaPipeVision() {
     ObjectDetector: null,
     DrawingUtils: null,
     loadingPromise: null,
+    // Nhớ "GPU delegate đã treo/lỗi" theo từng loại landmarker, để lần tải
+    // sau (Retry, hoặc bật lại camera) bỏ qua thẳng CPU thay vì tốn thêm
+    // 15s chờ GPU treo lại lần nữa trên cùng thiết bị.
+    gpuFailed: { face: false, pose: false, object: false },
   })
 
-  const createLandmarker = useCallback(async (Klass, fileset, modelAssetPath, extraOptions) => {
-    try {
-      return await Klass.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath, delegate: 'GPU' },
-        ...extraOptions,
-      })
-    } catch (gpuError) {
-      console.warn('MediaPipe GPU delegate failed, retrying on CPU:', gpuError)
-      return await Klass.createFromOptions(fileset, {
+  const createLandmarker = useCallback(async (Klass, fileset, modelAssetPath, extraOptions, gpuFailedKey) => {
+    const v = visionRef.current
+    if (!v.gpuFailed[gpuFailedKey]) {
+      try {
+        return await withTimeout(
+          Klass.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath, delegate: 'GPU' },
+            ...extraOptions,
+          }),
+          CREATE_LANDMARKER_TIMEOUT_MS,
+          `GPU delegate init (${gpuFailedKey})`,
+        )
+      } catch (gpuError) {
+        console.warn('MediaPipe GPU delegate failed/timed out, falling back to CPU:', gpuError)
+        v.gpuFailed[gpuFailedKey] = true
+      }
+    }
+    return withTimeout(
+      Klass.createFromOptions(fileset, {
         baseOptions: { modelAssetPath, delegate: 'CPU' },
         ...extraOptions,
-      })
-    }
+      }),
+      CREATE_LANDMARKER_TIMEOUT_MS,
+      `CPU delegate init (${gpuFailedKey})`,
+    )
   }, [])
 
   const ensureLoaded = useCallback(async ({ face = true, pose = true, object = false, poseNumPoses = 1 } = {}) => {
@@ -69,7 +112,11 @@ export function useMediaPipeVision() {
       v.DrawingUtils = DrawingUtils
 
       if (!v.fileset) {
-        v.fileset = await FilesetResolver.forVisionTasks(WASM_URL)
+        v.fileset = await withTimeout(
+          FilesetResolver.forVisionTasks(WASM_URL),
+          FILESET_TIMEOUT_MS,
+          'MediaPipe WASM fileset load',
+        )
       }
       if (face && !v.face) {
         v.face = await createLandmarker(FaceLandmarker, v.fileset, FACE_MODEL_URL, {
@@ -77,7 +124,7 @@ export function useMediaPipeVision() {
           numFaces: 1,
           outputFaceBlendshapes: false,
           outputFacialTransformationMatrixes: false,
-        })
+        }, 'face')
         v.faceMode = 'VIDEO'
       }
       if (pose && !poseAlreadyReadyForCount) {
@@ -90,7 +137,7 @@ export function useMediaPipeVision() {
         v.pose = await createLandmarker(PoseLandmarker, v.fileset, POSE_MODEL_URL, {
           runningMode: 'VIDEO',
           numPoses: poseNumPoses,
-        })
+        }, 'pose')
         v.poseMode = 'VIDEO'
         v.poseNumPoses = poseNumPoses
       }
@@ -99,7 +146,7 @@ export function useMediaPipeVision() {
           runningMode: 'VIDEO',
           scoreThreshold: 0.5,
           maxResults: 5,
-        })
+        }, 'object')
         v.objectMode = 'VIDEO'
       }
     })()
