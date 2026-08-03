@@ -57,6 +57,8 @@ interface GameEngineState {
     // Pools
     obstaclePool: Cactus[];
     groundPool: GroundDetail[];
+    platformPool: OrganPlatform[];
+    powerUpPool: BacteriaPowerUp[];
     spawnTimer: number;
     groundSpawnTimer: number;
     animationId: number;
@@ -64,6 +66,9 @@ interface GameEngineState {
     dino: DinoEntity;
     hasStarted: boolean;
     cameraReady: boolean;
+    shieldRemaining: number;
+    powerUpSpawnTimer: number;
+    platformSpawnTimer: number;
 }
 
 interface DinoEntity {
@@ -101,10 +106,30 @@ const GAME_CONFIG = {
         ACCENT: '#ff5252',
         FOCUS: '#F59E0B',
         WHITE: '#ffffff',
+        VESSEL: '#b91c1c',
+        VIRUS: '#8b5cf6',
+        CANCER: '#ef4444',
+        BACTERIA: '#22c55e',
+        ORGAN: '#0ea5e9',
+        SHIELD: '#38bdf8',
     }
 };
 
 // --- AUDIO SYNTHESIS ---
+
+const OBSTACLE_TYPES = ['virus', 'virus', 'cancer', 'cancer', 'cancer'] as const;
+type ObstacleType = typeof OBSTACLE_TYPES[number];
+
+const ORGAN_PLATFORMS = [
+    { name: 'Tim', icon: '♥', color: '#ef4444' },
+    { name: 'Phổi', icon: '☁', color: '#38bdf8' },
+    { name: 'Gan', icon: '◖', color: '#f59e0b' },
+    { name: 'Dạ dày', icon: '◡', color: '#a855f7' },
+    { name: 'Thận', icon: '◔', color: '#22c55e' },
+    { name: 'Ruột', icon: '∿', color: '#fb7185' },
+];
+
+const SHIELD_DURATION = 20;
 
 const SoundSynth = {
     ctx: null as AudioContext | null,
@@ -233,11 +258,14 @@ class GroundDetail {
     y: number = 0;
     width: number = 0;
     height: number = 2;
+    organIndex: number = 0;
 
     spawn(startX: number) {
         this.x = startX;
-        this.y = GAME_CONFIG.GROUND_Y + 3 + Math.random() * 45;
-        this.width = Math.random() > 0.5 ? 3 : 7;
+        this.y = GAME_CONFIG.GROUND_Y + 4 + Math.random() * 36;
+        this.width = 28 + Math.random() * 54;
+        this.height = 3 + Math.random() * 3;
+        this.organIndex = Math.floor(Math.random() * ORGAN_PLATFORMS.length);
         this.active = true;
     }
 
@@ -249,8 +277,16 @@ class GroundDetail {
 
     draw(ctx: CanvasRenderingContext2D) {
         if (!this.active) return;
-        // Optimization: Assume context color is already set to PRIMARY
-        ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.width, this.height);
+        const organ = ORGAN_PLATFORMS[this.organIndex];
+        const ix = Math.floor(this.x);
+        const iy = Math.floor(this.y);
+        ctx.fillStyle = GAME_CONFIG.COLORS.VESSEL;
+        ctx.fillRect(ix, iy, this.width, this.height);
+        ctx.fillStyle = organ.color;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(organ.icon, ix + 2, iy - 2);
+        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
     }
 }
 
@@ -260,11 +296,14 @@ class Cactus {
     y: number = 210;
     width: number = 0;
     height: number = 0;
+    kind: ObstacleType = 'virus';
 
     spawn(startX: number) {
         this.x = startX;
-        this.width = 20 + Math.random() * 15;
-        this.height = 30 + Math.random() * 20;
+        this.kind = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+        this.width = this.kind === 'virus' ? 30 + Math.random() * 10 : 26 + Math.random() * 16;
+        this.height = this.kind === 'virus' ? 30 + Math.random() * 10 : 34 + Math.random() * 20;
+        this.y = GAME_CONFIG.GROUND_Y - this.height;
         this.active = true;
     }
 
@@ -278,17 +317,65 @@ class Cactus {
         if (!this.active) return;
         const ix = Math.floor(this.x);
         const iy = Math.floor(this.y);
-        const w3 = Math.floor(this.width / 3);
-        const h = Math.floor(this.height);
-        
-        // Main stem
-        ctx.fillRect(ix + w3, iy, w3, h);
-        // Left arm
-        ctx.fillRect(ix, iy + 10, w3, 5); 
-        ctx.fillRect(ix, iy + 5, 5, 10);
-        // Right arm
-        ctx.fillRect(ix + 2*w3, iy + 15, w3, 5);
-        ctx.fillRect(ix + Math.floor(this.width) - 5, iy + 5, 5, 15);
+        const cx = ix + this.width / 2;
+        const cy = iy + this.height / 2;
+
+        if (this.kind === 'virus') {
+            ctx.fillStyle = GAME_CONFIG.COLORS.VIRUS;
+            ctx.beginPath();
+            ctx.arc(cx, cy, this.width / 2.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = GAME_CONFIG.COLORS.VIRUS;
+            for (let i = 0; i < 8; i++) {
+                const a = (Math.PI * 2 * i) / 8;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(a) * 10, cy + Math.sin(a) * 10);
+                ctx.lineTo(cx + Math.cos(a) * 18, cy + Math.sin(a) * 18);
+                ctx.stroke();
+            }
+            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillText('V', cx - 4, cy + 4);
+        } else {
+            ctx.fillStyle = GAME_CONFIG.COLORS.CANCER;
+            ctx.beginPath();
+            ctx.arc(cx - 5, cy, this.width / 3, 0, Math.PI * 2);
+            ctx.arc(cx + 6, cy - 3, this.width / 3.4, 0, Math.PI * 2);
+            ctx.arc(cx + 3, cy + 9, this.width / 3.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillText('CA', cx - 8, cy + 5);
+        }
+        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
+    }
+}
+
+class OrganPlatform {
+    active = false; x = 0; y = 0; width = 92; height = 12; organIndex = 0;
+    spawn(startX: number) {
+        this.x = startX; this.y = 145 + Math.random() * 55;
+        this.width = 74 + Math.random() * 50; this.organIndex = Math.floor(Math.random() * ORGAN_PLATFORMS.length);
+        this.active = true;
+    }
+    update(dt: number, speed: number) { if (!this.active) return; this.x -= speed * dt; if (this.x < -this.width) this.active = false; }
+    draw(ctx: CanvasRenderingContext2D) {
+        if (!this.active) return; const organ = ORGAN_PLATFORMS[this.organIndex];
+        ctx.fillStyle = organ.color; ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.width, this.height);
+        ctx.fillStyle = GAME_CONFIG.COLORS.WHITE; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(`${organ.icon} ${organ.name}`, this.x + this.width / 2, this.y - 3); ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+    }
+}
+
+class BacteriaPowerUp {
+    active = false; x = 0; y = 0; baseY = 0; radius = 13; phase = 0;
+    spawn(startX: number) { this.x = startX; this.baseY = 105 + Math.random() * 70; this.y = this.baseY; this.phase = Math.random() * Math.PI * 2; this.active = true; }
+    update(dt: number, speed: number) { if (!this.active) return; this.x -= speed * dt; this.phase += dt * 5; this.y = this.baseY + Math.sin(this.phase) * 18; if (this.x < -this.radius * 2) this.active = false; }
+    draw(ctx: CanvasRenderingContext2D) {
+        if (!this.active) return; ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.phase);
+        ctx.fillStyle = GAME_CONFIG.COLORS.BACTERIA; ctx.beginPath(); ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = GAME_CONFIG.COLORS.BACTERIA; ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 1.7); ctx.stroke();
+        ctx.fillStyle = GAME_CONFIG.COLORS.WHITE; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.fillText('+', 0, 4); ctx.restore();
+        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY; ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
     }
 }
 
@@ -432,13 +519,18 @@ const DinoGame: React.FC = () => {
         // Pre-allocate pools
         obstaclePool: Array.from({ length: 10 }, () => new Cactus()),
         groundPool: Array.from({ length: 50 }, () => new GroundDetail()),
+        platformPool: Array.from({ length: 8 }, () => new OrganPlatform()),
+        powerUpPool: Array.from({ length: 4 }, () => new BacteriaPowerUp()),
         spawnTimer: 0,
         groundSpawnTimer: 0,
         animationId: 0,
         visionAnimationId: 0,
         dino: createDino(),
         hasStarted: false,
-        cameraReady: false
+        cameraReady: false,
+        shieldRemaining: 0,
+        powerUpSpawnTimer: 5,
+        platformSpawnTimer: 1.4
     });
 
     // --- VISION STATE (Mutable) ---
@@ -488,6 +580,26 @@ const DinoGame: React.FC = () => {
         }
     };
 
+    const spawnPlatforms = (dt: number) => {
+        const engine = engineRef.current;
+        engine.platformSpawnTimer -= dt;
+        if (engine.platformSpawnTimer <= 0) {
+            const platform = getFromPool(engine.platformPool, () => new OrganPlatform());
+            platform.spawn(GAME_CONFIG.CANVAS_WIDTH + Math.random() * 120);
+            engine.platformSpawnTimer = 2.6 + Math.random() * 1.8;
+        }
+    };
+
+    const spawnPowerUps = (dt: number) => {
+        const engine = engineRef.current;
+        engine.powerUpSpawnTimer -= dt;
+        if (engine.powerUpSpawnTimer <= 0) {
+            const powerUp = getFromPool(engine.powerUpPool, () => new BacteriaPowerUp());
+            powerUp.spawn(GAME_CONFIG.CANVAS_WIDTH + 80);
+            engine.powerUpSpawnTimer = 9 + Math.random() * 7;
+        }
+    };
+
     const spawnGroundDetails = (dt: number) => {
         const engine = engineRef.current;
         engine.groundSpawnTimer -= dt;
@@ -524,6 +636,8 @@ const DinoGame: React.FC = () => {
         // Cap Delta Time to prevent huge jumps on frame drops (0.1s max)
         const dt = Math.min((timestamp - engine.lastTime) / 1000, 0.1); 
         engine.lastTime = timestamp;
+        if (engine.shieldRemaining > 0) engine.shieldRemaining = Math.max(0, engine.shieldRemaining - dt);
+        const effectiveSpeed = engine.gameSpeed * (engine.shieldRemaining > 0 ? 2 : 1);
 
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d', { alpha: false })!; // Optimize for no transparency
@@ -576,6 +690,13 @@ const DinoGame: React.FC = () => {
         ctx.moveTo(0, GAME_CONFIG.GROUND_Y);
         ctx.lineTo(canvas.width, GAME_CONFIG.GROUND_Y);
         ctx.stroke();
+        ctx.fillStyle = GAME_CONFIG.COLORS.VESSEL;
+        ctx.fillRect(0, GAME_CONFIG.GROUND_Y + 4, canvas.width, 9);
+        ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Mạch máu · rễ non · Tim · Phổi · Gan · Dạ dày · Thận · Ruột', 12, GAME_CONFIG.GROUND_Y + 12);
+        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
 
         // 3. Logic & Draw Ground Details
         spawnGroundDetails(dt);
@@ -583,26 +704,56 @@ const DinoGame: React.FC = () => {
         for(let i = 0; i < engine.groundPool.length; i++) {
             const detail = engine.groundPool[i];
             if (detail.active) {
-                detail.update(dt, engine.gameSpeed);
+                detail.update(dt, effectiveSpeed);
                 detail.draw(ctx);
             }
         }
 
-        // 4. Logic & Draw Dino
+        // 4. Floating organ platforms — nội tạng làm bậc thang lơ lửng
+        spawnPlatforms(dt);
+        for (let i = 0; i < engine.platformPool.length; i++) {
+            const platform = engine.platformPool[i];
+            if (!platform.active) continue;
+            platform.update(dt, effectiveSpeed);
+            platform.draw(ctx);
+        }
+
+        const dino = engine.dino;
+
+        // 5. Logic & Draw Dino
         engine.dino.update(dt, () => {
             if (!mutedRef.current) SoundSynth.playStep();
         });
+        for (let i = 0; i < engine.platformPool.length; i++) {
+            const platform = engine.platformPool[i];
+            if (!platform.active) continue;
+            const fallingOntoPlatform = dino.dy >= 0 && dino.y + dino.height >= platform.y && dino.y + dino.height <= platform.y + 18;
+            if (fallingOntoPlatform && dino.x + dino.width > platform.x && dino.x < platform.x + platform.width) {
+                dino.y = platform.y - dino.height;
+                dino.dy = 0;
+                dino.grounded = true;
+            }
+        }
         engine.dino.draw(ctx);
+        if (engine.shieldRemaining > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.45 + Math.sin(timestamp / 80) * 0.25;
+            ctx.strokeStyle = GAME_CONFIG.COLORS.SHIELD;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(dino.x + dino.width / 2, dino.y + dino.height / 2 - 4, 34, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // 5. Logic & Draw Obstacles
         spawnObstacle(dt);
-        const dino = engine.dino;
         const padding = 10;
         
         for(let i = 0; i < engine.obstaclePool.length; i++) {
             const obs = engine.obstaclePool[i];
             if (obs.active) {
-                obs.update(dt, engine.gameSpeed);
+                obs.update(dt, effectiveSpeed);
                 obs.draw(ctx);
                 
                 // Collision Detection (Active obstacles only)
@@ -612,13 +763,43 @@ const DinoGame: React.FC = () => {
                     dino.y < obs.y + obs.height - padding &&
                     dino.y + dino.height > obs.y + padding
                 ) {
-                    gameOver();
+                    if (engine.shieldRemaining <= 0) {
+                        gameOver();
+                    } else {
+                        obs.active = false;
+                    }
                     // Don't return, let the frame finish drawing
                 }
             }
         }
 
-        // 6. Draw Score
+        // 6. Lợi khuẩn xanh bay vòng vòng: ăn để có khiên 20s, xuyên virus/ung thư và tốc độ x2
+        spawnPowerUps(dt);
+        for (let i = 0; i < engine.powerUpPool.length; i++) {
+            const powerUp = engine.powerUpPool[i];
+            if (!powerUp.active) continue;
+            powerUp.update(dt, effectiveSpeed);
+            powerUp.draw(ctx);
+            if (dino.x < powerUp.x + 22 && dino.x + dino.width > powerUp.x - 22 && dino.y < powerUp.y + 18 && dino.y + dino.height > powerUp.y - 18) {
+                powerUp.active = false;
+                engine.shieldRemaining = SHIELD_DURATION;
+            }
+        }
+
+        if (engine.shieldRemaining > 0) {
+            const ratio = engine.shieldRemaining / SHIELD_DURATION;
+            const color = ratio > 0.5 ? '#22c55e' : (ratio > 0.25 ? '#facc15' : '#ef4444');
+            ctx.fillStyle = 'rgba(0,0,0,0.12)';
+            ctx.fillRect(20, 42, 180, 12);
+            ctx.fillStyle = color;
+            ctx.fillRect(20, 42, 180 * ratio, 12);
+            ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(`KHIÊN ${Math.ceil(engine.shieldRemaining)}s · SPEED x2`, 20, 68);
+        }
+
+        // 7. Draw Score
         if (engine.gameRunning) { // Double check in case of game over mid-loop
             engine.score += 60 * dt;
             const scoreStr = `HI ${Math.floor(engine.score/10)}`;
@@ -637,6 +818,8 @@ const DinoGame: React.FC = () => {
         // Deactivate all pool items
         engine.obstaclePool.forEach(p => p.active = false);
         engine.groundPool.forEach(p => p.active = false);
+        engine.platformPool.forEach(p => p.active = false);
+        engine.powerUpPool.forEach(p => p.active = false);
         
         // Populate initial ground
         for (let x = 0; x < GAME_CONFIG.CANVAS_WIDTH; x += 30 + Math.random() * 60) {
@@ -649,6 +832,9 @@ const DinoGame: React.FC = () => {
         engine.gameSpeed = GAME_CONFIG.INITIAL_SPEED;
         engine.spawnTimer = 0;
         engine.groundSpawnTimer = 0;
+        engine.platformSpawnTimer = 1.1;
+        engine.powerUpSpawnTimer = 4;
+        engine.shieldRemaining = 0;
         engine.dino.reset();
         engine.lastTime = 0;
         engine.gameRunning = true;
