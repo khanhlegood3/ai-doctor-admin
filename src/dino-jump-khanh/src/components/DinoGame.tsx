@@ -443,7 +443,7 @@ const DinoGame: React.FC = () => {
         prevTime: 0,
         smoothedVelocity: 0,
         peakVelocity: 0,
-        JUMP_VELOCITY_THRESHOLD: 0.9,
+        JUMP_VELOCITY_THRESHOLD: 0.6,
         lastPredictionTime: 0
     });
 
@@ -694,11 +694,27 @@ const DinoGame: React.FC = () => {
 
         const outCtx = outCanvas.getContext('2d', { alpha: true })!;
         
+        // FIX: log lỗi thật gửi lên cho thấy MediaPipe SẬP HẲN graph khi
+        // gọi detectForVideo() lúc video KHÔNG có frame hợp lệ (video bị
+        // mất frame tạm thời — ví dụ chuyển tab rồi quay lại, camera giật
+        // 1 nhịp): "ROI width and height must be > 0" (Uncaught Error),
+        // sau đó pose landmarker coi như hỏng luôn, không nhận diện được
+        // nữa cho tới khi tải lại trang. Chặn: chỉ gọi detectForVideo khi
+        // video thực sự sẵn sàng (readyState >= 2 nghĩa là có đủ dữ liệu
+        // cho ít nhất 1 frame, và có kích thước > 0) + bọc try/catch để 1
+        // lần lỗi thoáng qua không làm chết hẳn vòng lặp requestAnimationFrame.
+        const videoReady =
+            video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+
         let didUpdate = false;
-        if (state.lastVideoTime !== video.currentTime) {
+        if (videoReady && state.lastVideoTime !== video.currentTime) {
             state.lastVideoTime = video.currentTime;
-            state.results = poseLandmarker.detectForVideo(video, now);
-            didUpdate = true;
+            try {
+                state.results = poseLandmarker.detectForVideo(video, now);
+                didUpdate = true;
+            } catch (err) {
+                console.warn('[dino-jump] detectForVideo lỗi thoáng qua, bỏ qua frame này:', err);
+            }
         }
         
         outCtx.clearRect(0, 0, outCanvas.width, outCanvas.height);
