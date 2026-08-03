@@ -379,11 +379,19 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
 
+  const isFacebookVideoLink = (url: string) => /(^|\.)facebook\.com\//i.test(url) || /(^|\.)fb\.watch\//i.test(url);
+
   const handleRunYoutubeLink = async () => {
     const trimmedUrl = youtubeUrl.trim();
     if (!trimmedUrl || isFetchingYoutube) return;
 
     setIsFetchingYoutube(true);
+    if (isFacebookVideoLink(trimmedUrl)) {
+      setYoutubeStatus('Loading Facebook video link directly. Public playable video files work best; if Facebook blocks playback, please upload the video file.');
+      loadVideoSource(trimmedUrl);
+      setIsFetchingYoutube(false);
+      return;
+    }
     setYoutubeStatus('Downloading YouTube video and saving raw video to R2...');
     try {
       const res = await fetch('/api/groq-proxy', {
@@ -398,8 +406,8 @@ export default function SignLanguageAnalyticsTab() {
       loadVideoSource(data.url);
       setYoutubeStatus(`Loaded from R2${data.title ? `: ${data.title}` : ''}`);
     } catch (err: any) {
-      console.error('YouTube video load failed:', err);
-      setYoutubeStatus(err?.message || 'Could not load YouTube video. Please upload a video file instead.');
+      console.error('YouTube/Facebook video load failed:', err);
+      setYoutubeStatus(err?.message || 'Could not load YouTube/Facebook video. Please upload a video file instead.');
     } finally {
       setIsFetchingYoutube(false);
     }
@@ -1161,7 +1169,7 @@ export default function SignLanguageAnalyticsTab() {
                     handleRunYoutubeLink();
                   }
                 }}
-                placeholder="youtube link"
+                placeholder="youtube or facebook video link"
                 disabled={isModelLoading || isFetchingYoutube}
                 className="min-w-0 flex-1 bg-slate-900 border-4 border-black px-4 py-3 rounded-2xl text-xs sm:text-sm font-bold text-white placeholder:text-slate-500 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:ring-4 focus:ring-red-500 disabled:opacity-50"
               />

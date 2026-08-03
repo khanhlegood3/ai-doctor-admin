@@ -6,7 +6,7 @@
 // Mỗi link được phân loại bằng classifyLinkList() (xem lib/linkClassifier.ts)
 // rồi xử lý TUẦN TỰ (không song song — tránh dồn dập gọi Groq/Gemini cùng
 // lúc, dễ dính rate limit):
-//   - youtube_video / youtube_short  -> sinh spec từ video (transcript) rồi
+//   - youtube_video / youtube_short / facebook_video -> sinh spec từ video rồi
 //     sinh code, y hệt luồng cũ (xem runVideoToLearningGenerate).
 //   - website                        -> sinh spec từ nội dung trang web
 //     (xem runPageToLearningGenerate), rồi sinh code y hệt.
@@ -26,7 +26,7 @@ import {
   SPEC_ADDENDUM,
   SPEC_FROM_VIDEO_PROMPT,
 } from './lib/prompts';
-import { getYoutubeEmbedUrl, validateYoutubeUrl } from './lib/youtube';
+import { getFacebookEmbedUrl, getYoutubeEmbedUrl, validateYoutubeUrl } from './lib/youtube';
 import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType } from './lib/linkClassifier';
 import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
@@ -421,14 +421,14 @@ export default function App() {
             </div>
           )}
 
-          {selected && (selected.type === 'youtube_video' || selected.type === 'youtube_short') && (
+          {selected && (selected.type === 'youtube_video' || selected.type === 'youtube_short' || selected.type === 'facebook_video') && (
             <div className="relative w-full rounded-lg overflow-hidden bg-slate-900 border border-slate-800" style={{ paddingTop: '56.25%' }}>
               <iframe
                 className="absolute inset-0 w-full h-full"
-                src={getYoutubeEmbedUrl(selected.url)}
+                src={selected.type === 'facebook_video' ? getFacebookEmbedUrl(selected.url) : getYoutubeEmbedUrl(selected.url)}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                title="youtube-preview"
+                title={selected.type === 'facebook_video' ? 'facebook-preview' : 'youtube-preview'}
               />
             </div>
           )}

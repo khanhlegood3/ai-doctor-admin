@@ -166,13 +166,18 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
     return { text, source: 'gemini-fallback' }
   }
 
-  // Bước 1: sinh spec từ video (có videoUrl)
+  // Bước 1: sinh spec từ video (có videoUrl). Facebook không có transcript
+  // miễn phí như YouTube, nên đi thẳng sang Gemini fallback nếu được cấu hình.
+  const isFacebookVideo = /(^|\.)facebook\.com$|(^|\.)fb\.watch$/i.test(new URL(videoUrl).hostname)
+
   let transcriptResult = null
   let transcriptError = null
-  try {
-    transcriptResult = await fetchYoutubeTranscript(videoUrl)
-  } catch (err) {
-    transcriptError = err
+  if (!isFacebookVideo) {
+    try {
+      transcriptResult = await fetchYoutubeTranscript(videoUrl)
+    } catch (err) {
+      transcriptError = err
+    }
   }
 
   const hasEnoughTranscript = Boolean(transcriptResult && transcriptResult.transcript.length >= MIN_TRANSCRIPT_CHARS)
@@ -185,6 +190,8 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
     } catch (err) {
       console.warn('[video-to-learning] Groq (spec step) failed on all keys, falling back to Gemini:', err?.message || err)
     }
+  } else if (isFacebookVideo) {
+    console.warn('[video-to-learning] Facebook video URL detected, using Gemini fallback')
   } else if (transcriptError) {
     console.warn('[video-to-learning] Transcript unavailable, falling back to Gemini:', transcriptError.message)
   } else if (!hasEnoughTranscript) {
@@ -192,6 +199,9 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
   }
 
   if (!hasGemini) {
+    if (isFacebookVideo) {
+      throw new VideoToLearningProxyError('Video Facebook cần GEMINI_API_KEY để AI xem trực tiếp link video. Hãy cấu hình GEMINI_API_KEY hoặc dùng link YouTube có phụ đề.', 501)
+    }
     if (transcriptError instanceof YoutubeTranscriptError) {
       throw new VideoToLearningProxyError(transcriptError.message, transcriptError.status)
     }

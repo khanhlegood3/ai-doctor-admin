@@ -54,3 +54,7 @@ export function getYoutubeEmbedUrl(url: string): string {
   console.warn('Could not extract video ID for embedding, using original URL:', url);
   return url;
 }
+
+export function getFacebookEmbedUrl(url: string): string {
+  return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`;
+}

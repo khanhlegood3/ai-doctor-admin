@@ -5,14 +5,15 @@
 //   'youtube_video'   — link video YouTube thường (watch?v=, youtu.be/, /embed/)
 //   'youtube_short'   — link YouTube Shorts (/shorts/<id>)
 //   'youtube_channel' — link kênh YouTube (/channel/, /@handle, /c/, /user/)
-//   'website'         — mọi link http/https khác (không phải YouTube)
+//   'facebook_video'  — link video/reel Facebook công khai
+//   'website'         — mọi link http/https khác (không phải YouTube/Facebook)
 //
 // KHÔNG dùng cho việc validate video ID chi tiết (đã có youtube.ts lo phần
 // đó) — module này chỉ quyết định "link này nên đi vào pipeline nào".
 
 import { getYouTubeVideoId } from './youtube';
 
-export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'website';
+export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website';
 
 export interface ClassifiedLink {
   raw: string;
@@ -21,9 +22,18 @@ export interface ClassifiedLink {
 }
 
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']);
+const FACEBOOK_HOSTS = new Set(['facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.watch']);
 
 function isYoutubeHost(hostname: string): boolean {
   return YOUTUBE_HOSTS.has(hostname.toLowerCase());
+}
+
+function isFacebookHost(hostname: string): boolean {
+  return FACEBOOK_HOSTS.has(hostname.toLowerCase());
+}
+
+function isFacebookVideoPath(pathname: string): boolean {
+  return /\/(videos|watch|reel|share\/v|share\/r)\b/i.test(pathname) || pathname === '/watch';
 }
 
 export function classifyLink(rawInput: string): ClassifiedLink | null {
@@ -38,6 +48,16 @@ export function classifyLink(rawInput: string): ClassifiedLink | null {
     parsed = new URL(withScheme);
   } catch {
     return null; // không parse được -> bỏ qua, không phải 1 URL hợp lệ
+  }
+
+  if (isFacebookHost(parsed.hostname)) {
+    return {
+      raw,
+      url: parsed.toString(),
+      type: parsed.hostname.toLowerCase() === 'fb.watch' || isFacebookVideoPath(parsed.pathname)
+        ? 'facebook_video'
+        : 'website',
+    };
   }
 
   if (!isYoutubeHost(parsed.hostname)) {
@@ -96,5 +116,6 @@ export const LINK_TYPE_LABELS: Record<LinkType, { vi: string; en: string; icon: 
   youtube_video: { vi: 'Video YouTube', en: 'YouTube video', icon: '▶️' },
   youtube_short: { vi: 'YouTube Short', en: 'YouTube Short', icon: '🎞️' },
   youtube_channel: { vi: 'Kênh YouTube', en: 'YouTube channel', icon: '📺' },
+  facebook_video: { vi: 'Video Facebook', en: 'Facebook video', icon: '📘' },
   website: { vi: 'Trang web', en: 'Website', icon: '🌐' },
 };
