@@ -7,8 +7,11 @@ import { AGENT_COLORS, INTERLOCUTOR_VOICES } from '../lib/presets/agents'
 import Modal from './Modal'
 import c from 'classnames'
 import { useAgent, useUI } from '../lib/state'
+import { useApp } from '../../../context/AppContext'
 
 export default function EditAgent() {
+  const { lang } = useApp()
+  const isVi = lang !== 'en'
   const agent = useAgent(state => state.current)
   const updateAgent = useAgent(state => state.update)
   const nameInput = useRef(null)
@@ -31,7 +34,7 @@ export default function EditAgent() {
               <input
                 className="largeInput"
                 type="text"
-                placeholder="Name"
+                placeholder={isVi ? 'Tên' : 'Name'}
                 value={agent.name}
                 onChange={e => updateCurrentAgent({ name: e.target.value })}
                 ref={nameInput}
@@ -40,14 +43,14 @@ export default function EditAgent() {
 
             <div>
               <label>
-                Personality
+                {isVi ? 'Tính cách' : 'Personality'}
                 <textarea
                   value={agent.personality}
                   onChange={e =>
                     updateCurrentAgent({ personality: e.target.value })
                   }
                   rows={7}
-                  placeholder="How should I act? Whatʼs my purpose? How would you describe my personality?"
+                  placeholder={isVi ? 'Tôi nên trò chuyện như thế nào? Vai trò/mục đích của tôi là gì?' : 'How should I act? Whatʼs my purpose? How would you describe my personality?'}
                 />
               </label>
             </div>
@@ -71,7 +74,7 @@ export default function EditAgent() {
             </ul>
           </div>
           <div className="voicePicker">
-            Voice
+            {isVi ? 'Giọng nói' : 'Voice'}
             <select
               value={agent.voice}
               onChange={e => {
@@ -89,7 +92,7 @@ export default function EditAgent() {
           </div>
         </div>
         <button onClick={() => onClose()} className="button primary">
-          Let's go!
+          {isVi ? 'Bắt đầu!' : "Let's go!"}
         </button>
       </div>
     </Modal>
