@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { HandLandmarker, FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
-import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand, Play, Pause, Square } from 'lucide-react';
+import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand, Play, Pause, Square, Save } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
@@ -175,6 +175,8 @@ export default function SignLanguageAnalyticsTab() {
   const [geminiAnalysis, setGeminiAnalysis] = useState<AnalysisResult | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
+  const [historySaveMessage, setHistorySaveMessage] = useState<string | null>(null);
 
   const [detectedEmoji, setDetectedEmoji] = useState<string | null>(null);
   const detectedEmojiRef = useRef<string | null>(null);
@@ -968,6 +970,37 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
 
+  const saveCurrentVideoToHistory = async () => {
+    if (isRecordingRef.current) {
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      await stopVideoRecorder();
+    }
+
+    const blob = lastVideoBlobRef.current;
+    if (!blob || blob.size === 0) {
+      setHistorySaveMessage('Chưa có video để lưu. Hãy bấm Record rồi Stop hoặc chạy phân tích trước.');
+      return;
+    }
+
+    setIsSavingHistory(true);
+    setHistorySaveMessage(null);
+    try {
+      await saveVibeHistory({
+        kind: 'sign',
+        blob,
+        summary: geminiAnalysis?.summary || 'Video Vibe Tracking đã lưu thủ công.',
+        details: geminiAnalysis?.details || '',
+      });
+      setHistorySaveMessage('Đã lưu video vào History.');
+    } catch (error) {
+      console.warn('Could not save Vibe Tracking history:', error);
+      setHistorySaveMessage(error instanceof Error ? error.message : 'Không thể lưu video vào History.');
+    } finally {
+      setIsSavingHistory(false);
+    }
+  };
+
   const toggleRecording = () => {
     if (isRecording) {
       setIsRecording(false);
@@ -1370,6 +1403,30 @@ export default function SignLanguageAnalyticsTab() {
                 </>
               )}
             </button>
+
+            <button
+              onClick={saveCurrentVideoToHistory}
+              disabled={isSavingHistory || isAnalyzing || (!lastVideoBlobRef.current && !isRecording)}
+              className="w-full bg-amber-500 hover:bg-amber-400 border-4 border-black px-4 py-3 rounded-2xl font-black text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-amber-300"
+            >
+              {isSavingHistory ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Đang lưu...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Lưu video vào History
+                </>
+              )}
+            </button>
+
+            {historySaveMessage && (
+              <p className="text-[11px] font-bold text-amber-200 bg-amber-950/40 border border-amber-500/40 rounded-xl px-3 py-2">
+                {historySaveMessage}
+              </p>
+            )}
           </div>
 
           {/* Right Side: Content Window */}
