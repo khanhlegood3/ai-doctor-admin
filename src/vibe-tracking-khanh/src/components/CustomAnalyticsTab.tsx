@@ -958,10 +958,10 @@ export default function SignLanguageAnalyticsTab() {
   };
 
   return (
-    <div className="w-full max-w-7xl space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+    <div className="w-full max-w-none space-y-5 animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 2xl:gap-6 items-start">
         {/* Video Center */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="xl:col-span-3 space-y-4">
           <div 
             className="relative w-full shadow-2xl rounded-3xl overflow-hidden bg-slate-800 border-4 border-slate-700 aspect-video"
             onMouseMove={handleMouseMove}
@@ -1124,7 +1124,7 @@ export default function SignLanguageAnalyticsTab() {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4 w-full">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center gap-3 w-full">
             <button
               onClick={toggleCamera}
               disabled={isModelLoading || isFetchingYoutube}
@@ -1194,7 +1194,7 @@ export default function SignLanguageAnalyticsTab() {
         </div>
 
         {/* Expanded Metrics Sidebar */}
-        <div className="space-y-6 flex flex-col">
+        <div className="space-y-4 flex flex-col">
           <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white">
             <h2 className="text-xl font-black mb-4 border-b-4 border-black pb-2 flex justify-between items-center uppercase italic">
               Sign Analytics
@@ -1269,78 +1269,16 @@ export default function SignLanguageAnalyticsTab() {
               )})}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Activity Timeline */}
-      <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white mb-8">
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 border-b-4 border-black pb-3">
-          <h2 className="text-xl font-black uppercase italic flex flex-wrap items-center gap-x-2">
-            <span>Activity</span>
-            <span className="inline-flex items-center gap-2">
-              Timeline
-            </span>
-          </h2>
-          <select
-            value={timeWindow}
-            onChange={(e) => setTimeWindow(Number(e.target.value))}
-            className="bg-slate-900 border-2 border-slate-600 rounded-xl px-3 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value={15}>15s Window</option>
-            <option value={30}>30s Window</option>
-            <option value={60}>1m Window</option>
-            <option value={300}>5m Window</option>
-          </select>
-        </div>
-        <div className="h-[180px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={activityHistory} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis 
-                dataKey="time" 
-                type="number" 
-                domain={['dataMin', 'dataMax']} 
-                tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' })}
-                stroke="#94a3b8" 
-                tick={{ fontSize: 10 }}
-                minTickGap={30}
-              />
-              <YAxis 
-                domain={[0, 1]} 
-                stroke="#94a3b8" 
-                tick={{ fontSize: 10 }}
-                ticks={[0, 0.25, 0.5, 0.75, 1]}
-                tickFormatter={(val) => val === 0 ? 'Low' : val === 1 ? 'High' : val.toFixed(2)}
-              />
-              <Tooltip 
-                labelFormatter={(label) => new Date(label).toLocaleTimeString()}
-                formatter={(value: number) => [value.toFixed(2), 'Activity Score']}
-                contentStyle={{ backgroundColor: '#0f172a', border: '2px solid #000', borderRadius: '8px', fontWeight: 'bold' }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="score" 
-                stroke="#34d399" 
-                strokeWidth={3} 
-                dot={false} 
-                isAnimationActive={false}
-                connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       {/* Gemini Analysis Panel */}
-      <div className="hidden bg-indigo-950/80 border-4 border-indigo-500 p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(99,102,241,0.4)] text-white">
+      <div className="bg-indigo-950/80 border-4 border-indigo-500 p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(99,102,241,0.4)] text-white">
         <h2 className="text-lg font-black mb-4 border-b-4 border-indigo-500/50 pb-2 flex justify-between items-center uppercase italic text-indigo-300">
           AI Sign Language Translator
           <Hand className="w-5 h-5 text-indigo-400" />
         </h2>
 
-        <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex flex-col gap-4">
           {/* Left Side: Controls */}
-          <div className="w-full lg:w-1/3 space-y-3">
+          <div className="w-full space-y-3">
             <div className="space-y-1">
               <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-1">
                 Sampling Frequency
@@ -1410,7 +1348,7 @@ export default function SignLanguageAnalyticsTab() {
                   <Activity className="w-3 h-3" />
                   Translation
                 </div>
-                <p className="font-medium text-xl text-white leading-snug">{geminiAnalysis.summary}</p>
+                <p className="font-medium text-base text-white leading-snug">{geminiAnalysis.summary}</p>
 
                 {geminiAnalysis.details && (
                   <div className="mt-auto pt-2">
@@ -1466,6 +1404,69 @@ export default function SignLanguageAnalyticsTab() {
           animation: floatUp var(--duration) ease-out forwards;
         }
       `}</style>
+
+        </div>
+      </div>
+
+      {/* Activity Timeline */}
+      <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white mb-8">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 border-b-4 border-black pb-3">
+          <h2 className="text-xl font-black uppercase italic flex flex-wrap items-center gap-x-2">
+            <span>Activity</span>
+            <span className="inline-flex items-center gap-2">
+              Timeline
+            </span>
+          </h2>
+          <select
+            value={timeWindow}
+            onChange={(e) => setTimeWindow(Number(e.target.value))}
+            className="bg-slate-900 border-2 border-slate-600 rounded-xl px-3 py-1 text-xs font-bold outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value={15}>15s Window</option>
+            <option value={30}>30s Window</option>
+            <option value={60}>1m Window</option>
+            <option value={300}>5m Window</option>
+          </select>
+        </div>
+        <div className="h-[180px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={activityHistory} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+              <XAxis 
+                dataKey="time" 
+                type="number" 
+                domain={['dataMin', 'dataMax']} 
+                tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' })}
+                stroke="#94a3b8" 
+                tick={{ fontSize: 10 }}
+                minTickGap={30}
+              />
+              <YAxis 
+                domain={[0, 1]} 
+                stroke="#94a3b8" 
+                tick={{ fontSize: 10 }}
+                ticks={[0, 0.25, 0.5, 0.75, 1]}
+                tickFormatter={(val) => val === 0 ? 'Low' : val === 1 ? 'High' : val.toFixed(2)}
+              />
+              <Tooltip 
+                labelFormatter={(label) => new Date(label).toLocaleTimeString()}
+                formatter={(value: number) => [value.toFixed(2), 'Activity Score']}
+                contentStyle={{ backgroundColor: '#0f172a', border: '2px solid #000', borderRadius: '8px', fontWeight: 'bold' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="score" 
+                stroke="#34d399" 
+                strokeWidth={3} 
+                dot={false} 
+                isAnimationActive={false}
+                connectNulls={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
     </div>
   );
 }
