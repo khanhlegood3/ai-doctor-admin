@@ -4,6 +4,8 @@ import { Activity, AudioLines, Camera, RefreshCw, AlertCircle, ChevronDown, Chev
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+import VibeHistoryCalendar from './VibeHistoryCalendar';
+import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
 // tải từ CDN ngoài (cdn.jsdelivr.net, storage.googleapis.com), không timeout,
@@ -73,6 +75,18 @@ export default function VibeVizTab() {
   const lastRecordTimeRef = useRef<number>(0);
   const [numFacesDetected, setNumFacesDetected] = useState(0);
   const numFacesDetectedRef = useRef(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const lastVideoBlobRef = useRef<Blob | null>(null);
+  const stopVideoRecorder = () => new Promise<Blob | null>((resolve) => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state !== 'recording') { resolve(lastVideoBlobRef.current); return; }
+    recorder.onstop = () => {
+      lastVideoBlobRef.current = new Blob(recordChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+      resolve(lastVideoBlobRef.current);
+    };
+    recorder.stop();
+  });
 
   // Refs for animation loop and state that doesn't need re-renders
   const requestRef = useRef<number>(0);
@@ -643,8 +657,14 @@ export default function VibeVizTab() {
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
+      stopVideoRecorder();
     } else {
       recentBlendshapesRef.current = [];
+      lastVideoBlobRef.current = null;
+      recordChunksRef.current = [];
+      const recorder = startVideoRecorder(videoRef.current);
+      recorderRef.current = recorder;
+      if (recorder) { recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); }; recorder.onstop = () => { lastVideoBlobRef.current = new Blob(recordChunksRef.current, { type: recorder.mimeType || 'video/webm' }); }; recorder.start(); }
       setIsRecording(true);
       isRecordingRef.current = true;
       setGeminiAnalysis(null);
@@ -653,9 +673,11 @@ export default function VibeVizTab() {
   };
 
   const analyzeWithGemini = async () => {
+    let recordedBlob = lastVideoBlobRef.current;
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
+      recordedBlob = await stopVideoRecorder();
     }
 
     if (recentBlendshapesRef.current.length === 0) {
@@ -707,10 +729,12 @@ export default function VibeVizTab() {
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result?.error || `Vibe Tracking proxy error (${res.status})`);
 
-      setGeminiAnalysis({
+      const nextAnalysis = {
         summary: result.summary || "No summary generated.",
         details: result.details || ""
-      });
+      };
+      setGeminiAnalysis(nextAnalysis);
+      try { await saveVibeHistory({ kind: 'emotion', blob: recordedBlob, ...nextAnalysis }); } catch (saveError) { console.warn('Could not save Vibe Tracking history:', saveError); }
     } catch (error) {
       console.error("Vibe Tracking Analysis Error:", error);
       setGeminiAnalysis({ summary: "Failed to generate analysis. Please check your network connection.", details: "" });

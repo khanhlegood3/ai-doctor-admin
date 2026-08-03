@@ -4,6 +4,8 @@ import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand,
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+import VibeHistoryCalendar from './VibeHistoryCalendar';
+import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
 // tải từ CDN ngoài, không timeout, không fallback CPU nếu GPU treo. Giờ dùng
@@ -137,6 +139,18 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const lastVideoBlobRef = useRef<Blob | null>(null);
+  const stopVideoRecorder = () => new Promise<Blob | null>((resolve) => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state !== 'recording') { resolve(lastVideoBlobRef.current); return; }
+    recorder.onstop = () => {
+      lastVideoBlobRef.current = new Blob(recordChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+      resolve(lastVideoBlobRef.current);
+    };
+    recorder.stop();
+  });
 
   const [handActivity, setHandActivity] = useState(0);
   const handActivityRef = useRef<number>(0);
@@ -882,9 +896,11 @@ export default function SignLanguageAnalyticsTab() {
   };
 
   const analyzeWithGemini = async () => {
+    let recordedBlob = lastVideoBlobRef.current;
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
+      recordedBlob = await stopVideoRecorder();
     }
 
     if (recentDataRef.current.length === 0) {
@@ -938,10 +954,12 @@ export default function SignLanguageAnalyticsTab() {
       const result = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(result?.error || `Vibe Tracking proxy error (${res.status})`);
 
-      setGeminiAnalysis({
+      const nextAnalysis = {
         summary: result.summary || "No translation generated.",
         details: result.details || ""
-      });
+      };
+      setGeminiAnalysis(nextAnalysis);
+      try { await saveVibeHistory({ kind: 'sign', blob: recordedBlob, ...nextAnalysis }); } catch (saveError) { console.warn('Could not save Vibe Tracking history:', saveError); }
     } catch (error) {
       console.error("Vibe Tracking Analysis Error:", error);
       setGeminiAnalysis({ summary: "Failed to generate analysis. Please check your network connection.", details: "" });
@@ -954,8 +972,14 @@ export default function SignLanguageAnalyticsTab() {
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
+      stopVideoRecorder();
     } else {
       recentDataRef.current = [];
+      lastVideoBlobRef.current = null;
+      recordChunksRef.current = [];
+      const recorder = startVideoRecorder(videoRef.current);
+      recorderRef.current = recorder;
+      if (recorder) { recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); }; recorder.onstop = () => { lastVideoBlobRef.current = new Blob(recordChunksRef.current, { type: recorder.mimeType || 'video/webm' }); }; recorder.start(); }
       setIsRecording(true);
       isRecordingRef.current = true;
       recordingStartTimeRef.current = performance.now();
@@ -1389,6 +1413,8 @@ export default function SignLanguageAnalyticsTab() {
           </div>
         </div>
       </div>
+
+      <VibeHistoryCalendar kind="sign" />
 
       <style>{`
         @keyframes floatUp {
