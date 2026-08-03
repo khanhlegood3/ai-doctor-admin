@@ -3,6 +3,7 @@ import { Pause, Play, RotateCcw, Square } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useGlobalAIChatbotEngine } from '../../lib/useGlobalAIChatbotEngine.js';
 import { renderBasicFace } from '../aiChatbotControl/components/demo/basic-face/basic-face-render';
+import { useAgent } from '../aiChatbotControl/lib/state';
 
 // ============================================================================
 // HeroMicVoiceButton — nút mic "trao đổi thoại trực tiếp" dùng riêng cho 2
@@ -40,6 +41,12 @@ export default function HeroMicVoiceButton({
   const audioElementRef = useRef(null);
   const faceCanvasRef = useRef(null);
   const [showPlaybackControls, setShowPlaybackControls] = useState(true);
+
+  // Màu khuôn mặt tròn đồng bộ với lựa chọn của user tại trang "🤖 AI chatbot
+  // control" (AgentEdit → colorPicker ghi vào cùng store `useAgent`, có
+  // persist localStorage) — nên ngay lần đầu vào 2 trang "Anh Hùng" đã đúng
+  // màu, không cần mở panel kia trước.
+  const faceColor = useAgent(state => state.current?.bodyColor) || '#ea4335';
 
   const {
     busy,
@@ -94,13 +101,13 @@ export default function HeroMicVoiceButton({
         mouthScale = 0.12;
       }
 
-      renderBasicFace({ ctx, eyeScale, mouthScale, color: '#ffffff' });
+      renderBasicFace({ ctx, eyeScale, mouthScale, color: faceColor });
       frameId = requestAnimationFrame(draw);
     };
 
     frameId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frameId);
-  }, [recording, transcribing, busy, speaking]);
+  }, [recording, transcribing, busy, speaking, faceColor]);
   const label = recording
     ? (isVi ? 'Đang nghe...' : 'Listening...')
     : transcribing
