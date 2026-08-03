@@ -2446,27 +2446,49 @@ html, body, #root {
 /* Full-width responsive embeds for Vibe Tracking on standalone panel and landing page. */
 .vibe-tracking-embed-page {
   width: 100%;
-  padding-inline: clamp(8px, 1.4vw, 20px);
+  max-width: 100%;
+  min-width: 0;
+  padding-inline: clamp(4px, 1vw, 16px);
+  overflow-x: clip;
 }
 
 .vibe-tracking-embed-page .ai-healthcare-vision-header,
 .vibe-tracking-frame-card {
   width: 100%;
   max-width: none;
+  min-width: 0;
 }
 
 .vibe-tracking-frame-card {
-  min-height: clamp(760px, 92vh, 1180px);
+  min-height: clamp(820px, 94vh, 1220px);
 }
 
 .vibe-tracking-frame {
-  height: clamp(760px, 92vh, 1180px);
+  width: 100%;
+  max-width: 100%;
+  height: clamp(820px, 94vh, 1220px);
+}
+
+@media (max-width: 1024px) {
+  .vibe-tracking-embed-page {
+    padding-inline: 6px;
+  }
+
+  .vibe-tracking-frame-card,
+  .vibe-tracking-frame {
+    min-height: 920px;
+    height: 920px;
+  }
 }
 
 @media (max-width: 760px) {
+  .vibe-tracking-embed-page {
+    padding: 10px 4px;
+  }
+
   .vibe-tracking-frame-card,
   .vibe-tracking-frame {
-    min-height: 88vh;
-    height: 88vh;
+    min-height: 980px;
+    height: 980px;
   }
 }

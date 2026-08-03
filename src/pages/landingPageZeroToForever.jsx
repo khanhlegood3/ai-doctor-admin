@@ -842,9 +842,9 @@ export default function LandingPageZeroToForever({
         <>
           {/* Vibe Tracking — copy lên đầu trang landing, trước cả game
               khủng long và Hero, để user mở camera phân tích vibe ngay. */}
-          <div className="zofo-hero-section pt-28 pb-6 px-6 lg:px-12 relative overflow-hidden">
+          <div className="zofo-hero-section pt-28 pb-6 px-3 sm:px-4 lg:px-6 relative overflow-hidden">
             <div className="zofo-stars"></div>
-            <div className="container mx-auto max-w-5xl relative z-10">
+            <div className="w-full max-w-none mx-auto relative z-10">
               <VibeTrackingEmbedSection lang={language} />
             </div>
           </div>
@@ -1819,8 +1819,8 @@ export default function LandingPageZeroToForever({
 
           {/* Vibe Tracking — đặt lên đầu trang sub-menu "Game sức khỏe"
               trước game khủng long để đồng bộ với đầu trang landing. */}
-          <section className="container mx-auto max-w-5xl px-4 lg:px-8 -mt-10 pb-6">
-            <div className="rounded-3xl bg-[#0B132B] p-2">
+          <section className="w-full max-w-none mx-auto px-3 sm:px-4 lg:px-6 -mt-10 pb-6 overflow-hidden">
+            <div className="rounded-3xl bg-[#0B132B] p-1 sm:p-2 overflow-hidden">
               <VibeTrackingEmbedSection lang={language} />
             </div>
           </section>
