@@ -43,7 +43,7 @@ const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const GROQ_TEXT_MODEL = 'llama-3.3-70b-versatile'
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash mới nhất còn free tier thật
 const MIN_TRANSCRIPT_CHARS = 200 // dưới ngưỡng này coi là "nội dung không đủ"
-const GEMINI_TIMEOUT_MS = 55_000
+const GEMINI_TIMEOUT_MS = 110_000
 
 // --- Groq (text) ---
 // KEY POOL / AUTO-ROTATION: thử lần lượt GROQ_API_KEY, GROQ_API_KEY1,
@@ -77,7 +77,21 @@ async function callGroq({ promptText, jsonMode, envSource }) {
 
 // --- Gemini (multimodal, fallback) ---
 const withTimeout = (promise, ms) =>
-  Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))])
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new VideoToLearningProxyError(
+              `Gemini xử lý video quá lâu (vượt quá ${Math.round(ms / 1000)} giây) nên đã bị huỷ. Video có thể quá dài — hãy thử video ngắn hơn, hoặc một video có phụ đề để dùng đường xử lý nhanh hơn (transcript).`,
+              504,
+            ),
+          ),
+        ms,
+      ),
+    ),
+  ])
 
 // KEY POOL / AUTO-ROTATION: thử lần lượt GEMINI_API_KEY, GEMINI_API_KEY1,
 // GEMINI_API_KEY2, ... (xem api/_lib/apiKeyPool.js) khi key đang dùng hết

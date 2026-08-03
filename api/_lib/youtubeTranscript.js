@@ -35,8 +35,20 @@ export async function fetchYoutubeTranscript(videoUrl, preferredLangs = ['vi', '
     throw new YoutubeTranscriptError('Link YouTube không hợp lệ.', 400)
   }
 
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: { 'User-Agent': UA, 'Accept-Language': 'vi,en;q=0.9' },
+  // QUAN TRỌNG: từ IP server (data center, hay bị nhận diện là EU), YouTube
+  // đôi khi trả về trang "consent" (đồng ý cookie GDPR) thay vì trang video
+  // thật — trang consent KHÔNG có captionTracks, khiến regex bên dưới không
+  // match, transcript thất bại "âm thầm" (báo "video không có phụ đề" dù
+  // video có phụ đề thật), buộc phải fallback sang Gemini xem cả video —
+  // vốn CHẬM hơn nhiều và dễ vượt quá GEMINI_TIMEOUT_MS. Gửi sẵn cookie
+  // CONSENT để bỏ qua màn hình này (cách làm quen thuộc của yt-dlp và các
+  // scraper khác cho chính vấn đề này).
+  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
+    headers: {
+      'User-Agent': UA,
+      'Accept-Language': 'vi,en;q=0.9',
+      Cookie: 'CONSENT=YES+1; SOCS=CAI',
+    },
   })
   if (!pageRes.ok) {
     throw new YoutubeTranscriptError('Không tải được trang video YouTube.', 502)
@@ -45,8 +57,14 @@ export async function fetchYoutubeTranscript(videoUrl, preferredLangs = ['vi', '
 
   const match = html.match(/"captionTracks":(\[.*?\])/)
   if (!match) {
+    // Nếu vẫn dính trang consent (hiếm khi xảy ra sau cookie ở trên) thì báo
+    // lỗi rõ ràng hơn thay vì lẫn với trường hợp "video thật sự không có
+    // phụ đề" — giúp debug nhanh hơn lần sau nếu lại gặp.
+    const looksLikeConsentWall = /consent\.youtube\.com|Before you continue to YouTube/i.test(html)
     throw new YoutubeTranscriptError(
-      'Video này không có phụ đề (caption) nên không thể phân tích miễn phí bằng transcript. Hãy thử một video khác có bật phụ đề (tự động hoặc thủ công).',
+      looksLikeConsentWall
+        ? 'YouTube trả về trang xác nhận cookie thay vì trang video (lỗi tạm thời từ phía YouTube). Vui lòng thử lại.'
+        : 'Video này không có phụ đề (caption) nên không thể phân tích miễn phí bằng transcript. Hãy thử một video khác có bật phụ đề (tự động hoặc thủ công).',
       422,
     )
   }

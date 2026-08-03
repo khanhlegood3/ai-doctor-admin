@@ -4,5 +4,10 @@
       "source": "/r/:code",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/groq-proxy.js": {
+      "maxDuration": 120
+    }
+  }
 }
