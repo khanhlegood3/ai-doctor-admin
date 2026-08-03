@@ -13,7 +13,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'vibeviz' | 'sign'>('sign');
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 text-slate-50 p-3 sm:p-4 xl:p-5 font-sans flex flex-col items-stretch overflow-x-hidden">
+    <div className="min-h-screen w-full max-w-full bg-slate-900 text-slate-50 p-2 sm:p-4 xl:p-5 font-sans flex flex-col items-stretch overflow-x-hidden">
       <header className="mb-4 text-center w-full">
         <h1 className="text-3xl sm:text-4xl font-black mb-2 text-indigo-400 italic uppercase tracking-tighter flex items-center justify-center gap-3">
           <AudioLines className="w-10 h-10" />
@@ -24,7 +24,7 @@ export default function App() {
         </p>
 
         {/* Tab Navigation */}
-        <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 border-b-4 border-slate-800 pb-4">
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 border-b-4 border-slate-800 pb-4">
           <button
             onClick={() => setActiveTab('sign')}
             className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black uppercase tracking-widest text-sm transition-all focus:outline-none focus:ring-4 focus:ring-emerald-500 ${
@@ -50,7 +50,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="w-full flex-1 flex flex-col items-stretch">
+      <main className="w-full max-w-full min-w-0 flex-1 flex flex-col items-stretch overflow-x-hidden">
         {activeTab === 'vibeviz' ? <VibeVizTab /> : <CustomAnalyticsTab />}
       </main>
     </div>

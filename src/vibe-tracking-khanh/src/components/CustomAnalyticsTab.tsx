@@ -966,10 +966,10 @@ export default function SignLanguageAnalyticsTab() {
   };
 
   return (
-    <div className="w-full max-w-none space-y-5 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 2xl:gap-6 items-start">
+    <div className="w-full max-w-full min-w-0 space-y-5 animate-in fade-in duration-500 overflow-x-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-4 2xl:gap-6 items-start">
         {/* Video Center */}
-        <div className="xl:col-span-3 space-y-4">
+        <div className="min-w-0 space-y-4">
           <div 
             className="relative w-full shadow-2xl rounded-3xl overflow-hidden bg-slate-800 border-4 border-slate-700 aspect-video"
             onMouseMove={handleMouseMove}
@@ -1202,7 +1202,7 @@ export default function SignLanguageAnalyticsTab() {
         </div>
 
         {/* Expanded Metrics Sidebar */}
-        <div className="space-y-4 flex flex-col">
+        <div className="min-w-0 space-y-4 flex flex-col">
           <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white">
             <h2 className="text-xl font-black mb-4 border-b-4 border-black pb-2 flex justify-between items-center uppercase italic">
               Sign Analytics
@@ -1278,15 +1278,15 @@ export default function SignLanguageAnalyticsTab() {
             </div>
           </div>
       {/* Gemini Analysis Panel */}
-      <div className="bg-indigo-950/80 border-4 border-indigo-500 p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(99,102,241,0.4)] text-white">
+      <div className="bg-indigo-950/80 border-4 border-indigo-500 p-4 rounded-[2rem] sm:rounded-[2.5rem] backdrop-blur-md w-full min-w-0 shadow-[6px_6px_0px_0px_rgba(99,102,241,0.4)] sm:shadow-[10px_10px_0px_0px_rgba(99,102,241,0.4)] text-white order-first xl:order-none">
         <h2 className="text-lg font-black mb-4 border-b-4 border-indigo-500/50 pb-2 flex justify-between items-center uppercase italic text-indigo-300">
           AI Sign Language Translator
           <Hand className="w-5 h-5 text-indigo-400" />
         </h2>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row xl:flex-col 2xl:flex-row gap-4">
           {/* Left Side: Controls */}
-          <div className="w-full space-y-3">
+          <div className="w-full sm:w-1/3 xl:w-full 2xl:w-1/3 space-y-3">
             <div className="space-y-1">
               <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 ml-1">
                 Sampling Frequency
@@ -1349,7 +1349,7 @@ export default function SignLanguageAnalyticsTab() {
           </div>
 
           {/* Right Side: Content Window */}
-          <div className="flex-1 min-h-[150px]">
+          <div className="flex-1 min-w-0 min-h-[150px]">
             {geminiAnalysis ? (
               <div className="text-sm leading-relaxed text-indigo-100 bg-indigo-900/50 p-4 rounded-3xl border border-indigo-500/30 flex flex-col gap-3 h-full shadow-inner">
                 <div className="flex items-center gap-2 text-indigo-300 font-black uppercase text-[10px] tracking-widest border-b border-indigo-500/20 pb-1">
@@ -1417,7 +1417,7 @@ export default function SignLanguageAnalyticsTab() {
       </div>
 
       {/* Activity Timeline */}
-      <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white mb-8">
+      <div className="bg-slate-800/80 border-4 border-black p-4 rounded-[2.5rem] backdrop-blur-md w-full min-w-0 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white mb-8">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 border-b-4 border-black pb-3">
           <h2 className="text-xl font-black uppercase italic flex flex-wrap items-center gap-x-2">
             <span>Activity</span>
