@@ -725,13 +725,32 @@ const DinoGame: React.FC = () => {
             }
 
             if (didUpdate) {
-                const currentY = (leftShoulder.y + rightShoulder.y) / 2;
-                const shoulderDist = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
+                // FIX: trước đây tính currentY và shoulderDist bằng toạ độ
+                // normalized (0..1) THẲNG, tức là trộn lẫn đơn vị trục X và
+                // trục Y — sai vì camera xin ở độ phân giải 320x240 (KHÔNG
+                // vuông, tỉ lệ 4:3), nên "1 đơn vị normalized theo chiều
+                // rộng" và "1 đơn vị normalized theo chiều cao" không đại
+                // diện cho cùng 1 khoảng cách vật lý thật. Kết quả: tỉ số
+                // dy/shoulderDist bị lệch tỉ lệ khung hình, khiến ngưỡng
+                // nhảy (JUMP_VELOCITY_THRESHOLD) không phản ánh đúng độ
+                // nhảy thật ngoài đời — nhảy thật có thể không bao giờ vượt
+                // ngưỡng (hoặc ngược lại quá nhạy), tuỳ camera. Sửa: quy
+                // đổi cả 2 đại lượng về cùng đơn vị PIXEL THẬT (dùng
+                // video.videoWidth/videoHeight) trước khi tính tỉ số, để
+                // dy và shoulderDist luôn cùng thang đo bất kể tỉ lệ khung
+                // hình camera.
+                const vw = video.videoWidth || outCanvas.width;
+                const vh = video.videoHeight || outCanvas.height;
+                const currentY = ((leftShoulder.y + rightShoulder.y) / 2) * vh;
+                const shoulderDist = Math.hypot(
+                    (leftShoulder.x - rightShoulder.x) * vw,
+                    (leftShoulder.y - rightShoulder.y) * vh,
+                );
                 
                 const currentTime = video.currentTime;
                 let currentVelocity = 0;
 
-                if (state.prevTime > 0 && currentTime > state.prevTime) {
+                if (state.prevTime > 0 && currentTime > state.prevTime && shoulderDist > 0) {
                     const dt = currentTime - state.prevTime; 
                     const dy = state.prevY - currentY; 
                     const normalizedDy = dy / shoulderDist;
