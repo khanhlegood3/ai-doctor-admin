@@ -31,6 +31,7 @@ import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType 
 import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
 import { getIdentity } from './lib/identity';
+import exampleHistoryData from './lib/history/examples.json';
 
 type ItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'saved-only';
 type TabKey = 'render' | 'code' | 'spec' | 'history';
@@ -47,24 +48,17 @@ interface QueueItem extends ClassifiedLink {
 type ExampleVideo = {
   title: string;
   url: string;
+  spec?: string;
+  code?: string;
 };
 
-// Đúng 12 video mẫu từ file public/data/examples.json của dự án AI Studio gốc
-// "video-to-learning-app" (Aaron Wade).
-const EXAMPLE_VIDEOS: ExampleVideo[] = [
-  { title: 'How chords work', url: 'https://www.youtube.com/watch?v=JfD0nHrJDC0' },
-  { title: 'Understanding fractals', url: 'https://youtu.be/WFtTdf3I6Ug?si=8CO3POAroZcf9Vfj' },
-  { title: 'Logic behind Chinese characters', url: 'https://youtu.be/U0EySK4T2aY?si=HV_ZHWS8KdJZmZJP' },
-  { title: 'Magical mitosis', url: 'https://www.youtube.com/watch?v=f-ldPgEfAHI' },
-  { title: "History of Manhattan's Broadway", url: 'https://www.youtube.com/watch?v=erHe_WF4D1s' },
-  { title: 'The craft of the casserole', url: 'https://www.youtube.com/watch?v=hfCwwG8Ats0' },
-  { title: 'The craft of the cocktail', url: 'https://www.youtube.com/watch?v=AWnIqpsfyPU' },
-  { title: 'Calligraphy & handlettering', url: 'https://www.youtube.com/watch?v=sBoVGqiSzr4' },
-  { title: 'Making friends', url: 'https://www.youtube.com/watch?v=I9hJ_Rux9y0' },
-  { title: 'Hit more home runs', url: 'https://www.youtube.com/watch?v=zg_tqDklGcs' },
-  { title: 'Tie your shoes', url: 'https://www.youtube.com/watch?v=q44kByZmKDs' },
-  { title: '', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
-];
+// Mock data có sẵn từ lịch sử mẫu để mở app thật nhanh: click ví dụ sẽ nạp
+// ngay spec/code đã generate sẵn, không gọi AI. Người dùng vẫn sửa HTML ở tab
+// "Mã HTML" rồi bấm "Cập nhật xem trước" như bình thường.
+const EXAMPLE_VIDEOS: ExampleVideo[] = (exampleHistoryData as ExampleVideo[]).map((example, index) => ({
+  ...example,
+  title: example.title || `Ví dụ ${index + 1}`,
+}));
 
 function getYoutubeThumbnailUrl(url: string): string {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -122,6 +116,13 @@ export default function App() {
 
   useEffect(() => {
     loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const firstMock = EXAMPLE_VIDEOS.find((example) => example.code || example.spec);
+    if (firstMock) loadMockExample(firstMock);
+    // Chỉ nạp mock ban đầu 1 lần khi mount để không ghi đè thao tác của user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -259,14 +260,36 @@ export default function App() {
     await runQueue(queue);
   };
 
-  const handleExampleClick = async (example: ExampleVideo) => {
-    if (isBusy) return;
-    const queue: QueueItem[] = [{ raw: example.url, url: example.url, type: 'youtube_video', status: 'pending' }];
+  const buildMockExampleItem = (example: ExampleVideo): QueueItem => ({
+    raw: example.url,
+    url: example.url,
+    type: 'youtube_video',
+    status: example.code || example.spec ? 'done' : 'pending',
+    spec: example.spec,
+    code: example.code,
+    aiSource: 'mock-examples.json',
+    pageTitle: example.title || null,
+  });
+
+  const loadMockExample = (example: ExampleVideo) => {
+    const queue: QueueItem[] = [buildMockExampleItem(example)];
     setItems(queue);
     setSelectedIndex(0);
     setActiveTab('render');
+    setIframeKey((k) => k + 1);
     if (textareaRef.current) textareaRef.current.value = example.url;
-    await runQueue(queue);
+    return queue;
+  };
+
+  const handleExampleClick = async (example: ExampleVideo) => {
+    if (isBusy) return;
+    const queue = loadMockExample(example);
+
+    // Fallback an toàn nếu sau này có ví dụ chỉ có URL mà chưa có spec/code
+    // trong examples.json: khi đó mới gọi AI như luồng cũ.
+    if (!example.code && !example.spec) {
+      await runQueue(queue);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
