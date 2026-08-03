@@ -7,6 +7,7 @@
 const DB_NAME    = 'global-ai-chatbot-db'
 const DB_VERSION = 1
 const STORE      = 'chat-sessions' // 1 record = 1 ownerKey → { messages: [...] }
+export const GLOBAL_CHATBOT_SYNC_EVENT = 'global-ai-chatbot-sync'
 
 function openDB() {
   return new Promise((resolve, reject) => {

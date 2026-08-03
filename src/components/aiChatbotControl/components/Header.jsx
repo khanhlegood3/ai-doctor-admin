@@ -7,9 +7,12 @@ import { useLiveAPIContext } from '../contexts/VoiceCompanionContext'
 import { createNewAgent } from '../lib/presets/agents'
 import { useAgent, useUI, useUser } from '../lib/state'
 import c from 'classnames'
+import { useApp } from '../../../context/AppContext'
 
 export default function Header() {
   const { setShowAgentEdit } = useUI()
+  const { lang } = useApp()
+  const isVi = lang !== 'en'
   const { name } = useUser()
   const { current, setCurrent, availablePresets, availablePersonal, addAgent } =
     useAgent()
@@ -53,13 +56,13 @@ export default function Header() {
             onClick={() => setShowAgentEdit(true)}
             className="button createButton"
           >
-            <span className="icon">edit</span> Edit
+            <span className="icon">edit</span> {isVi ? 'Sửa' : 'Edit'}
           </button>
         </div>
 
         <div className={c('roomList', { active: showRoomList })}>
           <div>
-            <h3>Presets</h3>
+            <h3>{isVi ? 'Mẫu có sẵn' : 'Presets'}</h3>
             <ul>
               {availablePresets
                 .filter(agent => agent.id !== current.id)
@@ -77,7 +80,7 @@ export default function Header() {
           </div>
 
           <div>
-            <h3>Your ChatterBots</h3>
+            <h3>{isVi ? 'Chatbot của bạn' : 'Your ChatterBots'}</h3>
             {
               <ul>
                 {availablePersonal.length ? (
@@ -87,7 +90,7 @@ export default function Header() {
                     </li>
                   ))
                 ) : (
-                  <p>None yet.</p>
+                  <p>{isVi ? 'Chưa có.' : 'None yet.'}</p>
                 )}
               </ul>
             }
@@ -97,13 +100,13 @@ export default function Header() {
                 addNewChatterBot()
               }}
             >
-              <span className="icon">add</span>New ChatterBot
+              <span className="icon">add</span>{isVi ? 'Chatbot mới' : 'New ChatterBot'}
             </button>
           </div>
         </div>
       </div>
-      <div className="userSettingsButton" title={name ? undefined : 'Cập nhật tên trong Hồ sơ cá nhân'}>
-        <p className="user-name">{name || 'Guest'}</p>
+      <div className="userSettingsButton" title={name ? undefined : (isVi ? 'Cập nhật tên trong Hồ sơ cá nhân' : 'Update your name in Profile')}>
+        <p className="user-name">{name || (isVi ? 'Khách' : 'Guest')}</p>
       </div>
     </header>
   )

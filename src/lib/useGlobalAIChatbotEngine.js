@@ -9,14 +9,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { callGroqChat, useVoiceInput, useTTS } from './groqAiClient.js'
 import { getDeterministicFallbackReply } from './huggingFaceTransformersChat.js'
-import { getGlobalChatHistory, saveGlobalChatHistory, ownerKeyOf } from './globalChatbotStorage.js'
+import { getGlobalChatHistory, saveGlobalChatHistory, ownerKeyOf, GLOBAL_CHATBOT_SYNC_EVENT } from './globalChatbotStorage.js'
 import { extractPdfTextForInBody, pdfPageToImageForInBody } from './inbodyImageConvert.js'
 
 // Sự kiện đồng bộ TRỰC TIẾP (không cần remount) giữa mọi nơi đang dùng hook này cùng lúc —
 // ví dụ: popup chatbot góc màn hình (GlobalAIChatbot.jsx) và trang Lịch sử Chat với AI
 // (ChatHistoryPanel.jsx) có thể cùng mở 1 lúc. Gửi tin ở 1 trong 2 nơi sẽ phát sự kiện này,
 // nơi còn lại lắng nghe và cập nhật `messages` ngay lập tức — không cần đóng/mở lại popup.
-const SYNC_EVENT = 'global-ai-chatbot-sync'
+const SYNC_EVENT = GLOBAL_CHATBOT_SYNC_EVENT
 
 export const MAX_FILES = 10
 

@@ -21,7 +21,7 @@ import { useAgent, useUser } from '../lib/state'
 import { createSystemInstructions } from '../lib/prompts'
 import { callGeminiAPI } from '../lib/geminiTextClient'
 import { useAuth } from '../../../context/AuthContext'
-import { getGlobalChatHistory, saveGlobalChatHistory, clearGlobalChatHistory } from '../../../lib/globalChatbotStorage.js'
+import { getGlobalChatHistory, saveGlobalChatHistory, clearGlobalChatHistory, ownerKeyOf, GLOBAL_CHATBOT_SYNC_EVENT } from '../../../lib/globalChatbotStorage.js'
 
 function detectIsVietnamese(text) {
   return /[àáảãạăằắẳẵặâầấẩẫậđèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(
@@ -47,6 +47,7 @@ export function useVoiceCompanion() {
   const user = useUser()
   const { user: authUser } = useAuth()
   const userKey = authUser?.uuid || null
+  const ownerKey = ownerKeyOf(userKey)
 
   const [connected, setConnected] = useState(false)
   const [listening, setListening] = useState(false)
@@ -67,6 +68,8 @@ export function useVoiceCompanion() {
   const agentRef = useRef(agent)
   const userRef = useRef(user)
   const messagesRef = useRef(messages)
+  const instanceIdRef = useRef(`ai-chatbot-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const skipNextBroadcastRef = useRef(false)
   agentRef.current = agent
   userRef.current = user
   messagesRef.current = messages
@@ -85,18 +88,46 @@ export function useVoiceCompanion() {
     return () => { cancelled = true }
   }, [userKey])
 
+  const persistAndBroadcast = useCallback((nextMessages) => {
+    saveGlobalChatHistory(userKey, nextMessages)
+    window.dispatchEvent(new CustomEvent(GLOBAL_CHATBOT_SYNC_EVENT, {
+      detail: { ownerKey, messages: nextMessages, instanceId: instanceIdRef.current },
+    }))
+  }, [ownerKey, userKey])
+
   const pushMessage = useCallback((role, text) => {
     setMessages(prev => {
       const next = [...prev, makeMessage(role, text)]
-      saveGlobalChatHistory(userKey, next)
+      persistAndBroadcast(next)
       return next
     })
-  }, [userKey])
+  }, [persistAndBroadcast])
 
   const clearHistory = useCallback(() => {
     setMessages([])
     clearGlobalChatHistory(userKey)
-  }, [userKey])
+    window.dispatchEvent(new CustomEvent(GLOBAL_CHATBOT_SYNC_EVENT, {
+      detail: { ownerKey, messages: [], instanceId: instanceIdRef.current },
+    }))
+  }, [ownerKey, userKey])
+
+  useEffect(() => {
+    const onSync = (event) => {
+      const detail = event.detail || {}
+      if (detail.ownerKey !== ownerKey) return
+      if (detail.instanceId === instanceIdRef.current) return
+      skipNextBroadcastRef.current = true
+      setMessages(detail.messages || [])
+    }
+    window.addEventListener(GLOBAL_CHATBOT_SYNC_EVENT, onSync)
+    return () => window.removeEventListener(GLOBAL_CHATBOT_SYNC_EVENT, onSync)
+  }, [ownerKey])
+
+  useEffect(() => {
+    if (!historyLoaded || !skipNextBroadcastRef.current) return
+    skipNextBroadcastRef.current = false
+    saveGlobalChatHistory(userKey, messages)
+  }, [historyLoaded, messages, userKey])
 
   useEffect(() => {
     if (!listenHint) return

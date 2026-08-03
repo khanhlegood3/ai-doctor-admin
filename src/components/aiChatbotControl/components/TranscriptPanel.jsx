@@ -7,9 +7,12 @@
  */
 import React, { useEffect, useRef, useState } from 'react'
 import { useLiveAPIContext } from '../contexts/VoiceCompanionContext'
+import { useApp } from '../../../context/AppContext'
 
 export default function TranscriptPanel() {
   const { messages, historyLoaded, clearHistory } = useLiveAPIContext()
+  const { lang } = useApp()
+  const isVi = lang !== 'en'
   const [expanded, setExpanded] = useState(true)
   const [confirmingClear, setConfirmingClear] = useState(false)
   const scrollRef = useRef(null)
@@ -40,7 +43,7 @@ export default function TranscriptPanel() {
           <span className="material-symbols-outlined">
             {expanded ? 'expand_more' : 'expand_less'}
           </span>
-          Lịch sử hội thoại {messages.length > 0 ? `(${messages.length})` : ''}
+          {isVi ? 'Lịch sử hội thoại' : 'Chat history'} {messages.length > 0 ? `(${messages.length})` : ''}
         </button>
         {messages.length > 0 && (
           <button
@@ -49,7 +52,7 @@ export default function TranscriptPanel() {
             onClick={handleClear}
             onBlur={() => setConfirmingClear(false)}
           >
-            {confirmingClear ? 'Bấm lại để xoá hẳn' : 'Xoá lịch sử'}
+            {confirmingClear ? (isVi ? 'Bấm lại để xoá hẳn' : 'Click again to delete') : (isVi ? 'Xoá lịch sử' : 'Clear history')}
           </button>
         )}
       </div>
@@ -57,15 +60,15 @@ export default function TranscriptPanel() {
       {expanded && (
         <div className="transcript-panel-body" ref={scrollRef}>
           {!historyLoaded ? (
-            <p className="transcript-empty">Đang tải lịch sử…</p>
+            <p className="transcript-empty">{isVi ? 'Đang tải lịch sử…' : 'Loading history…'}</p>
           ) : messages.length === 0 ? (
             <p className="transcript-empty">
-              Chưa có hội thoại nào. Nhấn nút phát ▶ để bắt đầu, rồi bấm mic để nói.
+              {isVi ? 'Chưa có hội thoại nào. Nhấn nút phát ▶ để bắt đầu, rồi bấm mic để nói.' : 'No conversation yet. Press play ▶ to start, then tap the mic to speak.'}
             </p>
           ) : (
             messages.map(m => (
               <div key={m.id} className={`transcript-line transcript-line-${m.role}`}>
-                <span className="transcript-role">{m.role === 'user' ? 'Bạn' : 'AI'}</span>
+                <span className="transcript-role">{m.role === 'user' ? (isVi ? 'Bạn' : 'You') : 'AI'}</span>
                 <span className="transcript-text">{m.text}</span>
               </div>
             ))
