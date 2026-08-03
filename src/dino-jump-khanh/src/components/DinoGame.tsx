@@ -23,6 +23,7 @@ interface VisionState {
     peakVelocity: number;
     JUMP_VELOCITY_THRESHOLD: number;
     lastPredictionTime: number;
+    lastGestureJumpTime: number;
 }
 
 // --- CAMERA MODE (1 toggle nhiều trạng thái) ---
@@ -124,7 +125,7 @@ const GAME_CONFIG = {
     CANVAS_HEIGHT: 300,
     GROUND_Y: 242,
     GRAVITY: 4000,
-    JUMP_FORCE: 1150,
+    JUMP_FORCE: 1350,
     INITIAL_SPEED: 400,
     MAX_SPEED: 1200,
     SPEED_INCREMENT: 10,
@@ -160,6 +161,32 @@ const ORGAN_PLATFORMS = [
 ];
 
 const SHIELD_DURATION = 20;
+const GESTURE_JUMP_COOLDOWN_MS = 450;
+const HAND_GESTURE_VERTICAL_GAP = 0.1;
+const HAND_GESTURE_SIDE_DRIFT_LIMIT = 0.24;
+
+const isFingerPointingUp = (wrist: any, tip: any) => {
+    if (!wrist || !tip) return false;
+    const verticalGap = wrist.y - tip.y;
+    const sideDrift = Math.abs(tip.x - wrist.x);
+    return verticalGap >= HAND_GESTURE_VERTICAL_GAP && sideDrift <= HAND_GESTURE_SIDE_DRIFT_LIMIT;
+};
+
+const isIndexOrThumbPointingUp = (landmarks: any[]) => {
+    const leftWrist = landmarks[15];
+    const rightWrist = landmarks[16];
+    const leftIndex = landmarks[19];
+    const rightIndex = landmarks[20];
+    const leftThumb = landmarks[21];
+    const rightThumb = landmarks[22];
+
+    return (
+        isFingerPointingUp(leftWrist, leftIndex) ||
+        isFingerPointingUp(rightWrist, rightIndex) ||
+        isFingerPointingUp(leftWrist, leftThumb) ||
+        isFingerPointingUp(rightWrist, rightThumb)
+    );
+};
 
 const SoundSynth = {
     ctx: null as AudioContext | null,
@@ -520,7 +547,7 @@ const DinoGame: React.FC = () => {
     
     // --- REACT STATE ---
     const [isLoading, setIsLoading] = useState(true);
-    const [status, setStatus] = useState("Stand back and JUMP to control!");
+    const [status, setStatus] = useState("Stand back and JUMP — or point index/thumb up!");
     const [gameRunning, setGameRunning] = useState(false);
     const [canRestart, setCanRestart] = useState(false);
     const [modelLoaded, setModelLoaded] = useState(false);
@@ -574,8 +601,9 @@ const DinoGame: React.FC = () => {
         prevTime: 0,
         smoothedVelocity: 0,
         peakVelocity: 0,
-        JUMP_VELOCITY_THRESHOLD: 0.6,
-        lastPredictionTime: 0
+        JUMP_VELOCITY_THRESHOLD: 0.35,
+        lastPredictionTime: 0,
+        lastGestureJumpTime: 0
     });
 
     useEffect(() => {
@@ -1031,17 +1059,9 @@ const DinoGame: React.FC = () => {
                     state.peakVelocity *= 0.95;
                 }
 
-                // FIX (v2): sau fix v1 (quy pixel), test thật (2 máy khác
-                // nhau) vẫn cho VEL gần như 0 kể cả lúc user cố nhảy —
-                // ngưỡng cũ 2.5 rõ ràng quá cao so với tín hiệu đo được
-                // thực tế (chưa rõ nguyên nhân chênh lệch — có thể FPS
-                // webcam thực tế thấp hơn VISION_FPS=30 khai báo, hoặc EMA
-                // làm mượt quá đà). Hạ ngưỡng mạnh xuống 0.9 để game ít
-                // nhất PHẢN HỒI ĐƯỢC trong lúc chờ log debug bên dưới cho
-                // số liệu chính xác hơn để canh lại cho vừa (không quá
-                // nhạy / không quá trơ). Log ra console (throttle ~10%
-                // frame) để xem dt/dy/shoulderDist/velocity thật ở lần
-                // test tiếp theo — mở DevTools > Console, lọc "dino-jump".
+                // Giữ log debug đã throttle để dễ canh độ nhạy thực tế.
+                // Ngưỡng hiện được đặt thấp hơn để camera bắt lệnh JUMP dễ
+                // hơn, song song với cử chỉ ngón trỏ/ngón cái chỉ lên trời.
                 if (Math.random() < 0.1) {
                     console.debug('[dino-jump] vel-debug', {
                         dt: dt.toFixed(4),
@@ -1057,7 +1077,11 @@ const DinoGame: React.FC = () => {
                 state.prevY = currentY;
                 state.prevTime = currentTime;
 
-                if (state.smoothedVelocity > state.JUMP_VELOCITY_THRESHOLD) {
+                const upwardFingerGesture = isIndexOrThumbPointingUp(landmarks);
+                const canTriggerGestureJump = now - state.lastGestureJumpTime > GESTURE_JUMP_COOLDOWN_MS;
+
+                if (state.smoothedVelocity > state.JUMP_VELOCITY_THRESHOLD || (upwardFingerGesture && canTriggerGestureJump)) {
+                    state.lastGestureJumpTime = now;
                     handleJumpSignal();
                 }
             }
@@ -1377,7 +1401,7 @@ const DinoGame: React.FC = () => {
                                             START GAME
                                         </button>
                                         <p className="font-['Press_Start_2P'] text-xs text-[#535353] animate-pulse">
-                                            {cameraMode === 'off' ? 'OR PRESS SPACE / TAP TO START' : 'OR JUMP TO START'}
+                                            {cameraMode === 'off' ? 'OR PRESS SPACE / TAP TO START' : 'OR JUMP / POINT UP TO START'}
                                         </p>
                                     </>
                                 )}
@@ -1391,7 +1415,7 @@ const DinoGame: React.FC = () => {
                     <div className="absolute top-0 left-0 w-full h-full bg-black/50 flex flex-col items-center justify-center z-10 rounded-lg text-center p-2 md:p-4">
                         <div className="text-white text-xl md:text-3xl font-['Press_Start_2P'] mb-3 md:mb-6 drop-shadow-md">GAME OVER</div>
                         <div className="text-white text-xs md:text-sm font-['Press_Start_2P'] mb-2 md:mb-4 animate-pulse drop-shadow-md">
-                            {canRestart ? "JUMP TO RESTART" : "..."}
+                            {canRestart ? "JUMP / POINT UP TO RESTART" : "..."}
                         </div>
                         <div className="text-white/90 text-[8px] font-['Press_Start_2P'] bg-black/40 p-1 md:p-2 rounded">
                             <a href="/?page=gameSucKhoe" target="_top" className={`text-[${GAME_CONFIG.COLORS.FOCUS}] no-underline hover:underline focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] rounded-sm`}>Game Sức Khỏe by Zero to Forever Foundation</a>
@@ -1432,7 +1456,7 @@ const DinoGame: React.FC = () => {
                 style={{ background: bodyTheme.primary }}
                 aria-label="Jump (Space key)"
             >
-                ⬆ JUMP (SPACE)
+                ⬆ JUMP (SPACE / 👆👍)
             </button>
         </div>
     );
