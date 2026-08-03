@@ -443,7 +443,7 @@ const DinoGame: React.FC = () => {
         prevTime: 0,
         smoothedVelocity: 0,
         peakVelocity: 0,
-        JUMP_VELOCITY_THRESHOLD: 2.5,
+        JUMP_VELOCITY_THRESHOLD: 0.9,
         lastPredictionTime: 0
     });
 
@@ -749,25 +749,50 @@ const DinoGame: React.FC = () => {
                 
                 const currentTime = video.currentTime;
                 let currentVelocity = 0;
+                let dt = 0;
+                let dy = 0;
 
                 if (state.prevTime > 0 && currentTime > state.prevTime && shoulderDist > 0) {
-                    const dt = currentTime - state.prevTime; 
-                    const dy = state.prevY - currentY; 
+                    dt = currentTime - state.prevTime;
+                    dy = state.prevY - currentY;
                     const normalizedDy = dy / shoulderDist;
                     currentVelocity = normalizedDy / dt;
                 }
-                
+
                 state.smoothedVelocity = state.smoothedVelocity * 0.5 + currentVelocity * 0.5;
-                
+
                 if (state.smoothedVelocity > state.peakVelocity) {
                     state.peakVelocity = state.smoothedVelocity;
                 } else {
                     state.peakVelocity *= 0.95;
                 }
 
+                // FIX (v2): sau fix v1 (quy pixel), test thật (2 máy khác
+                // nhau) vẫn cho VEL gần như 0 kể cả lúc user cố nhảy —
+                // ngưỡng cũ 2.5 rõ ràng quá cao so với tín hiệu đo được
+                // thực tế (chưa rõ nguyên nhân chênh lệch — có thể FPS
+                // webcam thực tế thấp hơn VISION_FPS=30 khai báo, hoặc EMA
+                // làm mượt quá đà). Hạ ngưỡng mạnh xuống 0.9 để game ít
+                // nhất PHẢN HỒI ĐƯỢC trong lúc chờ log debug bên dưới cho
+                // số liệu chính xác hơn để canh lại cho vừa (không quá
+                // nhạy / không quá trơ). Log ra console (throttle ~10%
+                // frame) để xem dt/dy/shoulderDist/velocity thật ở lần
+                // test tiếp theo — mở DevTools > Console, lọc "dino-jump".
+                if (Math.random() < 0.1) {
+                    console.debug('[dino-jump] vel-debug', {
+                        dt: dt.toFixed(4),
+                        dy: dy.toFixed(2),
+                        shoulderDist: shoulderDist.toFixed(1),
+                        rawVelocity: currentVelocity.toFixed(3),
+                        smoothedVelocity: state.smoothedVelocity.toFixed(3),
+                        peakVelocity: state.peakVelocity.toFixed(3),
+                        threshold: state.JUMP_VELOCITY_THRESHOLD,
+                    });
+                }
+
                 state.prevY = currentY;
                 state.prevTime = currentTime;
-                
+
                 if (state.smoothedVelocity > state.JUMP_VELOCITY_THRESHOLD) {
                     handleJumpSignal();
                 }
