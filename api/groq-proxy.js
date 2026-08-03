@@ -27,7 +27,7 @@ import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
-import { createKolR2UploadUrl, KolR2UploadError } from './_lib/kolR2Upload.js'
+import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './_lib/videoAnalyzerProxy.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
 
@@ -254,6 +254,19 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (kol-r2-upload-url) error:', err?.message || err)
       const status = err instanceof KolR2UploadError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'KOL R2 upload URL error' })
+    }
+  }
+
+  // --- Nhánh fallback upload R2 qua server khi browser bị R2 CORS preflight chặn ---
+  if (body.provider === 'kol-r2-upload-base64') {
+    console.log('[groq-proxy] (kol-r2-upload-base64) kind:', body.kind, '| contentType:', body.contentType)
+    try {
+      const payload = await uploadKolBase64ToR2({ kind: body.kind, contentType: body.contentType, base64Data: body.base64Data })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (kol-r2-upload-base64) error:', err?.message || err)
+      const status = err instanceof KolR2UploadError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'KOL R2 upload fallback error' })
     }
   }
 
