@@ -22,6 +22,7 @@ import { useApp } from '../context/AppContext'
 import AnatomyHoverOverlay from '../components/AnatomyHoverOverlay.jsx'
 import HeroPopupCornerCloseButtons from '../components/heroPanels/HeroPopupCornerCloseButtons.jsx'
 import PoseCameraDinoJumpSection from '../components/health-games/PoseCameraDinoJumpSection.jsx'
+import { VibeTrackingEmbedSection } from '../components/VibeTrackingPanel.jsx'
 
 /**
  * landingPageZeroToForever.jsx
@@ -839,10 +840,19 @@ export default function LandingPageZeroToForever({
       {/* ══════════════════════════ TRANG CHỦ ══════════════════════════ */}
       {page === 'home' && (
         <>
-          {/* Khủng long nhảy bằng camera AI có pose — đặt NGAY TRÊN ĐẦU
-              trang landing (trước cả Hero), camera mặc định mở luôn,
-              user tự chọn ẩn/hiện camera qua checkbox trong game. */}
+          {/* Vibe Tracking — copy lên đầu trang landing, trước cả game
+              khủng long và Hero, để user mở camera phân tích vibe ngay. */}
           <div className="zofo-hero-section pt-28 pb-6 px-6 lg:px-12 relative overflow-hidden">
+            <div className="zofo-stars"></div>
+            <div className="container mx-auto max-w-5xl relative z-10">
+              <VibeTrackingEmbedSection lang={language} />
+            </div>
+          </div>
+
+          {/* Khủng long nhảy bằng camera AI có pose — đặt NGAY TRÊN ĐẦU
+              trang landing (trước Hero), camera mặc định mở luôn,
+              user tự chọn ẩn/hiện camera qua checkbox trong game. */}
+          <div className="zofo-hero-section py-6 px-6 lg:px-12 relative overflow-hidden">
             <div className="zofo-stars"></div>
             <div className="container mx-auto max-w-5xl relative z-10">
               <PoseCameraDinoJumpSection lang={language} variant="hero" />
@@ -1807,10 +1817,17 @@ export default function LandingPageZeroToForever({
             }
           />
 
-          {/* Tính năng khủng long nhảy bằng camera AI có pose — đặt ngay
-              trên đầu trang sub-menu "Game sức khỏe", dùng lại cùng
-              component với đầu trang landing. */}
-          <section className="container mx-auto max-w-5xl px-4 lg:px-8 -mt-10 pb-16">
+          {/* Vibe Tracking — đặt lên đầu trang sub-menu "Game sức khỏe"
+              trước game khủng long để đồng bộ với đầu trang landing. */}
+          <section className="container mx-auto max-w-5xl px-4 lg:px-8 -mt-10 pb-6">
+            <div className="rounded-3xl bg-[#0B132B] p-2">
+              <VibeTrackingEmbedSection lang={language} />
+            </div>
+          </section>
+
+          {/* Tính năng khủng long nhảy bằng camera AI có pose — nằm ngay sau
+              Vibe Tracking trong sub-menu "Game sức khỏe". */}
+          <section className="container mx-auto max-w-5xl px-4 lg:px-8 pb-16">
             <div className="rounded-3xl bg-[#0B132B] p-2">
               <PoseCameraDinoJumpSection lang={language} variant="hero" />
             </div>
