@@ -37,6 +37,36 @@ const CAMERA_MODE_INFO: Record<CameraMode, { icon: string; label: string; hint: 
     off: { icon: '⌨️', label: 'Camera: Off (Space/Tap)', hint: 'No camera — use the Space key or the on-screen button' },
 };
 
+
+
+type BodyTheme = {
+    id: string;
+    name: string;
+    icon: string;
+    label: string;
+    primary: string;
+    accent: string;
+    bg: string;
+    bgOverlay: string;
+    vessel: string;
+    vesselDark: string;
+    organ: string;
+    hazard: string;
+    helper: string;
+    terrainText: string;
+};
+
+const BODY_THEMES: BodyTheme[] = [
+    { id: 'heart', name: 'Tim', icon: '❤️', label: 'Hệ tuần hoàn', primary: '#7f1d1d', accent: '#ef4444', bg: '#fff1f2', bgOverlay: 'rgba(255, 241, 242, 0.78)', vessel: '#dc2626', vesselDark: '#991b1b', organ: '#fb7185', hazard: '#7c2d12', helper: '#22c55e', terrainText: 'Mạch máu chủ · van tim · hồng cầu · oxy', },
+    { id: 'lung', name: 'Phổi', icon: '🫁', label: 'Hệ hô hấp', primary: '#0f766e', accent: '#38bdf8', bg: '#ecfeff', bgOverlay: 'rgba(236, 254, 255, 0.78)', vessel: '#0891b2', vesselDark: '#0e7490', organ: '#67e8f9', hazard: '#64748b', helper: '#22d3ee', terrainText: 'Mạch phổi · phế nang · khí quản · oxy', },
+    { id: 'liver', name: 'Gan', icon: '🟤', label: 'Hệ giải độc', primary: '#92400e', accent: '#f59e0b', bg: '#fffbeb', bgOverlay: 'rgba(255, 251, 235, 0.8)', vessel: '#b45309', vesselDark: '#78350f', organ: '#fbbf24', hazard: '#a16207', helper: '#84cc16', terrainText: 'Mạch gan · mật · chuyển hoá · thải độc', },
+    { id: 'stomach', name: 'Dạ dày', icon: '🫃', label: 'Hệ tiêu hoá', primary: '#7e22ce', accent: '#c084fc', bg: '#faf5ff', bgOverlay: 'rgba(250, 245, 255, 0.78)', vessel: '#9333ea', vesselDark: '#6b21a8', organ: '#d8b4fe', hazard: '#be123c', helper: '#facc15', terrainText: 'Niêm mạc · enzyme · dịch vị · hấp thu', },
+    { id: 'kidney', name: 'Thận', icon: '🫘', label: 'Hệ tiết niệu', primary: '#065f46', accent: '#34d399', bg: '#ecfdf5', bgOverlay: 'rgba(236, 253, 245, 0.78)', vessel: '#059669', vesselDark: '#047857', organ: '#6ee7b7', hazard: '#0f766e', helper: '#60a5fa', terrainText: 'Mạch thận · nephron · lọc máu · cân bằng nước', },
+    { id: 'intestine', name: 'Ruột', icon: '🧬', label: 'Hệ đường ruột', primary: '#be123c', accent: '#fb7185', bg: '#fff7ed', bgOverlay: 'rgba(255, 247, 237, 0.8)', vessel: '#e11d48', vesselDark: '#9f1239', organ: '#fdba74', hazard: '#f97316', helper: '#22c55e', terrainText: 'Mạch ruột · lợi khuẩn · nhung mao · hấp thu', },
+];
+
+const DEFAULT_BODY_THEME = BODY_THEMES[0];
+
 // Entity Interfaces for Pooling
 interface GameObject {
     active: boolean;
@@ -83,7 +113,7 @@ interface DinoEntity {
     animTimer: number;
     jump: () => boolean;
     update: (dt: number, onStep?: () => void) => void;
-    draw: (ctx: CanvasRenderingContext2D) => void;
+    draw: (ctx: CanvasRenderingContext2D, theme: BodyTheme) => void;
     reset: () => void;
 }
 
@@ -275,12 +305,12 @@ class GroundDetail {
         if (this.x < -this.width) this.active = false;
     }
 
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, theme: BodyTheme) {
         if (!this.active) return;
         const organ = ORGAN_PLATFORMS[this.organIndex];
         const ix = Math.floor(this.x);
         const iy = Math.floor(this.y);
-        ctx.fillStyle = GAME_CONFIG.COLORS.VESSEL;
+        ctx.fillStyle = theme.vesselDark;
         ctx.fillRect(ix, iy, this.width, this.height);
         ctx.fillStyle = organ.color;
         ctx.font = '10px monospace';
@@ -313,7 +343,7 @@ class Cactus {
         if (this.x < -this.width) this.active = false;
     }
 
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, theme: BodyTheme) {
         if (!this.active) return;
         const ix = Math.floor(this.x);
         const iy = Math.floor(this.y);
@@ -321,11 +351,11 @@ class Cactus {
         const cy = iy + this.height / 2;
 
         if (this.kind === 'virus') {
-            ctx.fillStyle = GAME_CONFIG.COLORS.VIRUS;
+            ctx.fillStyle = theme.hazard;
             ctx.beginPath();
             ctx.arc(cx, cy, this.width / 2.6, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = GAME_CONFIG.COLORS.VIRUS;
+            ctx.strokeStyle = theme.hazard;
             for (let i = 0; i < 8; i++) {
                 const a = (Math.PI * 2 * i) / 8;
                 ctx.beginPath();
@@ -333,20 +363,20 @@ class Cactus {
                 ctx.lineTo(cx + Math.cos(a) * 18, cy + Math.sin(a) * 18);
                 ctx.stroke();
             }
-            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillStyle = theme.bg;
             ctx.fillText('V', cx - 4, cy + 4);
         } else {
-            ctx.fillStyle = GAME_CONFIG.COLORS.CANCER;
+            ctx.fillStyle = theme.accent;
             ctx.beginPath();
             ctx.arc(cx - 5, cy, this.width / 3, 0, Math.PI * 2);
             ctx.arc(cx + 6, cy - 3, this.width / 3.4, 0, Math.PI * 2);
             ctx.arc(cx + 3, cy + 9, this.width / 3.6, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillStyle = theme.bg;
             ctx.fillText('CA', cx - 8, cy + 5);
         }
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
-        ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillStyle = theme.primary;
+        ctx.strokeStyle = theme.primary;
     }
 }
 
@@ -358,11 +388,11 @@ class OrganPlatform {
         this.active = true;
     }
     update(dt: number, speed: number) { if (!this.active) return; this.x -= speed * dt; if (this.x < -this.width) this.active = false; }
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, theme: BodyTheme) {
         if (!this.active) return; const organ = ORGAN_PLATFORMS[this.organIndex];
         ctx.fillStyle = organ.color; ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.width, this.height);
         ctx.fillStyle = GAME_CONFIG.COLORS.WHITE; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-        ctx.fillText(`${organ.icon} ${organ.name}`, this.x + this.width / 2, this.y - 3); ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillText(`${organ.icon} ${organ.name}`, this.x + this.width / 2, this.y - 3); ctx.fillStyle = theme.primary;
     }
 }
 
@@ -370,12 +400,12 @@ class BacteriaPowerUp {
     active = false; x = 0; y = 0; baseY = 0; radius = 13; phase = 0;
     spawn(startX: number) { this.x = startX; this.baseY = 105 + Math.random() * 70; this.y = this.baseY; this.phase = Math.random() * Math.PI * 2; this.active = true; }
     update(dt: number, speed: number) { if (!this.active) return; this.x -= speed * dt; this.phase += dt * 5; this.y = this.baseY + Math.sin(this.phase) * 18; if (this.x < -this.radius * 2) this.active = false; }
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, theme: BodyTheme) {
         if (!this.active) return; ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.phase);
-        ctx.fillStyle = GAME_CONFIG.COLORS.BACTERIA; ctx.beginPath(); ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = GAME_CONFIG.COLORS.BACTERIA; ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 1.7); ctx.stroke();
+        ctx.fillStyle = theme.helper; ctx.beginPath(); ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = theme.helper; ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 1.7); ctx.stroke();
         ctx.fillStyle = GAME_CONFIG.COLORS.WHITE; ctx.font = '10px monospace'; ctx.textAlign = 'center'; ctx.fillText('+', 0, 4); ctx.restore();
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY; ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillStyle = theme.primary; ctx.strokeStyle = theme.primary;
     }
 }
 
@@ -408,12 +438,12 @@ const createDino = (): DinoEntity => ({
         this.animTimer = 0;
     },
 
-    draw(ctx: CanvasRenderingContext2D) {
+    draw(ctx: CanvasRenderingContext2D, theme: BodyTheme) {
         // Optimization: Use Math.floor for sharp pixels
         const ix = Math.floor(this.x);
         const iy = Math.floor(this.y);
 
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillStyle = theme.primary;
         // Body
         ctx.fillRect(ix + 10, iy, 20, 25);
         // Head
@@ -437,7 +467,7 @@ const createDino = (): DinoEntity => ({
         ctx.fillRect(ix + 30, iy - 5, 3, 3); // Eye
         
         // Reset color to primary for next draw calls
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillStyle = theme.primary;
     },
 
     jump() {
@@ -508,6 +538,8 @@ const DinoGame: React.FC = () => {
     const [cameraMode, setCameraMode] = useState<CameraMode>('background');
     const cameraModeRef = useRef<CameraMode>('background');
     const mutedRef = useRef(false);
+    const [bodyTheme, setBodyTheme] = useState<BodyTheme>(DEFAULT_BODY_THEME);
+    const bodyThemeRef = useRef<BodyTheme>(DEFAULT_BODY_THEME);
 
     // --- ENGINE STATE (Mutable) ---
     const engineRef = useRef<GameEngineState>({
@@ -549,6 +581,10 @@ const DinoGame: React.FC = () => {
     useEffect(() => {
         mutedRef.current = isMuted;
     }, [isMuted]);
+
+    useEffect(() => {
+        bodyThemeRef.current = bodyTheme;
+    }, [bodyTheme]);
 
     useEffect(() => {
         cameraModeRef.current = cameraMode;
@@ -638,6 +674,7 @@ const DinoGame: React.FC = () => {
         engine.lastTime = timestamp;
         if (engine.shieldRemaining > 0) engine.shieldRemaining = Math.max(0, engine.shieldRemaining - dt);
         const effectiveSpeed = engine.gameSpeed * (engine.shieldRemaining > 0 ? 2 : 1);
+        const theme = bodyThemeRef.current;
 
         const canvas = canvasRef.current!;
         const ctx = canvas.getContext('2d', { alpha: false })!; // Optimize for no transparency
@@ -673,16 +710,16 @@ const DinoGame: React.FC = () => {
             ctx.globalAlpha = 0.5;
             ctx.drawImage(bgCache, 0, 0);
             ctx.restore();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fillStyle = theme.bgOverlay;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
-            ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
+            ctx.fillStyle = theme.bg;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         // Set global styles for the frame
-        ctx.strokeStyle = GAME_CONFIG.COLORS.PRIMARY;
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.strokeStyle = theme.primary;
+        ctx.fillStyle = theme.primary;
         ctx.lineWidth = 2;
 
         // 2. Draw Ground Line
@@ -690,13 +727,13 @@ const DinoGame: React.FC = () => {
         ctx.moveTo(0, GAME_CONFIG.GROUND_Y);
         ctx.lineTo(canvas.width, GAME_CONFIG.GROUND_Y);
         ctx.stroke();
-        ctx.fillStyle = GAME_CONFIG.COLORS.VESSEL;
+        ctx.fillStyle = theme.vessel;
         ctx.fillRect(0, GAME_CONFIG.GROUND_Y + 4, canvas.width, 9);
         ctx.fillStyle = GAME_CONFIG.COLORS.WHITE;
         ctx.font = '10px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText('Mạch máu · rễ non · Tim · Phổi · Gan · Dạ dày · Thận · Ruột', 12, GAME_CONFIG.GROUND_Y + 12);
-        ctx.fillStyle = GAME_CONFIG.COLORS.PRIMARY;
+        ctx.fillText(theme.terrainText, 12, GAME_CONFIG.GROUND_Y + 12);
+        ctx.fillStyle = theme.primary;
 
         // 3. Logic & Draw Ground Details
         spawnGroundDetails(dt);
@@ -705,7 +742,7 @@ const DinoGame: React.FC = () => {
             const detail = engine.groundPool[i];
             if (detail.active) {
                 detail.update(dt, effectiveSpeed);
-                detail.draw(ctx);
+                detail.draw(ctx, theme);
             }
         }
 
@@ -715,7 +752,7 @@ const DinoGame: React.FC = () => {
             const platform = engine.platformPool[i];
             if (!platform.active) continue;
             platform.update(dt, effectiveSpeed);
-            platform.draw(ctx);
+            platform.draw(ctx, theme);
         }
 
         const dino = engine.dino;
@@ -734,7 +771,7 @@ const DinoGame: React.FC = () => {
                 dino.grounded = true;
             }
         }
-        engine.dino.draw(ctx);
+        engine.dino.draw(ctx, theme);
         if (engine.shieldRemaining > 0) {
             ctx.save();
             ctx.globalAlpha = 0.45 + Math.sin(timestamp / 80) * 0.25;
@@ -754,7 +791,7 @@ const DinoGame: React.FC = () => {
             const obs = engine.obstaclePool[i];
             if (obs.active) {
                 obs.update(dt, effectiveSpeed);
-                obs.draw(ctx);
+                obs.draw(ctx, theme);
                 
                 // Collision Detection (Active obstacles only)
                 if (
@@ -779,7 +816,7 @@ const DinoGame: React.FC = () => {
             const powerUp = engine.powerUpPool[i];
             if (!powerUp.active) continue;
             powerUp.update(dt, effectiveSpeed);
-            powerUp.draw(ctx);
+            powerUp.draw(ctx, theme);
             if (dino.x < powerUp.x + 22 && dino.x + dino.width > powerUp.x - 22 && dino.y < powerUp.y + 18 && dino.y + dino.height > powerUp.y - 18) {
                 powerUp.active = false;
                 engine.shieldRemaining = SHIELD_DURATION;
@@ -1234,11 +1271,39 @@ const DinoGame: React.FC = () => {
                 <button
                     type="button"
                     onClick={cycleCameraMode}
-                    className={`px-2 py-1 rounded border transition-colors ${cameraMode === 'off' ? 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]' : 'bg-[#535353] text-white border-[#535353]'}`}
+                    className={`px-2 py-1 rounded border transition-colors ${cameraMode === 'off' ? 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]' : 'text-white'}`}
+                    style={cameraMode === 'off' ? undefined : { background: bodyTheme.primary, borderColor: bodyTheme.primary }}
                     title={`${CAMERA_MODE_INFO[cameraMode].hint} — click to switch camera mode`}
                 >
                     {CAMERA_MODE_INFO[cameraMode].icon} {CAMERA_MODE_INFO[cameraMode].label}
                 </button>
+            </div>
+
+            <div className="w-full max-w-2xl -mt-2">
+                <div className="text-[9px] text-[#888] text-center font-['Press_Start_2P'] mb-2">Chọn hệ nội tạng để đổi theme</div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2" role="group" aria-label="Body organ theme selector">
+                    {BODY_THEMES.map((themeOption) => {
+                        const selected = bodyTheme.id === themeOption.id;
+                        return (
+                            <button
+                                key={themeOption.id}
+                                type="button"
+                                onClick={() => setBodyTheme(themeOption)}
+                                className={`rounded-xl border-2 px-2 py-2 text-center shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 ${selected ? 'scale-105 text-white' : 'bg-white text-[#535353] hover:-translate-y-0.5'}`}
+                                style={{
+                                    borderColor: themeOption.accent,
+                                    background: selected ? `linear-gradient(135deg, ${themeOption.primary}, ${themeOption.accent})` : themeOption.bg,
+                                    boxShadow: selected ? `0 0 0 3px ${themeOption.bg}, 0 8px 18px ${themeOption.accent}55` : undefined,
+                                }}
+                                aria-pressed={selected}
+                                title={`${themeOption.name} · ${themeOption.label}`}
+                            >
+                                <div className="text-lg leading-none">{themeOption.icon}</div>
+                                <div className="mt-1 text-[8px] font-['Press_Start_2P'] leading-tight">{themeOption.name}</div>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* GAME CANVAS */}
@@ -1247,7 +1312,8 @@ const DinoGame: React.FC = () => {
                     ref={canvasRef} 
                     width={GAME_CONFIG.CANVAS_WIDTH} 
                     height={GAME_CONFIG.CANVAS_HEIGHT}
-                    className="bg-white border-2 border-[#333] rounded-lg shadow-md max-w-full"
+                    className="border-2 rounded-lg shadow-md max-w-full"
+                    style={{ background: bodyTheme.bg, borderColor: bodyTheme.primary }}
                 />
 
                 {/* GESTURE INDICATOR — tách khỏi khung camera 320x240 để vẫn
@@ -1363,7 +1429,7 @@ const DinoGame: React.FC = () => {
                 onClick={handleJumpSignal}
                 onTouchStart={(e) => { e.preventDefault(); handleJumpSignal(); }}
                 className={`w-full max-w-xs py-4 rounded-xl text-white font-['Press_Start_2P'] text-xs tracking-wide select-none touch-manipulation transition-colors focus:outline-none focus:ring-2 focus:ring-[${GAME_CONFIG.COLORS.FOCUS}] focus:ring-offset-2`}
-                style={{ background: GAME_CONFIG.COLORS.PRIMARY }}
+                style={{ background: bodyTheme.primary }}
                 aria-label="Jump (Space key)"
             >
                 ⬆ JUMP (SPACE)
