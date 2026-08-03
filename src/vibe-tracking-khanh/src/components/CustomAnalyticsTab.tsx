@@ -110,6 +110,9 @@ export default function SignLanguageAnalyticsTab() {
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   const [isHoveringVideo, setIsHoveringVideo] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeStatus, setYoutubeStatus] = useState<string | null>(null);
+  const [isFetchingYoutube, setIsFetchingYoutube] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -347,26 +350,58 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
 
+  const loadVideoSource = (url: string) => {
+    setGeminiAnalysis(null);
+    const oldSrc = videoRef.current?.src;
+    stopMedia();
+    if (oldSrc && oldSrc.startsWith('blob:')) {
+      URL.revokeObjectURL(oldSrc);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.src = url;
+      videoRef.current.crossOrigin = url.startsWith('blob:') ? '' : 'anonymous';
+      setMediaSource('video');
+      setVideoProgress(0);
+      setVideoDuration(0);
+      setIsHoveringVideo(true);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setGeminiAnalysis(null);
-      const oldSrc = videoRef.current?.src;
-      stopMedia();
-      if (oldSrc && oldSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(oldSrc);
-      }
-      const url = URL.createObjectURL(file);
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-        videoRef.current.src = url;
-        setMediaSource('video');
-        setVideoProgress(0);
-        setVideoDuration(0);
-      }
+      setYoutubeStatus(null);
+      loadVideoSource(URL.createObjectURL(file));
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRunYoutubeLink = async () => {
+    const trimmedUrl = youtubeUrl.trim();
+    if (!trimmedUrl || isFetchingYoutube) return;
+
+    setIsFetchingYoutube(true);
+    setYoutubeStatus('Downloading YouTube video and saving raw video to R2...');
+    try {
+      const res = await fetch('/api/groq-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'kol-youtube-fetch', youtubeUrl: trimmedUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `YouTube fetch failed (${res.status})`);
+      if (!data?.url) throw new Error('Server did not return an R2 video URL.');
+
+      loadVideoSource(data.url);
+      setYoutubeStatus(`Loaded from R2${data.title ? `: ${data.title}` : ''}`);
+    } catch (err: any) {
+      console.error('YouTube video load failed:', err);
+      setYoutubeStatus(err?.message || 'Could not load YouTube video. Please upload a video file instead.');
+    } finally {
+      setIsFetchingYoutube(false);
     }
   };
 
@@ -1092,7 +1127,7 @@ export default function SignLanguageAnalyticsTab() {
           <div className="flex flex-col sm:flex-row justify-center gap-4 w-full">
             <button
               onClick={toggleCamera}
-              disabled={isModelLoading}
+              disabled={isModelLoading || isFetchingYoutube}
               className={`flex items-center justify-center w-full sm:w-auto border-4 border-black px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs sm:text-sm whitespace-nowrap focus:outline-none focus:ring-4 focus:ring-indigo-500 ${
                 mediaSource === 'webcam' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-indigo-600 hover:bg-indigo-500'
               } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1109,11 +1144,35 @@ export default function SignLanguageAnalyticsTab() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isModelLoading}
+              disabled={isModelLoading || isFetchingYoutube}
               className="flex items-center justify-center w-full sm:w-auto bg-violet-600 hover:bg-violet-500 border-4 border-black px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs sm:text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-violet-500"
             >
               Upload Video
             </button>
+
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-[28rem]">
+              <input
+                type="url"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRunYoutubeLink();
+                  }
+                }}
+                placeholder="youtube link"
+                disabled={isModelLoading || isFetchingYoutube}
+                className="min-w-0 flex-1 bg-slate-900 border-4 border-black px-4 py-3 rounded-2xl text-xs sm:text-sm font-bold text-white placeholder:text-slate-500 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none focus:ring-4 focus:ring-red-500 disabled:opacity-50"
+              />
+              <button
+                onClick={handleRunYoutubeLink}
+                disabled={isModelLoading || isFetchingYoutube || !youtubeUrl.trim()}
+                className="flex items-center justify-center bg-red-600 hover:bg-red-500 border-4 border-black px-6 py-3 rounded-2xl font-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs sm:text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-red-500"
+              >
+                {isFetchingYoutube ? 'Running...' : 'Run'}
+              </button>
+            </div>
 
             <button
               onClick={() => {
@@ -1127,6 +1186,11 @@ export default function SignLanguageAnalyticsTab() {
               {showLandmarks ? 'Hide Skeleton' : 'Show Skeleton'}
             </button>
           </div>
+          {youtubeStatus && (
+            <p className={`text-center text-xs font-bold ${youtubeStatus.startsWith('Loaded from R2') ? 'text-emerald-300' : isFetchingYoutube ? 'text-amber-300' : 'text-rose-300'}`}>
+              {youtubeStatus}
+            </p>
+          )}
         </div>
 
         {/* Expanded Metrics Sidebar */}
