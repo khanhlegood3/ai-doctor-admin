@@ -229,7 +229,7 @@ export default function BodyProtectionJourneyPanel({ onNext, nextLabel, onPrev, 
 
   return (
     <div className={`animate-fade min-h-full w-full ${fullscreen ? 'px-0 py-0' : 'px-4 py-6 sm:px-8'} ${pageBg}`}>
-      <div className={`${fullscreen ? 'h-[calc(100dvh-58px)] max-w-none gap-0' : 'mx-auto h-[calc(100svh-112px)] min-h-[720px] max-w-6xl gap-5 max-lg:h-[calc(100svh-96px)] max-lg:min-h-[640px] max-sm:h-[calc(100svh-80px)] max-sm:min-h-[560px]'} flex flex-col`}>
+      <div className={`${fullscreen ? 'h-[calc(100dvh-58px)] max-w-none gap-0' : 'mx-auto h-[calc(100svh-112px)] min-h-[720px] max-w-none gap-5 max-lg:h-[calc(100svh-96px)] max-lg:min-h-[640px] max-sm:h-[calc(100svh-80px)] max-sm:min-h-[560px]'} flex flex-col`}>
         
         {!fullscreen && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -12,7 +12,7 @@ export const VIBE_TRACKING_APP_URL = '/src/vibe-tracking-khanh/index.html'
 
 export function VibeTrackingEmbedSection({ lang = 'vi', className = '' }) {
   return (
-    <div className={`animate-fade ai-healthcare-vision-page ${className}`}>
+    <div className={`animate-fade ai-healthcare-vision-page vibe-tracking-embed-page ${className}`}>
       <section className="ai-healthcare-vision-header">
         <div>
           <div className="ai-healthcare-vision-kicker">VIBE TRACKING</div>
@@ -25,11 +25,11 @@ export function VibeTrackingEmbedSection({ lang = 'vi', className = '' }) {
         </div>
       </section>
 
-      <section className="ai-healthcare-vision-frame-card" aria-label="Vibe Tracking app">
+      <section className="ai-healthcare-vision-frame-card vibe-tracking-frame-card" aria-label="Vibe Tracking app">
         <iframe
           title="Vibe Tracking"
           src={VIBE_TRACKING_APP_URL}
-          className="ai-healthcare-vision-frame"
+          className="ai-healthcare-vision-frame vibe-tracking-frame"
           allow="camera; microphone; fullscreen; clipboard-read; clipboard-write"
           referrerPolicy="strict-origin-when-cross-origin"
         />
