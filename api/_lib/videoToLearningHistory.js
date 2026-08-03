@@ -14,7 +14,7 @@
 // Collection: "video_to_learning_history"
 //   {
 //     uuid, userId, name,               // định danh người dùng (xem cdoc_users)
-//     type,                             // 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'website'
+//     type,                             // 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website'
 //     link,                             // URL gốc người dùng dán vào
 //     title,                            // tiêu đề video/trang nếu biết được (tuỳ chọn)
 //     aiSource,                         // 'groq-transcript' | 'groq-page' | 'gemini-fallback' | null (channel: không gọi AI)
@@ -41,7 +41,7 @@ async function ensureIndexes(col) {
   indexesEnsured = true
 }
 
-const VALID_TYPES = new Set(['youtube_video', 'youtube_short', 'youtube_channel', 'website'])
+const VALID_TYPES = new Set(['youtube_video', 'youtube_short', 'youtube_channel', 'facebook_video', 'website'])
 const VALID_STATUS = new Set(['success', 'error', 'saved-only'])
 
 export class VideoToLearningHistoryError extends Error {
@@ -149,7 +149,7 @@ export async function getAdminOverview({ recentLimit = 30, perUserLimit = 200 } 
     col.distinct('uuid'),
   ])
 
-  const byType = { youtube_video: 0, youtube_short: 0, youtube_channel: 0, website: 0 }
+  const byType = { youtube_video: 0, youtube_short: 0, youtube_channel: 0, facebook_video: 0, website: 0 }
   for (const row of byTypeAgg) {
     if (row._id && byType[row._id] !== undefined) byType[row._id] = row.count
   }
