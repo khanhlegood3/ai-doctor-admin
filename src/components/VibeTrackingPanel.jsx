@@ -8,13 +8,11 @@ import { useApp } from '../context/AppContext'
 // xem vite.config.js) được nhúng qua iframe cùng-origin, không phải
 // component React import trực tiếp — giữ tách biệt để không xung đột
 // dependency với app chính (xem src/vibe-tracking-khanh/).
-const VIBE_TRACKING_APP_URL = '/src/vibe-tracking-khanh/index.html'
+export const VIBE_TRACKING_APP_URL = '/src/vibe-tracking-khanh/index.html'
 
-export default function VibeTrackingPanel({ onNext, nextLabel, onPrev, prevLabel }) {
-  const { lang } = useApp()
-
+export function VibeTrackingEmbedSection({ lang = 'vi', className = '' }) {
   return (
-    <div className="animate-fade ai-healthcare-vision-page">
+    <div className={`animate-fade ai-healthcare-vision-page ${className}`}>
       <section className="ai-healthcare-vision-header">
         <div>
           <div className="ai-healthcare-vision-kicker">VIBE TRACKING</div>
@@ -37,7 +35,17 @@ export default function VibeTrackingPanel({ onNext, nextLabel, onPrev, prevLabel
         />
       </section>
 
-      <NavButtons onNext={onNext} nextLabel={nextLabel} onPrev={onPrev} prevLabel={prevLabel} />
     </div>
+  )
+}
+
+export default function VibeTrackingPanel({ onNext, nextLabel, onPrev, prevLabel }) {
+  const { lang } = useApp()
+
+  return (
+    <>
+      <VibeTrackingEmbedSection lang={lang} />
+      <NavButtons onNext={onNext} nextLabel={nextLabel} onPrev={onPrev} prevLabel={prevLabel} />
+    </>
   )
 }
