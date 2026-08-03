@@ -89,7 +89,7 @@ const GAME_CONFIG = {
     CANVAS_HEIGHT: 300,
     GROUND_Y: 242,
     GRAVITY: 4000,
-    JUMP_FORCE: 1000,
+    JUMP_FORCE: 1150,
     INITIAL_SPEED: 400,
     MAX_SPEED: 1200,
     SPEED_INCREMENT: 10,
@@ -393,6 +393,13 @@ const DinoGame: React.FC = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const outputCanvasRef = useRef<HTMLCanvasElement>(null);
     const jumpSignalRef = useRef<HTMLDivElement>(null);
+    // Cache riêng cho khung camera nền (mode 'background'): vẽ+lật gương
+    // (mirror) từ <video> tốn hơn vẽ lại 1 canvas tĩnh, nên chỉ redraw
+    // cache này ~15fps (đủ mượt cho hiệu ứng nền mờ) thay vì redraw mỗi
+    // frame game loop (~60fps) — game loop chỉ blit lại canvas cache có
+    // sẵn (rẻ hơn nhiều), giúp mode 'background' đỡ giật khi bật.
+    const bgCacheCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const bgCacheLastDrawRef = useRef(0);
     
     // --- REACT STATE ---
     const [isLoading, setIsLoading] = useState(true);
@@ -529,10 +536,28 @@ const DinoGame: React.FC = () => {
         // fallback về nền trắng như cũ.
         const video = videoRef.current;
         if (cameraModeRef.current === 'background' && video && video.readyState >= 2 && video.videoWidth > 0) {
+            // Chỉ vẽ lại (mirror) từ <video> vào canvas cache mỗi ~66ms
+            // (~15fps) — hiệu ứng nền mờ không cần mượt 60fps, trong khi
+            // ctx.drawImage(video,...) + scale(-1,1) mỗi frame game loop
+            // là phần tốn CPU/GPU nhất khiến mode 'background' bị chậm.
+            const nowTs = performance.now();
+            if (!bgCacheCanvasRef.current) {
+                bgCacheCanvasRef.current = document.createElement('canvas');
+                bgCacheCanvasRef.current.width = canvas.width;
+                bgCacheCanvasRef.current.height = canvas.height;
+            }
+            const bgCache = bgCacheCanvasRef.current;
+            if (nowTs - bgCacheLastDrawRef.current > 66) {
+                bgCacheLastDrawRef.current = nowTs;
+                const bgCtx = bgCache.getContext('2d')!;
+                bgCtx.save();
+                bgCtx.scale(-1, 1);
+                bgCtx.drawImage(video, -bgCache.width, 0, bgCache.width, bgCache.height);
+                bgCtx.restore();
+            }
             ctx.save();
             ctx.globalAlpha = 0.5;
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.drawImage(bgCache, 0, 0);
             ctx.restore();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1007,7 +1032,29 @@ const DinoGame: React.FC = () => {
 
     return (
         <div className="flex flex-col items-center gap-5 w-full max-w-4xl relative">
-            
+
+            {/* STATUS — chuyển lên đầu trang cùng toggle chế độ camera, để
+                khung game và khung camera preview (mode 'below') nằm sát
+                nhau hơn, không còn bị chữ trạng thái + toggle chen ở giữa. */}
+            <div className="text-sm text-[#666] min-h-[1.25rem] font-['Press_Start_2P'] text-center w-full px-2">
+                {status}
+            </div>
+
+            {/* CONTROLS */}
+            <div className="text-xs text-[#888] text-center font-['Press_Start_2P'] flex flex-wrap items-center justify-center gap-4">
+                {/* 1 toggle nhiều trạng thái thay cho 2 toggle cũ (Show Camera
+                    Feed checkbox + Camera as Background button): click để
+                    xoay vòng background -> below -> hidden -> off. */}
+                <button
+                    type="button"
+                    onClick={cycleCameraMode}
+                    className={`px-2 py-1 rounded border transition-colors ${cameraMode === 'off' ? 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]' : 'bg-[#535353] text-white border-[#535353]'}`}
+                    title={`${CAMERA_MODE_INFO[cameraMode].hint} — click to switch camera mode`}
+                >
+                    {CAMERA_MODE_INFO[cameraMode].icon} {CAMERA_MODE_INFO[cameraMode].label}
+                </button>
+            </div>
+
             {/* GAME CANVAS */}
             <div className="relative">
                 <canvas 
@@ -1099,26 +1146,6 @@ const DinoGame: React.FC = () => {
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* STATUS */}
-            <div className="mt-2 text-sm text-[#666] min-h-[1.25rem] font-['Press_Start_2P'] text-center w-full px-2">
-                {status}
-            </div>
-
-            {/* CONTROLS */}
-            <div className="mt-2 text-xs text-[#888] text-center font-['Press_Start_2P'] flex flex-wrap items-center justify-center gap-4">
-                {/* 1 toggle nhiều trạng thái thay cho 2 toggle cũ (Show Camera
-                    Feed checkbox + Camera as Background button): click để
-                    xoay vòng background -> below -> hidden -> off. */}
-                <button
-                    type="button"
-                    onClick={cycleCameraMode}
-                    className={`px-2 py-1 rounded border transition-colors ${cameraMode === 'off' ? 'border-[#ccc] text-[#888] hover:text-[#535353] hover:border-[#535353]' : 'bg-[#535353] text-white border-[#535353]'}`}
-                    title={`${CAMERA_MODE_INFO[cameraMode].hint} — click to switch camera mode`}
-                >
-                    {CAMERA_MODE_INFO[cameraMode].icon} {CAMERA_MODE_INFO[cameraMode].label}
-                </button>
             </div>
 
             {/* VISION CONTAINER — chỉ HIỂN THỊ (CSS) khung xem camera nhỏ ở
