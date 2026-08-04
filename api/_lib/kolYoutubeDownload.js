@@ -2,7 +2,9 @@
 // Backend cho tính năng "AI Pose thật cho video KOL" ở trang Remix Sức Khoẻ
 // từ KOL — nhánh "dán link YouTube, server tải video về" (xem thảo luận với
 // user: 2 nguồn video được hỗ trợ song song — dán link YouTube HOẶC upload
-// file trực tiếp, ưu tiên cái nào xử lý được thì dùng).
+// file trực tiếp, ưu tiên cái nào xử lý được thì dùng). Cũng được tab
+// "AI Sign Language Translator" (Vibe Tracking) tái sử dụng qua cùng
+// provider 'kol-youtube-fetch' (xem groq-proxy.js).
 //
 // CẬP NHẬT (chuyển sang R2): trước đây hàm này trả video dạng base64 thẳng
 // trong JSON response, bị trần ~4.5MB response của Vercel Serverless
@@ -10,15 +12,24 @@
 // tải video xong thì UPLOAD THẲNG lên Cloudflare R2 (xem r2Storage.js) rồi
 // chỉ trả về 1 URL — bỏ hẳn giới hạn 4.5MB, cho phép clip dài/nét hơn hẳn.
 //
+// CẬP NHẬT (2026-08): thay @distube/ytdl-core → youtubei.js. Lý do: chính
+// nhóm DisTube công bố @distube/ytdl-core NGỪNG BẢO TRÌ và khuyến nghị dùng
+// youtubei.js thay thế — ytdl-core cũ bị YouTube chặn/hỏng khi họ đổi cấu
+// trúc nội bộ (lỗi 'Không lấy được thông tin video từ YouTube' liên tục ở
+// getInfo()). youtubei.js dùng thẳng InnerTube API (API nội bộ mà chính các
+// client YouTube dùng) và được bảo trì tích cực hơn nên bắt kịp thay đổi của
+// YouTube nhanh hơn nhiều.
+//
 // GIỚI HẠN CÒN LẠI (đọc kỹ trước khi debug lỗi 'download thất bại'):
 //   1. Vercel Serverless Function vẫn có giới hạn THỜI GIAN CHẠY và BỘ NHỚ
 //      (buffer cả video vào RAM trước khi upload) — vẫn cần trần hợp lý cho
 //      độ dài/dung lượng clip, chỉ là trần đó giờ cao hơn nhiều so với khi
 //      còn bị giới hạn bởi response size.
-//   2. Tải video YouTube về từ server (datacenter IP của Vercel) rất dễ bị
-//      YouTube chặn/giới hạn tốc độ, hoặc thư viện ytdl-core bị hỏng khi
-//      YouTube đổi cấu trúc nội bộ — đây là rủi ro CỐ HỮU của cách này, không
-//      phải bug có thể sửa triệt để 100%.
+//   2. Tải video YouTube về từ server (datacenter IP của Vercel) vẫn có thể
+//      bị YouTube giới hạn tốc độ/chặn dù đã đổi thư viện — đây là rủi ro
+//      CỐ HỮU của cách "server tự tải" (không phải bug sửa triệt để 100%
+//      được), chỉ là youtubei.js bắt kịp thay đổi nội bộ của YouTube tốt
+//      hơn ytdl-core (không còn được bảo trì) nên bền hơn theo thời gian.
 //   3. Vì các lý do trên, nhánh này LUÔN được thiết kế để THẤT BẠI RÕ RÀNG
 //      (ném lỗi có message dễ hiểu) thay vì treo hoặc trả dữ liệu hỏng — để
 //      phía client có thể fallback ngay sang "hãy tải video về máy rồi chọn
@@ -26,7 +37,8 @@
 //      kol-r2-upload-url provider ở groq-proxy.js — luôn hoạt động, xem
 //      KolVideoLibraryPanel.jsx).
 
-import ytdl from '@distube/ytdl-core'
+import { Innertube } from 'youtubei.js'
+import { Readable } from 'node:stream'
 import { uploadBufferToR2, genR2Key, R2StorageError } from './r2Storage.js'
 
 export class KolYoutubeDownloadError extends Error {
@@ -43,6 +55,49 @@ export class KolYoutubeDownloadError extends Error {
 // tuỳ gói). Có thể chỉnh lại qua opts nếu cần.
 const DEFAULT_MAX_DURATION_SECONDS = 300
 const DEFAULT_MAX_BYTES = 80 * 1024 * 1024 // 80MB
+
+// 1 Innertube session được tái dùng giữa các lần gọi "ấm" (warm invocation)
+// của cùng 1 Vercel Serverless Function instance, tránh phải khởi tạo lại
+// (fetch config/player) mỗi request — chỉ tạo mới khi cold start hoặc khi
+// lần tạo trước đó lỗi.
+let innertubePromise = null
+function getInnertube() {
+  if (!innertubePromise) {
+    innertubePromise = Innertube.create({ lang: 'vi', location: 'VN' }).catch((err) => {
+      innertubePromise = null // cho phép thử tạo lại ở request sau
+      throw err
+    })
+  }
+  return innertubePromise
+}
+
+/**
+ * Trích video ID từ các dạng link YouTube phổ biến (watch?v=, youtu.be/,
+ * shorts/, embed/, live/). Trả về null nếu không nhận ra được — coi như link
+ * không hợp lệ.
+ * @param {string} rawUrl
+ * @returns {string|null}
+ */
+function extractYoutubeVideoId(rawUrl) {
+  let u
+  try {
+    u = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '')
+  if (host === 'youtu.be') {
+    return u.pathname.split('/').filter(Boolean)[0] || null
+  }
+  if (host === 'youtube.com' || host === 'music.youtube.com') {
+    if (u.pathname === '/watch') {
+      return u.searchParams.get('v')
+    }
+    const match = u.pathname.match(/^\/(shorts|embed|live)\/([^/?]+)/)
+    if (match) return match[2]
+  }
+  return null
+}
 
 /**
  * Tải 1 clip YouTube về server rồi upload thẳng lên R2, trả lại URL public
@@ -63,34 +118,46 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
   if (!youtubeUrl || typeof youtubeUrl !== 'string') {
     throw new KolYoutubeDownloadError('Thiếu link YouTube.', 400)
   }
-  if (!ytdl.validateURL(youtubeUrl)) {
+  const videoId = extractYoutubeVideoId(youtubeUrl)
+  if (!videoId) {
     throw new KolYoutubeDownloadError('Link YouTube không hợp lệ.', 400)
   }
 
+  let youtube
   let info
   try {
-    info = await ytdl.getInfo(youtubeUrl)
+    youtube = await getInnertube()
+    info = await youtube.getBasicInfo(videoId)
   } catch (err) {
-    console.error('[kolYoutubeDownload] getInfo failed:', err?.message || err)
+    console.error('[kolYoutubeDownload] getBasicInfo failed:', err?.message || err)
     throw new KolYoutubeDownloadError(
       'Không lấy được thông tin video từ YouTube (có thể do server bị YouTube chặn, video riêng tư/giới hạn độ tuổi, hoặc link sai). Hãy thử tải video này về máy rồi chọn "Chọn file để tải lên" bên dưới thay thế.',
     )
   }
 
-  const durationSeconds = Number(info.videoDetails?.lengthSeconds || 0)
+  const playability = info.playability_status?.status
+  if (playability && playability !== 'OK') {
+    throw new KolYoutubeDownloadError(
+      `Video không thể tải (${info.playability_status?.reason || playability}). Hãy thử tải video này về máy rồi chọn "Chọn file để tải lên" bên dưới thay thế.`,
+    )
+  }
+
+  const durationSeconds = Number(info.basic_info?.duration || 0)
   if (durationSeconds > maxDurationSeconds) {
     throw new KolYoutubeDownloadError(
       `Video dài ${durationSeconds}s, vượt giới hạn ${maxDurationSeconds}s cho phép tải qua server (giới hạn kỹ thuật của Vercel Serverless Function). Hãy cắt video ngắn lại, hoặc tải video về máy rồi chọn "Chọn file để tải lên" thay thế.`,
     )
   }
 
-  let format
+  let webStream
   try {
-    format = ytdl.chooseFormat(info.formats, { quality: 'highest', filter: 'audioandvideo' })
-  } catch {
-    format = null
-  }
-  if (!format) {
+    webStream = await youtube.download(videoId, {
+      type: 'video+audio',
+      quality: 'best',
+      format: 'mp4',
+    })
+  } catch (err) {
+    console.error('[kolYoutubeDownload] download() failed:', err?.message || err)
     throw new KolYoutubeDownloadError(
       'Không tìm thấy định dạng video+audio phù hợp để tải (video có thể chỉ có luồng video/audio tách riêng — YouTube hay dùng định dạng này cho video chất lượng cao). Hãy tải video về máy rồi chọn "Chọn file để tải lên" thay thế.',
     )
@@ -100,18 +167,18 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
   let totalBytes = 0
 
   try {
+    const nodeStream = Readable.fromWeb(webStream)
     await new Promise((resolve, reject) => {
-      const stream = ytdl.downloadFromInfo(info, { format })
-      stream.on('data', (chunk) => {
+      nodeStream.on('data', (chunk) => {
         totalBytes += chunk.length
         if (totalBytes > maxBytes) {
-          stream.destroy(new Error('EXCEEDS_MAX_BYTES'))
+          nodeStream.destroy(new Error('EXCEEDS_MAX_BYTES'))
           return
         }
         chunks.push(chunk)
       })
-      stream.on('end', resolve)
-      stream.on('error', reject)
+      nodeStream.on('end', resolve)
+      nodeStream.on('error', reject)
     })
   } catch (err) {
     if (String(err?.message) === 'EXCEEDS_MAX_BYTES') {
@@ -126,9 +193,8 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
   }
 
   const buffer = Buffer.concat(chunks)
-  const mimeType = (format.mimeType || 'video/mp4').split(';')[0]
-  const ext = mimeType.split('/')[1] || 'mp4'
-  const key = genR2Key('kol-videos/youtube', ext)
+  const mimeType = 'video/mp4'
+  const key = genR2Key('kol-videos/youtube', 'mp4')
 
   let uploaded
   try {
@@ -145,7 +211,7 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
   return {
     url: uploaded.url,
     mimeType,
-    title: info.videoDetails?.title || 'Video YouTube',
+    title: info.basic_info?.title || 'Video YouTube',
     durationSeconds,
     size: uploaded.size,
   }
