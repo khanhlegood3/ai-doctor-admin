@@ -58,17 +58,37 @@ const DEFAULT_MAX_BYTES = 80 * 1024 * 1024 // 80MB
 
 // 1 Innertube session được tái dùng giữa các lần gọi "ấm" (warm invocation)
 // của cùng 1 Vercel Serverless Function instance, tránh phải khởi tạo lại
-// (fetch config/player) mỗi request — chỉ tạo mới khi cold start hoặc khi
-// lần tạo trước đó lỗi.
-let innertubePromise = null
-function getInnertube() {
-  if (!innertubePromise) {
-    innertubePromise = Innertube.create({ lang: 'vi', location: 'VN' }).catch((err) => {
-      innertubePromise = null // cho phép thử tạo lại ở request sau
+// (fetch config/player) mỗi request — chỉ tạo mới khi cold start, khi lần
+// tạo trước đó lỗi, hoặc khi cookie thay đổi (key theo cookie).
+//
+// COOKIE ĐĂNG NHẬP (bắt buộc để vượt bot-check "Đăng nhập để xác nhận bạn
+// không phải là robot" — YouTube chặn IP datacenter như Vercel theo mặc
+// định, kể cả với youtubei.js): đặt biến môi trường YOUTUBE_COOKIE trên
+// Vercel bằng chuỗi cookie của 1 tài khoản Google/YouTube thật.
+//   Cách lấy: đăng nhập youtube.com trên trình duyệt (Chrome) → mở
+//   DevTools (F12) → tab Network → bấm 1 request bất kỳ tới youtube.com →
+//   phần Request Headers → copy nguyên giá trị header "cookie:" (chuỗi
+//   dạng "name1=value1; name2=value2; ...") → dán vào Vercel env var
+//   YOUTUBE_COOKIE (Project Settings → Environment Variables).
+//   Lưu ý: (1) nên dùng 1 tài khoản Google phụ, không dùng tài khoản chính
+//   — cookie tự động hoá kiểu này có rủi ro bị YouTube khoá/giới hạn tài
+//   khoản; (2) cookie sẽ hết hạn theo thời gian, cần lặp lại thao tác trên
+//   để lấy cookie mới khi thấy lỗi LOGIN_REQUIRED quay lại dù đã cấu hình.
+const innertubeCache = new Map() // cookie string -> Promise<Innertube>
+function getInnertube(cookie) {
+  const key = cookie || ''
+  if (!innertubeCache.has(key)) {
+    const promise = Innertube.create({
+      lang: 'vi',
+      location: 'VN',
+      cookie: cookie || undefined,
+    }).catch((err) => {
+      innertubeCache.delete(key) // cho phép thử tạo lại ở request sau
       throw err
     })
+    innertubeCache.set(key, promise)
   }
-  return innertubePromise
+  return innertubeCache.get(key)
 }
 
 /**
@@ -123,10 +143,12 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
     throw new KolYoutubeDownloadError('Link YouTube không hợp lệ.', 400)
   }
 
+  const cookie = envSource.YOUTUBE_COOKIE || ''
+
   let youtube
   let info
   try {
-    youtube = await getInnertube()
+    youtube = await getInnertube(cookie)
     info = await youtube.getBasicInfo(videoId)
   } catch (err) {
     console.error('[kolYoutubeDownload] getBasicInfo failed:', err?.message || err)
@@ -137,8 +159,20 @@ export async function fetchYoutubeClipToR2(youtubeUrl, opts = {}) {
 
   const playability = info.playability_status?.status
   if (playability && playability !== 'OK') {
+    const reason = info.playability_status?.reason || playability
+    // Gợi ý rõ hướng khắc phục khi bị chặn kiểu "cần đăng nhập" — phân biệt
+    // 2 trường hợp: (1) server chưa cấu hình cookie tài khoản YouTube nào
+    // cả, (2) đã cấu hình nhưng cookie đó đã hết hạn/bị YouTube từ chối.
+    const isLoginRequired = playability === 'LOGIN_REQUIRED'
+    let hint = ''
+    if (isLoginRequired) {
+      hint = cookie
+        ? ' (cookie YOUTUBE_COOKIE trên server có thể đã hết hạn, cần lấy cookie mới từ tài khoản Google/YouTube và cập nhật lại biến môi trường này)'
+        : ' (server chưa cấu hình cookie đăng nhập YouTube — cần đặt biến môi trường YOUTUBE_COOKIE, xem comment trong api/_lib/kolYoutubeDownload.js)'
+    }
+    console.error(`[kolYoutubeDownload] playability=${playability} reason=${reason} hasCookie=${Boolean(cookie)}`)
     throw new KolYoutubeDownloadError(
-      `Video không thể tải (${info.playability_status?.reason || playability}). Hãy thử tải video này về máy rồi chọn "Chọn file để tải lên" bên dưới thay thế.`,
+      `Video không thể tải (${reason})${hint}. Hãy thử tải video này về máy rồi chọn "Chọn file để tải lên" bên dưới thay thế.`,
     )
   }
 
