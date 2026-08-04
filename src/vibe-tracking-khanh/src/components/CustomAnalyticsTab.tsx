@@ -105,8 +105,16 @@ export default function SignLanguageAnalyticsTab() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
   const [faceLandmarker, setFaceLandmarker] = useState<FaceLandmarker | null>(null);
-  const [mediaSource, setMediaSource] = useState<'none' | 'webcam' | 'video'>('none');
+  const [mediaSource, setMediaSource] = useState<'none' | 'webcam' | 'video' | 'screen'>('none');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Nguồn thứ 3 bên cạnh Webcam / Upload / Link YouTube: chụp trực tiếp 1
+  // tab/cửa sổ đang phát video (getDisplayMedia) — dùng khi link YouTube bị
+  // chặn ở server (bot-check) nhưng vẫn muốn phân tích được, đổi lại phải
+  // xin quyền chia sẻ màn hình mỗi phiên và chất lượng phụ thuộc màn hình
+  // thật (xem thảo luận: cách này KHÔNG đọc được frame trực tiếp từ iframe
+  // YouTube do bị chặn CORS/cross-origin — phải chụp nguyên tab qua OS).
+  const [screenShareError, setScreenShareError] = useState<string | null>(null);
+  const isScreenCaptureSupported = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getDisplayMedia);
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
   const [videoProgress, setVideoProgress] = useState(0);
@@ -306,6 +314,7 @@ export default function SignLanguageAnalyticsTab() {
   const startCamera = async () => {
     if (!handLandmarker || !faceLandmarker) return;
     setCameraError(null);
+    setScreenShareError(null);
     try {
       stopMedia();
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
@@ -366,8 +375,57 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
 
+  const startScreenShare = async () => {
+    if (!handLandmarker || !faceLandmarker) return;
+    setScreenShareError(null);
+    setYoutubeStatus(null);
+    setGeminiAnalysis(null);
+    try {
+      stopMedia();
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+      });
+      if (!videoRef.current) return;
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current?.play();
+        setMediaSource('screen');
+        setIsPlaying(true);
+        isPlayingRef.current = true;
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+        predictLoop();
+      };
+      // Người dùng có thể dừng chia sẻ từ chính UI của trình duyệt (nút "Stop
+      // sharing" ở thanh thông báo) thay vì bấm nút trong app — lắng nghe sự
+      // kiện này để đồng bộ lại trạng thái, tránh app tưởng vẫn đang chạy.
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        stopMedia();
+      });
+    } catch (err: any) {
+      console.error('Error starting screen share', err);
+      // NotAllowedError: user bấm Cancel ở popup xin quyền, hoặc trình duyệt
+      // chặn hẳn getDisplayMedia (ví dụ đang chạy trong 1 iframe lồng không
+      // có quyền "display-capture").
+      setScreenShareError(
+        err?.name === 'NotAllowedError'
+          ? 'Bạn đã từ chối hoặc đóng popup chia sẻ màn hình. Hãy thử lại và chọn đúng tab/cửa sổ đang phát video.'
+          : (err?.message || 'Không thể bắt đầu chia sẻ màn hình.'),
+      );
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (mediaSource === 'screen') {
+      stopMedia();
+    } else {
+      startScreenShare();
+    }
+  };
+
   const loadVideoSource = (url: string) => {
     setGeminiAnalysis(null);
+    setScreenShareError(null);
     const oldSrc = videoRef.current?.src;
     stopMedia();
     if (oldSrc && oldSrc.startsWith('blob:')) {
@@ -1041,7 +1099,19 @@ export default function SignLanguageAnalyticsTab() {
             
             {!isPlaying && mediaSource === 'none' && !isModelLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 z-20 p-6 text-center">
-                {cameraError ? (
+                {screenShareError ? (
+                  <>
+                    <AlertCircle className="w-16 h-16 text-rose-500 mb-4" />
+                    <p className="font-bold uppercase tracking-widest text-sm text-rose-400 mb-2">Screen Share Error</p>
+                    <p className="text-xs text-slate-400 max-w-xs">{screenShareError}</p>
+                    <button
+                      onClick={startScreenShare}
+                      className="bg-slate-700 hover:bg-slate-600 border-2 border-black px-4 py-2 rounded-xl font-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs mt-4 focus:outline-none focus:ring-4 focus:ring-indigo-500"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : cameraError ? (
                   <>
                     <AlertCircle className="w-16 h-16 text-rose-500 mb-4" />
                     <p className="font-bold uppercase tracking-widest text-sm text-rose-400 mb-2">Camera Error</p>
@@ -1065,9 +1135,9 @@ export default function SignLanguageAnalyticsTab() {
 
             <video
               ref={videoRef}
-              autoPlay={mediaSource === 'webcam'}
+              autoPlay={mediaSource === 'webcam' || mediaSource === 'screen'}
               playsInline
-              muted={mediaSource === 'webcam'}
+              muted={mediaSource === 'webcam' || mediaSource === 'screen'}
               controls={false}
               onPlay={() => {
                 if (mediaSource === 'video') {
@@ -1214,6 +1284,19 @@ export default function SignLanguageAnalyticsTab() {
             >
               Upload Video
             </button>
+
+            {isScreenCaptureSupported && (
+              <button
+                onClick={toggleScreenShare}
+                disabled={isModelLoading || isFetchingYoutube}
+                title="Mở video (YouTube/Facebook/bất kỳ) ở 1 tab khác trước, rồi bấm nút này và chọn đúng tab đó — dùng khi dán link không tải được."
+                className={`flex items-center justify-center w-full sm:w-auto border-4 border-black px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:translate-y-1 active:shadow-none uppercase text-xs sm:text-sm whitespace-nowrap focus:outline-none focus:ring-4 focus:ring-teal-500 ${
+                  mediaSource === 'screen' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-teal-600 hover:bg-teal-500'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {mediaSource === 'screen' ? 'Stop Sharing' : 'Share Tab/Screen'}
+              </button>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-[28rem]">
               <input
