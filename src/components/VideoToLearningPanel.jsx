@@ -19,8 +19,8 @@ export default function VideoToLearningPanel({ onNext, nextLabel, onPrev, prevLa
           <h2>🎬 Video to Learning</h2>
           <p>
             {lang === 'vi'
-              ? 'Dán một link video YouTube có phụ đề, AI sẽ đọc phụ đề để phân tích nội dung và tự tạo ra một mini-app học tập tương tác (HTML) để giúp người học ôn lại ý chính của video.'
-              : 'Paste a YouTube video link that has captions, and AI will read the captions to analyze it and generate a self-contained interactive learning mini-app (HTML) that reinforces the video\'s key ideas.'}
+              ? 'Dán một link video YouTube có phụ đề, hoặc link video/reel Facebook — AI sẽ phân tích nội dung và tự tạo ra một mini-app học tập tương tác (HTML) để giúp người học ôn lại ý chính của video.'
+              : 'Paste a YouTube video link with captions, or a Facebook video/reel link — AI will analyze the content and generate a self-contained interactive learning mini-app (HTML) that reinforces the video\'s key ideas.'}
           </p>
         </div>
       </section>
