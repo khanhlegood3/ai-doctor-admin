@@ -356,7 +356,7 @@ export default function App() {
               🎬 Video/Web → Ứng dụng học tập
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              Dán 1 hoặc nhiều link (video YouTube, Shorts, kênh YouTube, hoặc trang web bất kỳ) — mỗi dòng 1 link.
+              Dán 1 hoặc nhiều link (video YouTube, Shorts, kênh YouTube, video/reel Facebook, hoặc trang web bất kỳ) — mỗi dòng 1 link.
               AI sẽ tạo mini-app tương tác cho từng link.
             </p>
           </div>
@@ -369,7 +369,7 @@ export default function App() {
               ref={textareaRef}
               id="link-list"
               rows={4}
-              placeholder={'https://www.youtube.com/watch?v=...\nhttps://www.youtube.com/shorts/...\nhttps://www.youtube.com/@mot-kenh\nhttps://vi.wikipedia.org/wiki/...'}
+              placeholder={'https://www.youtube.com/watch?v=...\nhttps://www.youtube.com/shorts/...\nhttps://www.youtube.com/@mot-kenh\nhttps://www.facebook.com/watch/?v=...\nhttps://vi.wikipedia.org/wiki/...'}
               disabled={isBusy}
               onKeyDown={handleKeyDown}
               className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm outline-none focus:border-sky-500 disabled:opacity-50 font-mono resize-y"
