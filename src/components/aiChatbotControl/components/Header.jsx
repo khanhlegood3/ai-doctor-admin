@@ -1,12 +1,16 @@
 /**
  * Ported from chatterbots (Google I/O 2025 Live API Demo).
  * Original license: Apache-2.0, Copyright 2024 Google LLC
+ *
+ * ĐÃ ĐƠN GIẢN HOÁ: bản gốc cho phép chọn giữa nhiều "nhân vật" demo
+ * (Charlotte/Paul/Shane/Penny) + tự tạo thêm chatbot riêng, hiển thị qua 1
+ * dropdown "roomList". Theo yêu cầu, trang này giờ CHỈ CÒN ĐÚNG 1 chatbot
+ * duy nhất (ProjectAI, icon 😊 — xem lib/presets/agents.js) cho toàn dự án,
+ * nên dropdown chọn/tạo nhân vật không còn cần thiết — chỉ còn hiển thị tên +
+ * nút "Sửa" (đổi tính cách/giọng nói/màu nếu muốn, vẫn qua AgentEdit.jsx).
  */
-import React, { useEffect, useState } from 'react'
-import { useLiveAPIContext } from '../contexts/VoiceCompanionContext'
-import { createNewAgent } from '../lib/presets/agents'
-import { useAgent, useUI, useUser } from '../lib/state'
-import c from 'classnames'
+import React from 'react'
+import { useUI, useUser, useAgent } from '../lib/state'
 import { useApp } from '../../../context/AppContext'
 
 export default function Header() {
@@ -14,43 +18,13 @@ export default function Header() {
   const { lang } = useApp()
   const isVi = lang !== 'en'
   const { name } = useUser()
-  const { current, setCurrent, availablePresets, availablePersonal, addAgent } =
-    useAgent()
-  const { disconnect } = useLiveAPIContext()
-
-  let [showRoomList, setShowRoomList] = useState(false)
-
-  useEffect(() => {
-    addEventListener('click', () => setShowRoomList(false))
-    return () => removeEventListener('click', () => setShowRoomList(false))
-  }, [])
-
-  function changeAgent(agent) {
-    disconnect()
-    setCurrent(agent)
-  }
-
-  function addNewChatterBot() {
-    disconnect()
-    addAgent(createNewAgent())
-    setShowAgentEdit(true)
-  }
+  const { current } = useAgent()
 
   return (
     <header>
       <div className="roomInfo">
         <div className="roomName">
-          <button
-            onClick={e => {
-              e.stopPropagation()
-              setShowRoomList(!showRoomList)
-            }}
-          >
-            <h1 className={c({ active: showRoomList })}>
-              {current.name}
-              <span className="icon">arrow_drop_down</span>
-            </h1>
-          </button>
+          <h1>{current.name}</h1>
 
           <button
             onClick={() => setShowAgentEdit(true)}
@@ -58,51 +32,6 @@ export default function Header() {
           >
             <span className="icon">edit</span> {isVi ? 'Sửa' : 'Edit'}
           </button>
-        </div>
-
-        <div className={c('roomList', { active: showRoomList })}>
-          <div>
-            <h3>{isVi ? 'Mẫu có sẵn' : 'Presets'}</h3>
-            <ul>
-              {availablePresets
-                .filter(agent => agent.id !== current.id)
-                .map(agent => (
-                  <li
-                    key={agent.name}
-                    className={c({ active: agent.id === current.id })}
-                  >
-                    <button onClick={() => changeAgent(agent)}>
-                      {agent.name}
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3>{isVi ? 'Chatbot của bạn' : 'Your ChatterBots'}</h3>
-            {
-              <ul>
-                {availablePersonal.length ? (
-                  availablePersonal.map(({ id, name }) => (
-                    <li key={name} className={c({ active: id === current.id })}>
-                      <button onClick={() => changeAgent(id)}>{name}</button>
-                    </li>
-                  ))
-                ) : (
-                  <p>{isVi ? 'Chưa có.' : 'None yet.'}</p>
-                )}
-              </ul>
-            }
-            <button
-              className="newRoomButton"
-              onClick={() => {
-                addNewChatterBot()
-              }}
-            >
-              <span className="icon">add</span>{isVi ? 'Chatbot mới' : 'New ChatterBot'}
-            </button>
-          </div>
         </div>
       </div>
       <div className="userSettingsButton" title={name ? undefined : (isVi ? 'Cập nhật tên trong Hồ sơ cá nhân' : 'Update your name in Profile')}>

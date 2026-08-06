@@ -4,7 +4,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { Charlotte, Paul, Shane, Penny } from './presets/agents'
+import { ProjectAI } from './presets/agents'
 
 /**
  * User
@@ -33,8 +33,13 @@ function getAgentById(id) {
 export const useAgent = create(
   persist(
     set => ({
-      current: Paul,
-      availablePresets: [Paul, Charlotte, Shane, Penny],
+      // CHỈ CÒN 1 chatbot duy nhất (ProjectAI, icon 😊) cho toàn dự án — không
+      // còn danh sách nhiều "nhân vật" để chọn nữa. availablePersonal giữ lại
+      // mảng rỗng vì logic getAgentById/update bên dưới vẫn tham chiếu tới nó,
+      // nhưng Header.jsx không còn hiển thị nút "Chatbot mới" nên mảng này sẽ
+      // luôn rỗng trong thực tế.
+      current: ProjectAI,
+      availablePresets: [ProjectAI],
       availablePersonal: [],
 
       addAgent: (agent) => {
@@ -65,7 +70,15 @@ export const useAgent = create(
       // 2 trang "Anh Hùng" (HeroMicVoiceButton) đọc được màu khuôn mặt tròn
       // NGAY TỪ ĐẦU, kể cả sau khi tải lại trang — không chỉ trong lúc đang
       // mở panel "AI chatbot control".
-      name: 'ai-doctor-admin.companion-agent',
+      //
+      // ĐỔI KEY (…v2) khi gộp 4 nhân vật demo (Paul/Charlotte/Shane/Penny)
+      // thành 1 chatbot duy nhất (ProjectAI, 😊): browser của user cũ có thể
+      // đã lưu `current` là 1 trong 4 nhân vật cũ dưới key cũ — nếu vẫn dùng
+      // chung key, persist middleware sẽ nạp đè state MỚI bằng dữ liệu CŨ đó
+      // (kể cả sau khi đã xoá 4 preset khỏi code), khiến user cũ vẫn thấy
+      // nhân vật cũ. Đổi sang key mới để mọi người đều bắt đầu lại từ
+      // ProjectAI, đúng yêu cầu "chỉ còn 1 chatbot".
+      name: 'ai-doctor-admin.companion-agent.v2',
     }
   )
 )
