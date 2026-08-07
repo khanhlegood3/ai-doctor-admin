@@ -20,6 +20,7 @@
 // hành vi cũ.
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
+import { runDinoPalGenerate, DinoPalProxyError } from './_lib/dinoPalProxy.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
@@ -379,6 +380,19 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (video-analyzer) error:', err?.message || err)
       const status = err instanceof VideoAnalyzerProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Video Analyzer proxy error' })
+    }
+  }
+
+  // --- Nhánh Dino pal (sinh tính cách thú ảo, text thật qua Groq, dùng chung GROQ_API_KEY) ---
+  if (body.provider === 'dino-pal') {
+    console.log('[groq-proxy] (dino-pal) name:', body.name)
+    try {
+      const payload = await runDinoPalGenerate({ name: body.name })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (dino-pal) error:', err?.message || err)
+      const status = err instanceof DinoPalProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Dino pal proxy error' })
     }
   }
 

@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { runInbodyOcr } from './api/_lib/inbodyOcr.js'
 import { runGeminiComicGenerate } from './api/_lib/geminiComic.js'
+import { runDinoPalGenerate, DinoPalProxyError } from './api/_lib/dinoPalProxy.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './api/_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './api/_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
@@ -116,6 +117,21 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
               res.end(JSON.stringify({ error: error?.message || 'Comic generate proxy error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'dino-pal') {
+            try {
+              const payload = await runDinoPalGenerate({ name: parsed.name, envSource: env })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[dino-pal-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error instanceof DinoPalProxyError ? error.status : 500
+              res.end(JSON.stringify({ error: error?.message || 'Dino pal proxy error' }))
             }
             return
           }
@@ -369,6 +385,7 @@ export default defineConfig(({ mode }) => {
           videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
           videoToLearningKhanhAdmin: resolve(__dirname, 'src/video-to-learning-khanh/admin.html'),
           dinoJumpKhanh: resolve(__dirname, 'src/dino-jump-khanh/index.html'),
+          dinoPalKhanh: resolve(__dirname, 'src/dino-pal-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
           videoAnalyzerKhanh: resolve(__dirname, 'src/video-analyzer-khanh/index.html'),

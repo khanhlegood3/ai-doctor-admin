@@ -1,0 +1,86 @@
+/* Các class/keyframes riêng của Dino pal, được rút gọn từ index.css gốc
+   trong dino-pal.zip (Tailwind v4) sang CSS thuần + Tailwind v3, để dùng
+   chung pipeline PostCSS/Tailwind hiện có của ai-doctor-admin-main (xem
+   ghi chú ở main.tsx). Chỉ giữ lại đúng những gì Dino pal thực sự dùng:
+   rainbow-border, rainbow-border-2, animate-rotate-gradient,
+   animate-reverse-ping, text-trim-both. */
+
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes rotate-gradient {
+  from {
+    --gradient-angle: 0deg;
+  }
+  to {
+    --gradient-angle: 360deg;
+  }
+}
+
+.animate-rotate-gradient {
+  animation: rotate-gradient 7s linear infinite;
+}
+
+.rainbow-border {
+  border: 2px solid transparent;
+  background-image:
+    linear-gradient(#000, #000),
+    conic-gradient(from var(--gradient-angle),
+      #4285f4,
+      #bb55a1,
+      #ea4335,
+      #fbbc04,
+      #b9d84c,
+      #38a852,
+      #4285f4);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.rainbow-border-2 {
+  border: 2px solid transparent;
+  background-image:
+    linear-gradient(#000, #000),
+    conic-gradient(from var(--gradient-angle) at 50% 50.12%,
+    #4285F4 142.8739893436432deg,
+    #BB55A1 175.78184008598328deg,
+    #EA4335 194.22826051712036deg,
+    #FBBC04 246.98917865753174deg,
+    #B9D84C 268.67698431015015deg,
+    #38A852 305.1065754890442deg,
+    #38A852 330.3632426261902deg,
+    #4285F4 353.76710414886475deg);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+@keyframes reversePing {
+  0% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-reverse-ping {
+  animation: reversePing 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.text-trim-both {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+/* Nền tối riêng cho app con này (bản gốc set body { background: #000 }) —
+   scoped bằng #root để không ảnh hưởng tới các app con khác nếu index.css
+   dùng chung có thay đổi trong tương lai. */
+#root {
+  background-color: #000;
+  min-height: 100vh;
+}
