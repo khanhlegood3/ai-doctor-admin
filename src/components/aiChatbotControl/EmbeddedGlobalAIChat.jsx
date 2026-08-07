@@ -52,6 +52,31 @@ function useSyntheticVolume({ speaking, recording, busy }) {
   return volume
 }
 
+// Tuỳ chỉnh khuôn mặt (màu sắc + phong cách) lưu trong localStorage, riêng
+// theo trình duyệt — không phải state đồng bộ IndexedDB như tin nhắn chat,
+// vì đây chỉ là sở thích hiển thị cá nhân, không cần đồng bộ nhiều thiết bị.
+const FACE_COLOR_KEY = 'sharedFaceAvatar:color'
+const FACE_STYLE_KEY = 'sharedFaceAvatar:style'
+const FACE_COLOR_PRESETS = ['#0f4c81', '#14b8a6', '#5eead4', '#f472b6', '#a78bfa', '#fb923c', '#f8fafc']
+
+function useFaceCustomization() {
+  const [color, setColorState] = useState(() => {
+    try { return localStorage.getItem(FACE_COLOR_KEY) || FACE_COLOR_PRESETS[0] } catch { return FACE_COLOR_PRESETS[0] }
+  })
+  const [style, setStyleState] = useState(() => {
+    try { return localStorage.getItem(FACE_STYLE_KEY) || 'round' } catch { return 'round' }
+  })
+  const setColor = (next) => {
+    setColorState(next)
+    try { localStorage.setItem(FACE_COLOR_KEY, next) } catch {}
+  }
+  const setStyle = (next) => {
+    setStyleState(next)
+    try { localStorage.setItem(FACE_STYLE_KEY, next) } catch {}
+  }
+  return { color, setColor, style, setStyle }
+}
+
 export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
   const { theme, lang } = useApp()
   const { user } = useAuth()
@@ -97,7 +122,8 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
   }
 
   const faceVolume = useSyntheticVolume({ speaking, recording, busy })
-  const faceColor = isDark ? '#5eead4' : '#0f4c81'
+  const { color: faceColor, setColor: setFaceColor, style: faceStyle, setStyle: setFaceStyle } = useFaceCustomization()
+  const [showFaceSettings, setShowFaceSettings] = useState(false)
 
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
   const text = isDark ? '#e8f0f8' : '#102033'
@@ -132,9 +158,14 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ width: 44, height: 44, borderRadius: '50%', background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-          <SharedFaceAvatar volume={faceVolume} radius={90} size={40} color={faceColor} />
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowFaceSettings(v => !v)}
+          title={isVi ? 'Đổi màu / phong cách khuôn mặt' : 'Change face color / style'}
+          style={{ width: 64, height: 64, borderRadius: faceStyle === 'robot' ? 16 : '50%', background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: 'pointer', flexShrink: 0 }}
+        >
+          <SharedFaceAvatar volume={faceVolume} size={62} color={faceColor} style={faceStyle} />
+        </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span style={{ color: '#0f766e', background: isDark ? 'rgba(45, 212, 191, 0.16)' : '#ccfbf1', borderRadius: 999, padding: '3px 8px', fontWeight: 900, alignSelf: 'flex-start' }}>
             {getModeLabel(mode, isVi)}
@@ -145,6 +176,39 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
           {isVi ? 'Đồng bộ với chatbot chung toàn dự án' : 'Synced with the project-wide chatbot'}
         </span>
       </div>
+
+      {showFaceSettings && (
+        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${border}`, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Màu:' : 'Color:'}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {FACE_COLOR_PRESETS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setFaceColor(c)}
+                title={c}
+                style={{
+                  width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: faceColor === c ? `2px solid ${isDark ? '#fff' : '#0f172a'}` : `1px solid ${border}`,
+                  boxShadow: faceColor === c ? '0 0 0 2px rgba(20,184,166,0.4)' : 'none',
+                }}
+              />
+            ))}
+            <label style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', border: `1px solid ${border}`, cursor: 'pointer', position: 'relative' }}>
+              <input type="color" value={faceColor} onChange={e => setFaceColor(e.target.value)} style={{ position: 'absolute', inset: -4, width: 30, height: 30, border: 'none', padding: 0, cursor: 'pointer' }} />
+            </label>
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 800, color: muted, marginLeft: 8 }}>{isVi ? 'Phong cách:' : 'Style:'}</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => setFaceStyle('round')} style={smallBtnStyle(isDark, border, text)}>
+              {faceStyle === 'round' ? '● ' : ''}{isVi ? 'Tròn ấm áp' : 'Warm round'}
+            </button>
+            <button type="button" onClick={() => setFaceStyle('robot')} style={smallBtnStyle(isDark, border, text)}>
+              {faceStyle === 'robot' ? '● ' : ''}{isVi ? 'Vuông rô-bốt' : 'Robot square'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         ref={scrollRef}
