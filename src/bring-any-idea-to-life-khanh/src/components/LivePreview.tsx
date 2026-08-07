@@ -109,6 +109,28 @@ const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
   );
 };
 
+// Bug: đôi khi Groq/Gemini trả về HTML thiếu <style>/color-scheme (chữ đen
+// trên nền tối do trình duyệt tự force-dark), hoặc trả về text thô (không
+// phải HTML hợp lệ) khiến trình duyệt render ở quirks-mode mặc định — cả
+// hai trường hợp đều có thể ra chữ cùng màu với nền (vô hình). Hàm này chèn
+// một baseline màu sắc an toàn (color-scheme: light + nền trắng/chữ đen)
+// trước khi đưa vào iframe, để nếu HTML sinh ra tự set màu riêng thì màu đó
+// vẫn được ưu tiên (baseline chỉ là fallback), còn nếu không có gì thì luôn
+// đọc được thay vì vô hình.
+function buildSafeSrcDoc(html: string): string {
+  const baseStyle = '<style>html,body{background:#ffffff;color:#111111;color-scheme:light;}</style>';
+
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head[^>]*>/i, (match) => `${match}${baseStyle}`);
+  }
+  if (/<html[^>]*>/i.test(html)) {
+    return html.replace(/<html[^>]*>/i, (match) => `${match}<head>${baseStyle}</head>`);
+  }
+  // Không phải một document HTML đầy đủ (ví dụ model trả về text thuần/markdown
+  // thay vì HTML) — bọc lại thành document hợp lệ để luôn có nền/chữ tương phản rõ.
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
+}
+
 export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
@@ -277,7 +299,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
             <div className={`relative h-full bg-white transition-all duration-500 ${showSplitView && creation.originalImage ? 'w-full md:w-1/2 h-1/2 md:h-full' : 'w-full'}`}>
                  <iframe
                     title="Gemini Live Preview"
-                    srcDoc={creation.html}
+                    srcDoc={buildSafeSrcDoc(creation.html)}
                     className="w-full h-full"
                     sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
                 />
