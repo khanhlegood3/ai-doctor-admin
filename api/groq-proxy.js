@@ -26,6 +26,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
+import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
 import { saveBringAnyIdeaToLifeCreationToR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
@@ -190,6 +191,25 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (bring-any-idea-to-life) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life proxy error' })
+    }
+  }
+
+  // --- Nhánh Image to Code (chuyển đổi từ image-to-code.zip, gắn vào làm 1
+  // loại item "image" trong Video to Learning — xem api/_lib/imageToCodeProxy.js
+  // và src/video-to-learning-khanh/src/lib/imageToCode.ts) ---
+  if (body.provider === 'image-to-code') {
+    console.log('[groq-proxy] (image-to-code) hasImage:', Boolean(body.imageBase64), '| mimeType:', body.mimeType)
+    try {
+      const payload = await runImageToCodeGenerate({
+        imageBase64: body.imageBase64,
+        mimeType: body.mimeType,
+        userInput: body.userInput,
+      })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (image-to-code) error:', err?.message || err)
+      const status = err instanceof ImageToCodeProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Image to Code proxy error' })
     }
   }
 

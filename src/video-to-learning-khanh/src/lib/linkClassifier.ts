@@ -13,7 +13,12 @@
 
 import { getYouTubeVideoId } from './youtube';
 
-export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website';
+// 'image' — KHÔNG đến từ classifyLinkList() (link dán vào ô textarea) như 5
+// loại còn lại, mà được tạo thủ công ở App.tsx khi người dùng upload 1 ảnh
+// (xem tính năng "Ảnh → Sketch tương tác", chuyển thể từ image-to-code.zip,
+// dùng chung pipeline hàng đợi/lịch sử với các loại link khác — xem
+// lib/imageToCode.ts + api/_lib/imageToCodeProxy.js).
+export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website' | 'image';
 
 export interface ClassifiedLink {
   raw: string;
@@ -118,4 +123,5 @@ export const LINK_TYPE_LABELS: Record<LinkType, { vi: string; en: string; icon: 
   youtube_channel: { vi: 'Kênh YouTube', en: 'YouTube channel', icon: '📺' },
   facebook_video: { vi: 'Video Facebook', en: 'Facebook video', icon: '📘' },
   website: { vi: 'Trang web', en: 'Website', icon: '🌐' },
+  image: { vi: 'Ảnh → Sketch', en: 'Image → Sketch', icon: '🖼️' },
 };

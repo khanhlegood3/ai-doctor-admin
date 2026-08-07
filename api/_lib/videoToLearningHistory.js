@@ -41,7 +41,7 @@ async function ensureIndexes(col) {
   indexesEnsured = true
 }
 
-const VALID_TYPES = new Set(['youtube_video', 'youtube_short', 'youtube_channel', 'facebook_video', 'website'])
+const VALID_TYPES = new Set(['youtube_video', 'youtube_short', 'youtube_channel', 'facebook_video', 'website', 'image'])
 const VALID_STATUS = new Set(['success', 'error', 'saved-only'])
 
 export class VideoToLearningHistoryError extends Error {
@@ -105,7 +105,7 @@ export async function listHistoryEntries({ uuid, limit = 100 } = {}) {
 /**
  * Tổng hợp số liệu cho Admin panel:
  *   - totalEntries / totalUsers
- *   - byType: { youtube_video, youtube_short, youtube_channel, website }
+ *   - byType: { youtube_video, youtube_short, youtube_channel, facebook_video, website, image }
  *   - byAiSource: { 'groq-transcript': n, 'groq-page': n, 'gemini-fallback': n, null: n (channel/lỗi) }
  *   - dailyTrend: 14 ngày gần nhất, [{ date: 'YYYY-MM-DD', count }]
  *   - perUser: mỗi user 1 dòng { uuid, userId, name, count, lastActivity } — sắp theo count giảm dần
@@ -149,7 +149,7 @@ export async function getAdminOverview({ recentLimit = 30, perUserLimit = 200 } 
     col.distinct('uuid'),
   ])
 
-  const byType = { youtube_video: 0, youtube_short: 0, youtube_channel: 0, facebook_video: 0, website: 0 }
+  const byType = { youtube_video: 0, youtube_short: 0, youtube_channel: 0, facebook_video: 0, website: 0, image: 0 }
   for (const row of byTypeAgg) {
     if (row._id && byType[row._id] !== undefined) byType[row._id] = row.count
   }

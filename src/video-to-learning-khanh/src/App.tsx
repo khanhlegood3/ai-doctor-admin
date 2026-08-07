@@ -20,6 +20,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { generateTextWithMeta } from './lib/textGeneration';
+import { generateImageToCode, readImageFileAsBase64 } from './lib/imageToCode';
 import { parseHTML, parseJSON } from './lib/parse';
 import {
   CODE_REGION_CLOSER,
@@ -43,6 +44,12 @@ interface QueueItem extends ClassifiedLink {
   error?: string | null;
   aiSource?: string | null;
   pageTitle?: string | null;
+  // Chỉ dùng cho type 'image' (tính năng "Ảnh → Sketch tương tác", chuyển
+  // thể từ image-to-code.zip) — data URL để hiện preview ảnh đã upload,
+  // và base64/mimeType thuần để gửi lên proxy (xem lib/imageToCode.ts).
+  imagePreviewUrl?: string;
+  imageBase64?: string;
+  imageMimeType?: string;
 }
 
 type ExampleVideo = {
@@ -190,6 +197,38 @@ export default function App() {
       return;
     }
 
+    // "Ảnh → Sketch tương tác" (chuyển thể từ image-to-code.zip): 1 lệnh gọi
+    // AI duy nhất (không có bước spec riêng rồi code riêng như video/web) —
+    // xem api/_lib/imageToCodeProxy.js. `spec` ở đây là phần ghi chú suy
+    // luận (hành vi/thuật toán/bố cục) model viết TRƯỚC khi sinh code, dùng
+    // luôn cho tab "Spec" để nhất quán UI với các loại item khác.
+    if (item.type === 'image') {
+      try {
+        const result = await generateImageToCode({
+          imageBase64: item.imageBase64 || '',
+          mimeType: item.imageMimeType || 'image/jpeg',
+        });
+        updateItem(index, { status: 'done', spec: result.spec, code: result.code, aiSource: result.source ?? null });
+        setIframeKey((k) => k + 1);
+
+        await persistHistory({
+          type: item.type,
+          link: item.url,
+          title: item.pageTitle ?? null,
+          aiSource: result.source ?? null,
+          status: 'success',
+          specPreview: (result.spec || '').slice(0, 500),
+          fullSpec: result.spec,
+          fullCode: result.code,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Đã có lỗi không xác định xảy ra.';
+        updateItem(index, { status: 'error', error: message });
+        await persistHistory({ type: item.type, link: item.url, status: 'error', errorMessage: message });
+      }
+      return;
+    }
+
     try {
       const isWebsite = item.type === 'website';
       const specResponse = await generateTextWithMeta(
@@ -258,6 +297,48 @@ export default function App() {
     setSelectedIndex(0);
     setActiveTab('render');
     await runQueue(queue);
+  };
+
+  // Upload 1 ảnh -> tạo 1 QueueItem type 'image' rồi chạy ngay qua hàng đợi
+  // (giống hệt luồng dán link, chỉ khác input là file thay vì URL) — xem
+  // xử lý ở nhánh `item.type === 'image'` trong processItem() bên trên.
+  const handleImageFile = async (file: File) => {
+    if (isBusy) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn 1 file ảnh (JPG, PNG, WebP...).');
+      return;
+    }
+    try {
+      const { base64, mimeType, dataUrl } = await readImageFileAsBase64(file);
+      const item: QueueItem = {
+        raw: file.name,
+        url: file.name,
+        type: 'image',
+        status: 'pending',
+        pageTitle: file.name,
+        imagePreviewUrl: dataUrl,
+        imageBase64: base64,
+        imageMimeType: mimeType,
+      };
+      setItems([item]);
+      setSelectedIndex(0);
+      setActiveTab('render');
+      await runQueue([item]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không đọc được file ảnh.');
+    }
+  };
+
+  const handleImageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // cho phép chọn lại đúng file cũ ở lần sau
+    if (file) handleImageFile(file);
+  };
+
+  const handleImageDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleImageFile(file);
   };
 
   const buildMockExampleItem = (example: ExampleVideo): QueueItem => ({
@@ -353,11 +434,11 @@ export default function App() {
         <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              🎬 Video/Web → Ứng dụng học tập
+              🎬 Video/Web/Ảnh → Ứng dụng học tập
             </h1>
             <p className="text-slate-400 text-sm mt-1">
-              Dán 1 hoặc nhiều link (video YouTube, Shorts, kênh YouTube, video/reel Facebook, hoặc trang web bất kỳ) — mỗi dòng 1 link.
-              AI sẽ tạo mini-app tương tác cho từng link.
+              Dán 1 hoặc nhiều link (video YouTube, Shorts, kênh YouTube, video/reel Facebook, hoặc trang web bất kỳ) — mỗi dòng 1 link,
+              hoặc upload 1 ảnh bên dưới. AI sẽ tạo mini-app/sketch tương tác cho từng link hoặc ảnh.
             </p>
           </div>
 
@@ -383,6 +464,38 @@ export default function App() {
           >
             {loadingLabel}
           </button>
+
+          {/* "Ảnh → Sketch tương tác" (chuyển thể từ image-to-code.zip): thay
+              vì dán link, người dùng kéo-thả hoặc chọn 1 ảnh — AI viết 1
+              sketch p5.js sáng tạo lấy cảm hứng từ hành vi/đặc điểm của vật
+              thể trong ảnh (xem lib/imageToCode.ts). */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-800" />
+            <span className="text-xs text-slate-500">hoặc</span>
+            <div className="h-px flex-1 bg-slate-800" />
+          </div>
+          <label
+            htmlFor="image-upload"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleImageDrop}
+            className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
+              isBusy
+                ? 'border-slate-800 opacity-50 cursor-not-allowed'
+                : 'border-slate-700 hover:border-sky-500 cursor-pointer'
+            }`}
+          >
+            <span className="text-2xl">🖼️</span>
+            <span className="text-sm text-slate-300">Kéo-thả ảnh vào đây, hoặc bấm để chọn ảnh</span>
+            <span className="text-xs text-slate-500">AI sẽ viết 1 sketch p5.js tương tác lấy cảm hứng từ ảnh</span>
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              disabled={isBusy}
+              onChange={handleImageInputChange}
+              className="hidden"
+            />
+          </label>
 
           {/* Hàng đợi các link đã phân loại */}
           {items.length > 0 && (
@@ -433,6 +546,16 @@ export default function App() {
             </div>
           )}
 
+          {selected && selected.type === 'image' && selected.imagePreviewUrl && (
+            <div className="w-full rounded-lg overflow-hidden bg-slate-900 border border-slate-800 p-2">
+              <img
+                src={selected.imagePreviewUrl}
+                alt={selected.url}
+                className="w-full max-h-48 object-contain rounded"
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-slate-300">Ví dụ</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -462,7 +585,7 @@ export default function App() {
 
           <p className="text-xs text-slate-500">
             Video/Short được phân tích qua phụ đề (transcript) + AI Groq. Trang web được phân tích qua nội dung text trích từ HTML.
-            Link kênh YouTube chỉ được lưu lại (không gọi AI). Miễn phí hoàn toàn.
+            Link kênh YouTube chỉ được lưu lại (không gọi AI). Ảnh được AI "nhìn" trực tiếp để viết 1 sketch p5.js tương tác. Miễn phí hoàn toàn.
           </p>
         </div>
 
@@ -546,7 +669,7 @@ export default function App() {
               </div>
             ) : !selected ? (
               <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm px-6 text-center">
-                Dán link ở bên trái để bắt đầu
+                Dán link hoặc upload ảnh ở bên trái để bắt đầu
               </div>
             ) : selected.status === 'error' ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-2">

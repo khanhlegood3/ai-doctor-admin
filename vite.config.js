@@ -11,6 +11,7 @@ import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYou
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './api/_lib/bringAnyIdeaToLifeProxy.js'
+import { runImageToCodeGenerate, ImageToCodeProxyError } from './api/_lib/imageToCodeProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -271,6 +272,26 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
               res.end(JSON.stringify({ error: error?.message || 'Bring Any Idea to Life proxy error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'image-to-code') {
+            try {
+              const payload = await runImageToCodeGenerate({
+                imageBase64: parsed.imageBase64,
+                mimeType: parsed.mimeType,
+                userInput: parsed.userInput,
+                envSource: env,
+              })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[image-to-code-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error instanceof ImageToCodeProxyError ? error.status : 500
+              res.end(JSON.stringify({ error: error?.message || 'Image to Code proxy error' }))
             }
             return
           }
