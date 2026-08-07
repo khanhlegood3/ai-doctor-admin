@@ -1,13 +1,13 @@
 // ClickHeroSpiderEffects.jsx — hiệu ứng click chuột trên trang
 // "🤖 AI chatbot control":
-//   - Click chuột TRÁI  → 🦸 siêu nhân bay tới đúng vị trí click
+//   - Click chuột TRÁI  → 🧙‍♀️ phù thuỷ cưỡi chổi bay tới đúng vị trí click
 //   - Click chuột PHẢI  → 🕸️ người nhện đu dây tới đúng vị trí click
 //     (chặn menu chuột phải mặc định của trình duyệt)
 //
 // Cả 2 hình đều tự vẽ bằng SVG (silhouette chung chung, không mặc trang
-// phục/hoạ tiết của bất kỳ nhân vật có bản quyền nào — không phải Spider-
-// Man/Marvel, chỉ là "người nhện" theo nghĩa chung: có mạng nhện + tư thế
-// đu dây).
+// phục/hoạ tiết của bất kỳ nhân vật có bản quyền nào — phù thuỷ chỉ là
+// người đội mũ chóp khoác áo choàng cưỡi chổi, người nhện chỉ là "người
+// nhện" theo nghĩa chung: có mạng nhện + tư thế đu dây).
 //
 // Dùng qua hook `useClickHeroSpiderEffects()`:
 //   const { layer, handleClick, handleContextMenu } = useClickHeroSpiderEffects(color)
@@ -25,13 +25,14 @@ function isInteractiveTextTarget(target) {
 function heroFigureSvg(color) {
   return (
     <svg viewBox="0 0 32 32" width="100%" height="100%">
-      <path d="M2 24 L9 18 L6 15 Z" fill={color} opacity="0.4" />
-      <path d="M0 28 L8 22 L6 19 Z" fill={color} opacity="0.25" />
-      <path d="M12 24 C9 20 9 13 14 9 C16.5 7 20.5 6.5 25 8 L20 12.5 C18 12.3 16 13.3 15 15.3 C14 17.3 15 20.3 17.5 22.3 Z" fill={color} />
-      <ellipse cx="19" cy="16.5" rx="6.2" ry="3.6" transform="rotate(-35 19 16.5)" fill={color} />
-      <circle cx="24.5" cy="9.3" r="3.3" fill={color} />
-      <path d="M24.5 15.3 L30 12 L28.7 15.3 L24.5 17.3 Z" fill={color} />
-      <circle cx="24.5" cy="9.3" r="1.1" fill="#ffffff" opacity="0.7" />
+      <path d="M3 28 L26 7" stroke="#8b5e34" strokeWidth="2" strokeLinecap="round" />
+      <path d="M2 26.5 L0 30 M3.3 28 L1.5 31.8 M5 29 L3.8 33" stroke="#c2882f" strokeWidth="1.1" strokeLinecap="round" opacity="0.9" />
+      <path d="M12 21 C7.5 18.5 7 13 12 10.5 C15 9 19 9.3 21.5 11.3 L17.3 14.5 C15.3 13.8 13.2 14.8 12.6 17 C12.1 18.8 13 20.3 15 21.3 Z" fill={color} />
+      <path d="M15.5 19 L17 23.5 M15 19.5 L12.7 23.3" stroke={color} strokeWidth="1.3" strokeLinecap="round" opacity="0.9" />
+      <circle cx="23" cy="9.3" r="3" fill="#fcd9b5" />
+      <ellipse cx="23" cy="8.4" rx="4.1" ry="1.1" fill={color} />
+      <path d="M20.6 8 L23.4 1 L26.3 8 Z" fill={color} />
+      <circle cx="24.1" cy="9.1" r="0.6" fill="#0f172a" />
     </svg>
   )
 }

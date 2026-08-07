@@ -2,14 +2,15 @@
 // quan, dùng chung cho trang "🤖 AI chatbot control" VÀ 2 trang "Anh Hùng"
 // (ChooseUserRolePanel / DonationHeroPanel):
 //
-//   - Kiểu con trỏ: "Không dùng icon" (mặc định trình duyệt), "🦸 Siêu nhân
-//     bay", hoặc ĐỦ 12 CON GIÁP (Tý → Hợi, xem zodiacAnimals.js) — tất cả
-//     SVG tự vẽ, silhouette chung chung, KHÔNG dựa theo bất kỳ nhân
-//     vật/hình ảnh có bản quyền nào, cùng 1 phong cách vẽ với con mèo gốc.
-//   - flyEffectEnabled: bật/tắt hiệu ứng click chuột "🦸 siêu nhân bay tới /
-//     🕸️ người nhện đu dây tới" (ClickHeroSpiderEffects.jsx). Tắt = click
-//     chuột hoạt động bình thường, chuột phải trả lại menu ngữ cảnh mặc
-//     định của trình duyệt.
+//   - Kiểu con trỏ: "Không dùng icon" (mặc định trình duyệt), "🧙‍♀️ Phù
+//     thuỷ cưỡi chổi bay", hoặc ĐỦ 12 CON GIÁP (Tý → Hợi, xem
+//     zodiacAnimals.js) — tất cả SVG tự vẽ, silhouette chung chung, KHÔNG
+//     dựa theo bất kỳ nhân vật/hình ảnh có bản quyền nào, cùng 1 phong
+//     cách vẽ với con mèo gốc.
+//   - flyEffectEnabled: bật/tắt hiệu ứng click chuột "🧙‍♀️ phù thuỷ cưỡi
+//     chổi bay tới / 🕸️ người nhện đu dây tới" (ClickHeroSpiderEffects.jsx).
+//     Tắt = click chuột hoạt động bình thường, chuột phải trả lại menu
+//     ngữ cảnh mặc định của trình duyệt.
 //   - gazeTrackEnabled: bật/tắt hiệu ứng mắt + mũi khuôn mặt AI tròn
 //     "nhìn"/hướng theo vị trí con trỏ chuột (SharedFaceAvatar trackCursor).
 //
@@ -34,7 +35,7 @@ function notifyPrefsChanged() {
 
 export const CURSOR_TYPES = [
   { id: 'none', vi: 'Không dùng icon', en: 'No icon' },
-  { id: 'hero', vi: '🦸 Siêu nhân bay', en: '🦸 Flying hero' },
+  { id: 'hero', vi: '🧙‍♀️ Phù thuỷ cưỡi chổi bay', en: '🧙‍♀️ Witch on a flying broom' },
   // Đủ bộ 12 con giáp (Mão = Mèo, đã có sẵn ở đây từ trước) — mỗi con là
   // 1 icon SVG tự vẽ riêng, xem zodiacAnimals.js.
   ...ZODIAC_ANIMALS.filter(a => a.id !== 'cat').map(a => ({ id: a.id, vi: `🐾 ${a.vi}`, en: `🐾 ${a.en}` })),
@@ -48,17 +49,28 @@ export const CURSOR_POSES = [
   { id: 'left', vi: 'Bay ngược', en: 'Flying back', rotate: 0, flip: true },
 ]
 
-function heroSvgMarkup({ color = '#ea4335', rotate = 0, flip = false }) {
+// Phù thuỷ cưỡi chổi bay: cán chổi chéo + tua chổi ở đuôi + dáng người
+// khoác áo choàng, đội mũ chóp — silhouette tự vẽ hoàn toàn, chung chung,
+// không dựa theo bất kỳ nhân vật có bản quyền nào.
+function heroSvgMarkup({ color = '#7c3aed', rotate = 0, flip = false }) {
   const transform = `rotate(${rotate} 16 16)${flip ? ' scale(-1,1) translate(-32,0)' : ''}`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">` +
     `<g transform="${transform}">` +
-    `<path d="M2 24 L9 18 L6 15 Z" fill="${color}" opacity="0.4"/>` +
-    `<path d="M0 28 L8 22 L6 19 Z" fill="${color}" opacity="0.25"/>` +
-    `<path d="M12 24 C9 20 9 13 14 9 C16.5 7 20.5 6.5 25 8 L20 12.5 C18 12.3 16 13.3 15 15.3 C14 17.3 15 20.3 17.5 22.3 Z" fill="${color}"/>` +
-    `<ellipse cx="19" cy="16.5" rx="6.2" ry="3.6" transform="rotate(-35 19 16.5)" fill="${color}"/>` +
-    `<circle cx="24.5" cy="9.3" r="3.3" fill="${color}"/>` +
-    `<path d="M24.5 15.3 L30 12 L28.7 15.3 L24.5 17.3 Z" fill="${color}"/>` +
-    `<circle cx="24.5" cy="9.3" r="1.1" fill="#ffffff" opacity="0.7"/>` +
+    // cán chổi (chéo từ đuôi dưới-trái lên đầu trên-phải)
+    `<path d="M3 28 L26 7" stroke="#8b5e34" stroke-width="2" stroke-linecap="round"/>` +
+    // tua chổi ở đuôi
+    `<path d="M2 26.5 L0 30 M3.3 28 L1.5 31.8 M5 29 L3.8 33" stroke="#c2882f" stroke-width="1.1" stroke-linecap="round" opacity="0.9"/>` +
+    // áo choàng bay phía sau
+    `<path d="M12 21 C7.5 18.5 7 13 12 10.5 C15 9 19 9.3 21.5 11.3 L17.3 14.5 C15.3 13.8 13.2 14.8 12.6 17 C12.1 18.8 13 20.3 15 21.3 Z" fill="${color}"/>` +
+    // chân buông thõng
+    `<path d="M15.5 19 L17 23.5 M15 19.5 L12.7 23.3" stroke="${color}" stroke-width="1.3" stroke-linecap="round" opacity="0.9"/>` +
+    // đầu
+    `<circle cx="23" cy="9.3" r="3" fill="#fcd9b5"/>` +
+    // mũ chóp phù thuỷ
+    `<ellipse cx="23" cy="8.4" rx="4.1" ry="1.1" fill="${color}"/>` +
+    `<path d="M20.6 8 L23.4 1 L26.3 8 Z" fill="${color}"/>` +
+    // mắt
+    `<circle cx="24.1" cy="9.1" r="0.6" fill="#0f172a"/>` +
     `</g></svg>`
 }
 

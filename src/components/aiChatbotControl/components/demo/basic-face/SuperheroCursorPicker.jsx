@@ -1,6 +1,6 @@
-// SuperheroCursorPicker — bảng chọn Kiểu (Không dùng / Siêu nhân bay /
-// Con mèo) + màu + hướng bay (nếu là kiểu Siêu nhân) cho con trỏ chuột,
-// dùng riêng ở trang "🤖 AI chatbot control".
+// SuperheroCursorPicker — bảng chọn Kiểu (Không dùng / Phù thuỷ cưỡi chổi
+// bay / 12 con giáp) + màu + hướng bay (nếu là kiểu Phù thuỷ) cho con trỏ
+// chuột, dùng riêng ở trang "🤖 AI chatbot control".
 import React from 'react'
 import { AGENT_COLORS } from '../../../lib/presets/agents'
 import { CURSOR_TYPES, CURSOR_POSES, buildCursorPreviewSrc } from './superheroCursor'
@@ -87,7 +87,7 @@ export default function SuperheroCursorPicker({
             style={{ width: 15, height: 15, cursor: 'pointer' }}
           />
           <span style={toggleLabelStyle}>
-            {isVi ? 'Không dùng hiệu ứng bay (siêu nhân / người nhện khi click chuột)' : 'No flying effect (hero / spider on mouse click)'}
+            {isVi ? 'Không dùng hiệu ứng bay (phù thuỷ / người nhện khi click chuột)' : 'No flying effect (witch / spider on mouse click)'}
           </span>
         </label>
         <label style={toggleRowStyle}>

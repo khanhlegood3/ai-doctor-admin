@@ -75,20 +75,20 @@ export default function AIChatbotControlPanel() {
         </p>
       </div>
 
-      {/* Con trỏ chuột hình "siêu nhân bay" (tự vẽ, riêng cho trang này) +
-          bảng chọn màu/hướng bay. Khuôn mặt AI ở khối chat bên dưới cũng
-          "nhìn" theo hướng con trỏ này (xem trackCursor trong
-          EmbeddedGlobalAIChat.jsx). */}
+      {/* Con trỏ chuột hình "phù thuỷ cưỡi chổi bay" (tự vẽ, riêng cho
+          trang này) + bảng chọn màu/hướng bay. Khuôn mặt AI ở khối chat
+          bên dưới cũng "nhìn" theo hướng con trỏ này (xem trackCursor
+          trong EmbeddedGlobalAIChat.jsx). */}
       <div style={{ flex: '0 0 auto' }}>
         <button
           type="button"
           onClick={() => setShowCursorSettings(v => !v)}
           style={{ border: `1px solid ${border}`, borderRadius: 999, padding: '6px 12px', background: isDark ? 'rgba(15,23,42,0.74)' : '#fff', color: text, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
         >
-          🦸 {isVi ? 'Đổi con trỏ chuột siêu nhân' : 'Change superhero cursor'}
+          🧙‍♀️ {isVi ? 'Đổi con trỏ chuột' : 'Change cursor'}
         </button>
         <span style={{ marginLeft: 10, fontSize: 11, color: muted, fontStyle: 'italic' }}>
-          {isVi ? 'Click trái: siêu nhân bay tới · Click phải: người nhện đu dây tới' : 'Left-click: hero flies in · Right-click: spider swings in'}
+          {isVi ? 'Click trái: phù thuỷ cưỡi chổi bay tới · Click phải: người nhện đu dây tới' : 'Left-click: witch flies in on a broom · Right-click: spider swings in'}
         </span>
         {showCursorSettings && (
           <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: `1px solid ${border}`, background: isDark ? 'rgba(7,12,27,0.5)' : 'rgba(255,255,255,0.6)' }}>

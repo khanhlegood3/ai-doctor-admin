@@ -127,9 +127,9 @@ export default function ChooseUserRolePanel({ mode = 'guest', onSelectRole, onEn
   const { role: selectedRole, organId: selectedOrgan, setRole: setSelectedRole, setOrgan: setSelectedOrgan } = useHeroSelection();
   const [previewOrganId, setPreviewOrganId] = useState(null);
   const { isDark, isEn, toggleTheme, toggleLang } = useHeroPanelPrefs();
-  // Con trỏ chuột (12 con giáp / siêu nhân bay) + hiệu ứng click "siêu
-  // nhân bay tới / người nhện đu dây tới" — đồng bộ với lựa chọn ở trang
-  // "🤖 AI chatbot control" (không có UI đổi riêng ở trang này).
+  // Con trỏ chuột (12 con giáp / phù thuỷ cưỡi chổi bay) + hiệu ứng click
+  // "phù thuỷ cưỡi chổi bay tới / người nhện đu dây tới" — đồng bộ với lựa
+  // chọn ở trang "🤖 AI chatbot control" (không có UI đổi riêng ở trang này).
   const { color: cursorColor, cursorCss } = useSuperheroCursor();
   const [flyEffectEnabled] = useFlyEffectEnabled();
   const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor, flyEffectEnabled);

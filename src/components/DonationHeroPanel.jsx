@@ -149,10 +149,11 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
 
   const isGuest = mode === 'guest';
   const { isDark, isEn, toggleTheme, toggleLang } = useHeroPanelPrefs();
-  // Con trỏ chuột (12 con giáp / siêu nhân bay) + hiệu ứng click "siêu
-  // nhân bay tới / người nhện đu dây tới" — đọc lại đúng lựa chọn đã chọn
-  // ở trang "🤖 AI chatbot control" (không có UI đổi riêng ở đây, chỉ áp
-  // dụng đồng bộ y hệt, kể cả khi tắt bằng option "không dùng").
+  // Con trỏ chuột (12 con giáp / phù thuỷ cưỡi chổi bay) + hiệu ứng click
+  // "phù thuỷ cưỡi chổi bay tới / người nhện đu dây tới" — đọc lại đúng
+  // lựa chọn đã chọn ở trang "🤖 AI chatbot control" (không có UI đổi
+  // riêng ở đây, chỉ áp dụng đồng bộ y hệt, kể cả khi tắt bằng option
+  // "không dùng").
   const { color: cursorColor, cursorCss } = useSuperheroCursor();
   const [flyEffectEnabled] = useFlyEffectEnabled();
   const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor, flyEffectEnabled);
