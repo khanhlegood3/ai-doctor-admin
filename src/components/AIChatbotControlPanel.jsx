@@ -37,7 +37,7 @@ export default function AIChatbotControlPanel() {
   const isDark = theme === 'dark'
   const isVi = lang !== 'en'
 
-  const { color: cursorColor, setColor: setCursorColor, poseId: cursorPoseId, setPoseId: setCursorPoseId, cursorCss } = useSuperheroCursor()
+  const { type: cursorType, setType: setCursorType, color: cursorColor, setColor: setCursorColor, poseId: cursorPoseId, setPoseId: setCursorPoseId, cursorCss } = useSuperheroCursor()
   const [showCursorSettings, setShowCursorSettings] = useState(false)
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
   const text = isDark ? '#e8f0f8' : '#102033'
@@ -84,6 +84,7 @@ export default function AIChatbotControlPanel() {
           <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: `1px solid ${border}`, background: isDark ? 'rgba(7,12,27,0.5)' : 'rgba(255,255,255,0.6)' }}>
             <SuperheroCursorPicker
               isDark={isDark} isVi={isVi} border={border} text={text} muted={muted}
+              type={cursorType} setType={setCursorType}
               color={cursorColor} setColor={setCursorColor}
               poseId={cursorPoseId} setPoseId={setCursorPoseId}
             />

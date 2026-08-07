@@ -1,55 +1,74 @@
-// SuperheroCursorPicker — bảng chọn màu + "hướng bay" cho con trỏ chuột
-// hình siêu nhân, dùng riêng ở trang "🤖 AI chatbot control".
+// SuperheroCursorPicker — bảng chọn Kiểu (Không dùng / Siêu nhân bay /
+// Con mèo) + màu + hướng bay (nếu là kiểu Siêu nhân) cho con trỏ chuột,
+// dùng riêng ở trang "🤖 AI chatbot control".
 import React from 'react'
 import { AGENT_COLORS } from '../../../lib/presets/agents'
-import { CURSOR_POSES, buildHeroCursorPreviewSrc } from './superheroCursor'
+import { CURSOR_TYPES, CURSOR_POSES, buildCursorPreviewSrc } from './superheroCursor'
 
-export default function SuperheroCursorPicker({ isDark, isVi, border, text, muted, color, setColor, poseId, setPoseId }) {
+export default function SuperheroCursorPicker({ isDark, isVi, border, text, muted, type, setType, color, setColor, poseId, setPoseId }) {
+  const chipStyle = (active) => ({
+    display: 'flex', alignItems: 'center', gap: 6,
+    border: `1px solid ${border}`,
+    borderRadius: 999,
+    padding: '4px 10px',
+    background: active ? 'linear-gradient(135deg, #0f4c81, #14b8a6)' : (isDark ? 'rgba(15,23,42,0.74)' : '#fff'),
+    color: active ? '#fff' : text,
+    fontSize: 11, fontWeight: 800, cursor: 'pointer',
+  })
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Màu siêu nhân:' : 'Hero color:'}</span>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {AGENT_COLORS.map(c => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setColor(c)}
-            title={c}
-            style={{
-              width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
-              border: color === c ? `2px solid ${isDark ? '#fff' : '#0f172a'}` : `1px solid ${border}`,
-              boxShadow: color === c ? '0 0 0 2px rgba(20,184,166,0.4)' : 'none',
-            }}
-          />
-        ))}
-        <label style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', border: `1px solid ${border}`, cursor: 'pointer', position: 'relative' }}>
-          <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ position: 'absolute', inset: -4, width: 30, height: 30, border: 'none', padding: 0, cursor: 'pointer' }} />
-        </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Kiểu:' : 'Type:'}</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {CURSOR_TYPES.map(t => (
+            <button key={t.id} type="button" onClick={() => setType(t.id)} style={chipStyle(type === t.id)}>
+              {t.id !== 'none' && (
+                <img src={buildCursorPreviewSrc({ type: t.id, color, poseId })} alt="" width={16} height={16} style={{ display: 'block', filter: type === t.id ? 'brightness(0) invert(1)' : 'none' }} />
+              )}
+              {isVi ? t.vi : t.en}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <span style={{ fontSize: 11, fontWeight: 800, color: muted, marginLeft: 4 }}>{isVi ? 'Hướng bay:' : 'Flight pose:'}</span>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {CURSOR_POSES.map(p => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setPoseId(p.id)}
-            title={isVi ? p.vi : p.en}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              border: `1px solid ${border}`,
-              borderRadius: 999,
-              padding: '4px 10px 4px 6px',
-              background: poseId === p.id ? 'linear-gradient(135deg, #0f4c81, #14b8a6)' : (isDark ? 'rgba(15,23,42,0.74)' : '#fff'),
-              color: poseId === p.id ? '#fff' : text,
-              fontSize: 11, fontWeight: 800, cursor: 'pointer',
-            }}
-          >
-            <img src={buildHeroCursorPreviewSrc({ color, poseId: p.id })} alt="" width={18} height={18} style={{ display: 'block', filter: poseId === p.id ? 'brightness(0) invert(1)' : 'none' }} />
-            {isVi ? p.vi : p.en}
-          </button>
-        ))}
-      </div>
+      {type !== 'none' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Màu:' : 'Color:'}</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {AGENT_COLORS.map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                title={c}
+                style={{
+                  width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: color === c ? `2px solid ${isDark ? '#fff' : '#0f172a'}` : `1px solid ${border}`,
+                  boxShadow: color === c ? '0 0 0 2px rgba(20,184,166,0.4)' : 'none',
+                }}
+              />
+            ))}
+            <label style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', border: `1px solid ${border}`, cursor: 'pointer', position: 'relative' }}>
+              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ position: 'absolute', inset: -4, width: 30, height: 30, border: 'none', padding: 0, cursor: 'pointer' }} />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {type === 'hero' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Hướng bay:' : 'Flight pose:'}</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {CURSOR_POSES.map(p => (
+              <button key={p.id} type="button" onClick={() => setPoseId(p.id)} style={chipStyle(poseId === p.id)}>
+                <img src={buildCursorPreviewSrc({ type: 'hero', color, poseId: p.id })} alt="" width={16} height={16} style={{ display: 'block', filter: poseId === p.id ? 'brightness(0) invert(1)' : 'none' }} />
+                {isVi ? p.vi : p.en}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

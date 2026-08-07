@@ -1,12 +1,18 @@
-// superheroCursor.js — con trỏ chuột hình "siêu nhân bay", tự vẽ bằng SVG
-// (silhouette chung chung: người + áo choàng + nắm đấm đưa ra trước, KHÔNG
-// dựa theo bất kỳ nhân vật có bản quyền nào) — dùng cho trang
-// "🤖 AI chatbot control" theo yêu cầu.
+// superheroCursor.js — con trỏ chuột tuỳ chỉnh cho trang "🤖 AI chatbot
+// control": "Không dùng icon" (con trỏ mặc định), "🦸 Siêu nhân bay", hoặc
+// "🐱 Con mèo" — tất cả SVG tự vẽ, silhouette chung chung, KHÔNG dựa theo
+// bất kỳ nhân vật/hình ảnh có bản quyền nào.
 //
-// Người dùng chọn "hướng bay" + màu ở FaceAvatarPicker-style picker
-// (SuperheroCursorPicker.jsx); lựa chọn lưu localStorage riêng cho trang
-// này (cosmetic cá nhân, không cần đồng bộ IndexedDB).
+// Người dùng chọn Kiểu + màu (+ hướng, nếu là kiểu Siêu nhân) ở
+// SuperheroCursorPicker.jsx; lựa chọn lưu localStorage riêng cho trang này
+// (cosmetic cá nhân, không cần đồng bộ IndexedDB).
 import { useState } from 'react'
+
+export const CURSOR_TYPES = [
+  { id: 'none', vi: 'Không dùng icon', en: 'No icon' },
+  { id: 'hero', vi: '🦸 Siêu nhân bay', en: '🦸 Flying hero' },
+  { id: 'cat', vi: '🐱 Con mèo', en: '🐱 Cat' },
+]
 
 export const CURSOR_POSES = [
   { id: 'right', vi: 'Bay thẳng', en: 'Flying straight', rotate: 0, flip: false },
@@ -29,29 +35,60 @@ function heroSvgMarkup({ color = '#ea4335', rotate = 0, flip = false }) {
     `</g></svg>`
 }
 
-export function buildHeroCursorSvg(options) {
-  return heroSvgMarkup(options)
+// Mèo con ngồi, đuôi cong, chung chung dễ thương — không mô phỏng nhân vật
+// hoạt hình cụ thể nào (không tai/mắt kiểu Hello Kitty, không logo, v.v).
+function catSvgMarkup({ color = '#ea4335' }) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">` +
+    // đuôi cong
+    `<path d="M23 26 C29 24 29 15 24 13 C27 16 26 22 21 24 Z" fill="${color}"/>` +
+    // thân ngồi
+    `<path d="M9 28 C7 21 9 15 15 15 C21 15 23 21 21 28 Z" fill="${color}"/>` +
+    // đầu
+    `<circle cx="15" cy="11" r="6.4" fill="${color}"/>` +
+    // 2 tai tam giác
+    `<path d="M9.5 8 L7 2 L12.5 6.5 Z" fill="${color}"/>` +
+    `<path d="M20.5 8 L23 2 L17.5 6.5 Z" fill="${color}"/>` +
+    // mắt
+    `<circle cx="12.3" cy="10.6" r="1" fill="#0f172a"/>` +
+    `<circle cx="17.7" cy="10.6" r="1" fill="#0f172a"/>` +
+    // mũi + miệng
+    `<path d="M14.3 13 L15.7 13 L15 14 Z" fill="#0f172a"/>` +
+    `<path d="M15 14.1 C14.4 15 13.4 15 13 14.4 M15 14.1 C15.6 15 16.6 15 17 14.4" stroke="#0f172a" stroke-width="0.6" fill="none" stroke-linecap="round"/>` +
+    // ria mép
+    `<path d="M4 10 L10.5 11.2 M4 13 L10.7 12.6 M20.3 11.2 L26 10 M20.3 12.6 L26 13" stroke="${color}" stroke-width="0.7" opacity="0.85" stroke-linecap="round"/>` +
+    `</svg>`
 }
 
-// CSS `cursor` giá trị đầy đủ (data URI SVG + hotspot + fallback auto).
-export function buildHeroCursorCss({ color, poseId }) {
+function svgForType({ type, color, poseId }) {
+  if (type === 'cat') return catSvgMarkup({ color })
   const pose = CURSOR_POSES.find(p => p.id === poseId) || CURSOR_POSES[0]
-  const svg = heroSvgMarkup({ color, rotate: pose.rotate, flip: pose.flip })
+  return heroSvgMarkup({ color, rotate: pose.rotate, flip: pose.flip })
+}
+
+// CSS `cursor` giá trị đầy đủ (data URI SVG + hotspot + fallback auto), hoặc
+// 'auto' đơn giản khi type === 'none'.
+export function buildCursorCss({ type, color, poseId }) {
+  if (type === 'none' || !type) return 'auto'
+  const svg = svgForType({ type, color, poseId })
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 16 16, auto`
 }
 
 // Data URI dùng để hiển thị icon xem trước (ảnh <img>, không phải cursor).
-export function buildHeroCursorPreviewSrc({ color, poseId }) {
-  const pose = CURSOR_POSES.find(p => p.id === poseId) || CURSOR_POSES[0]
-  const svg = heroSvgMarkup({ color, rotate: pose.rotate, flip: pose.flip })
+export function buildCursorPreviewSrc({ type, color, poseId }) {
+  if (type === 'none' || !type) return null
+  const svg = svgForType({ type, color, poseId })
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
+const CURSOR_TYPE_KEY = 'aiChatbotControl:cursorType'
 const CURSOR_COLOR_KEY = 'aiChatbotControl:cursorColor'
 const CURSOR_POSE_KEY = 'aiChatbotControl:cursorPose'
 export const DEFAULT_CURSOR_COLOR = '#ea4335'
 
 export function useSuperheroCursor() {
+  const [type, setTypeState] = useState(() => {
+    try { return localStorage.getItem(CURSOR_TYPE_KEY) || 'hero' } catch { return 'hero' }
+  })
   const [color, setColorState] = useState(() => {
     try { return localStorage.getItem(CURSOR_COLOR_KEY) || DEFAULT_CURSOR_COLOR } catch { return DEFAULT_CURSOR_COLOR }
   })
@@ -59,9 +96,10 @@ export function useSuperheroCursor() {
     try { return localStorage.getItem(CURSOR_POSE_KEY) || CURSOR_POSES[0].id } catch { return CURSOR_POSES[0].id }
   })
 
+  const setType = (next) => { setTypeState(next); try { localStorage.setItem(CURSOR_TYPE_KEY, next) } catch {} }
   const setColor = (next) => { setColorState(next); try { localStorage.setItem(CURSOR_COLOR_KEY, next) } catch {} }
   const setPoseId = (next) => { setPoseIdState(next); try { localStorage.setItem(CURSOR_POSE_KEY, next) } catch {} }
 
-  const cursorCss = buildHeroCursorCss({ color, poseId })
-  return { color, setColor, poseId, setPoseId, cursorCss }
+  const cursorCss = buildCursorCss({ type, color, poseId })
+  return { type, setType, color, setColor, poseId, setPoseId, cursorCss }
 }
