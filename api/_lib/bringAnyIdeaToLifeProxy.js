@@ -7,18 +7,34 @@
 // vì Vercel giới hạn 12 functions (đã dùng hết).
 //
 // TÍNH NĂNG: người dùng upload 1 ảnh/PDF (bản vẽ tay, sơ đồ, ảnh vật thể đời
-// thường...), Gemini 3 Pro (đủ mạnh cho coding phức tạp) "nhìn" ảnh rồi sinh
-// ra 1 trang HTML/CSS/JS độc lập, tương tác được — y hệt logic gốc của
-// services/gemini.ts (system instruction giữ nguyên), chỉ chuyển sang chạy
-// server-side bằng GEMINI_API_KEY (biến môi trường, dùng chung pool với
-// Vibe Check/Video to Learning...) — client KHÔNG BAO GIỜ thấy API key.
+// thường...), AI "nhìn" ảnh rồi sinh ra 1 trang HTML/CSS/JS độc lập, tương
+// tác được — system instruction giữ nguyên y hệt bản gốc services/gemini.ts.
 //
-// KEY POOL / AUTO-ROTATION: nếu GEMINI_API_KEY đang dùng bị hết billing/
-// quota, tự động thử GEMINI_API_KEY1, GEMINI_API_KEY2, ... (xem
-// api/_lib/apiKeyPool.js) trước khi báo lỗi cho client.
+// KIẾN TRÚC FALLBACK TỰ ĐỘNG (Groq trước — MIỄN PHÍ, Gemini dự phòng — free
+// tier nhưng giới hạn chặt/dễ hết quota, xem ghi chú bên dưới):
+//   Bản đầu tiên của proxy này gọi thẳng Gemini 3 Pro (model trả phí) và bị
+//   lỗi 429 "limit: 0" ngay cả khi có key — vì tài khoản Google AI Studio
+//   miễn phí không được cấp quota cho model Pro (limit 0 trên free tier,
+//   không phải do hết hạn mức mà do free tier vốn KHÔNG có quota cho model
+//   này). Đổi sang dùng Groq trước (giống Video to Learning/Vibe Tracking):
+//     - qwen/qwen3.6-27b: model multimodal (ảnh + text) MIỄN PHÍ của Groq,
+//       hỗ trợ vision + sinh code tốt (agentic coding), thay cho
+//       meta-llama/llama-4-scout-17b-16e-instruct đã bị Groq khai tử (xem
+//       console.groq.com/docs/deprecations, thông báo 17/06/2026). Đây là
+//       model vision hiện hành của Groq tại thời điểm viết code này — nếu
+//       Groq lại đổi/khai tử model này trong tương lai, chỉ cần sửa hằng số
+//       GROQ_VISION_MODEL bên dưới.
+//   Nếu Groq lỗi ở TẤT CẢ các key (rate limit, model bị khai tử, outage...)
+//   → tự động chuyển sang Gemini (dùng gemini-3.6-flash — bản Flash rẻ/free
+//   tier thật, thay vì gemini-3-pro-preview — để tăng khả năng còn quota,
+//   xem videoToLearningProxy.js dùng cùng model Flash này với lý do tương
+//   tự) — chấp nhận chất lượng thấp hơn 1 chút ở nhánh dự phòng.
+//
+// KHÔNG chạy song song 2 bên cùng lúc — chỉ gọi Gemini khi Groq THỰC SỰ gặp
+// sự cố, để tiết kiệm quota/tiền.
 
 import { GoogleGenAI } from '@google/genai'
-import { withApiKeyRotation, isRotatableApiError } from './apiKeyPool.js'
+import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
   constructor(message, status = 500) {
@@ -28,9 +44,9 @@ export class BringAnyIdeaToLifeProxyError extends Error {
   }
 }
 
-// Model Flash mới nhất còn free tier vẫn không đủ tin cậy cho việc sinh cả
-// 1 trang HTML/JS hoàn chỉnh từ ảnh — giữ nguyên model Pro như bản gốc.
-const GEMINI_MODEL = 'gemini-3-pro-preview'
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
+const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file)
+const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
 const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel
 const maxRetriesPerKey = 2 // retry TRÊN CÙNG 1 key cho lỗi tạm thời (timeout/mạng)
 
@@ -65,55 +81,109 @@ CORE DIRECTIVES:
 RESPONSE FORMAT:
 Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`html ... \`\`\`). Start immediately with <!DOCTYPE html>.`
 
+function cleanHtml(text) {
+  // Dọn markdown fence nếu model vẫn lỡ bọc bất chấp system instruction.
+  return (text || '').replace(/^```html\s*/, '').replace(/^```\s*/, '').replace(/```$/, '')
+}
+
+// --- Groq (vision, miễn phí, ưu tiên gọi trước) ---
+async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
+  const content = [{ type: 'text', text: prompt }]
+  if (fileBase64 && mimeType) {
+    content.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBase64}` } })
+  }
+
+  const body = {
+    model: GROQ_VISION_MODEL,
+    messages: [
+      { role: 'system', content: SYSTEM_INSTRUCTION },
+      { role: 'user', content },
+    ],
+    temperature: 0.5,
+  }
+
+  const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+    const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw await toRotatableHttpError(res, 'Groq')
+    return res.json()
+  }, { envSource })
+
+  return data?.choices?.[0]?.message?.content || ''
+}
+
+// --- Gemini (multimodal, dự phòng khi Groq lỗi) ---
+async function callGemini({ prompt, fileBase64, mimeType, envSource }) {
+  return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+
+    const parts = [{ text: prompt }]
+    if (fileBase64 && mimeType) {
+      parts.push({ inlineData: { data: fileBase64, mimeType } })
+    }
+
+    for (let attempt = 0; attempt < maxRetriesPerKey; attempt++) {
+      try {
+        const modelPromise = ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: { parts },
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            temperature: 0.5,
+          },
+        })
+
+        const response = await withTimeout(modelPromise, timeoutMs)
+
+        const html = response.text || ''
+        if (!html) throw new BringAnyIdeaToLifeProxyError('Không có nội dung trả về từ Gemini.', 502)
+        return html
+      } catch (err) {
+        if (isRotatableApiError(err)) throw err // để withApiKeyRotation() bắt và đổi key
+        if (attempt === maxRetriesPerKey - 1) {
+          if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+          throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini generate error', 502)
+        }
+        await new Promise((res) => setTimeout(res, 1200 * 2 ** attempt))
+      }
+    }
+    throw new BringAnyIdeaToLifeProxyError('All retries failed', 502)
+  }, { envSource })
+}
+
+// --- Điều phối Groq (mặc định, miễn phí) ↔ Gemini (fallback tự động) ---
 export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
-  try {
-    return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey })
+  const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
+  const hasGemini = countApiKeyPool('GEMINI_API_KEY', { envSource }) > 0
 
-      const parts = [{ text: prompt }]
-      if (fileBase64 && mimeType) {
-        parts.push({ inlineData: { data: fileBase64, mimeType } })
-      }
-
-      for (let attempt = 0; attempt < maxRetriesPerKey; attempt++) {
-        try {
-          const modelPromise = ai.models.generateContent({
-            model: GEMINI_MODEL,
-            contents: { parts },
-            config: {
-              systemInstruction: SYSTEM_INSTRUCTION,
-              temperature: 0.5, // temperature cao hơn cho sáng tạo với input đời thường
-            },
-          })
-
-          const response = await withTimeout(modelPromise, timeoutMs)
-
-          let html = response.text || ''
-          if (!html) throw new BringAnyIdeaToLifeProxyError('Không có nội dung trả về từ Gemini.', 502)
-
-          // Dọn markdown fence nếu model vẫn lỡ bọc bất chấp system instruction.
-          html = html.replace(/^```html\s*/, '').replace(/^```\s*/, '').replace(/```$/, '')
-
-          return { html }
-        } catch (err) {
-          if (isRotatableApiError(err)) throw err // để withApiKeyRotation() bắt và đổi key
-          if (attempt === maxRetriesPerKey - 1) {
-            if (err instanceof BringAnyIdeaToLifeProxyError) throw err
-            throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini generate error', 502)
-          }
-          await new Promise((res) => setTimeout(res, 1200 * 2 ** attempt))
-        }
-      }
-      throw new BringAnyIdeaToLifeProxyError('All retries failed', 502)
-    }, { envSource })
-  } catch (err) {
-    if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+  if (!hasGroq && !hasGemini) {
     throw new BringAnyIdeaToLifeProxyError(
-      err?.message ||
-        'Chưa cấu hình GEMINI_API_KEY. Bring Any Idea to Life cần Gemini 3 Pro thật (trả phí, lấy tại Google AI Studio) để phân tích ảnh và sinh code — không có bản thay thế miễn phí tương đương. Thêm biến GEMINI_API_KEY (hoặc GEMINI_API_KEY1, GEMINI_API_KEY2, ... cho nhiều key) trong Vercel → Settings → Environment Variables.',
-      err?.status || 501,
+      'Chưa cấu hình GROQ_API_KEY lẫn GEMINI_API_KEY (hoặc các biến *_API_KEY1, *_API_KEY2, ...) trên server. Thêm ít nhất một trong hai trong Vercel → Settings → Environment Variables rồi redeploy.',
+      501,
     )
   }
+
+  if (hasGroq) {
+    try {
+      const html = cleanHtml(await callGroqVision({ prompt, fileBase64, mimeType, envSource }))
+      if (html) return { html, source: 'groq' }
+    } catch (err) {
+      console.warn('[bring-any-idea-to-life] Groq failed on all keys, falling back to Gemini:', err?.message || err)
+    }
+  }
+
+  if (!hasGemini) {
+    throw new BringAnyIdeaToLifeProxyError(
+      'Groq gặp sự cố ở tất cả các key (hoặc chưa cấu hình) và chưa có GEMINI_API_KEY để dự phòng. Thêm biến GROQ_API_KEY (miễn phí, lấy tại console.groq.com) hoặc GEMINI_API_KEY trong Vercel → Settings → Environment Variables.',
+      502,
+    )
+  }
+
+  const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, envSource }))
+  return { html, source: 'gemini-fallback' }
 }

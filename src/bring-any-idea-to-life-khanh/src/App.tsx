@@ -34,33 +34,15 @@ const App: React.FC = () => {
         }
       }
 
+      // ĐÃ BỎ: bản gốc còn tải thêm 3 "creation mẫu" từ bucket demo của
+      // Google (storage.googleapis.com/sideprojects-asronline/...) khi
+      // chưa có lịch sử trong localStorage. Bucket đó chỉ cho phép CORS từ
+      // origin gốc của app AI Studio, nên khi chạy trên domain của dự án
+      // này request luôn bị chặn (lỗi CORS, không phải lỗi thật của app) —
+      // bỏ hẳn bước này, người dùng mới sẽ bắt đầu với lịch sử trống thay
+      // vì thấy toàn lỗi mạng vô hại trong console.
       if (loadedHistory.length > 0) {
         setHistory(loadedHistory);
-      } else {
-        // If no history (new user or cleared), load examples
-        try {
-           const exampleUrls = [
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/vibecode-blog.json',
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/cassette.json',
-               'https://storage.googleapis.com/sideprojects-asronline/bringanythingtolife/chess.json'
-           ];
-
-           const examples = await Promise.all(exampleUrls.map(async (url) => {
-               const res = await fetch(url);
-               if (!res.ok) return null;
-               const data = await res.json();
-               return {
-                   ...data,
-                   timestamp: new Date(data.timestamp || Date.now()),
-                   id: data.id || crypto.randomUUID()
-               };
-           }));
-           
-           const validExamples = examples.filter((e): e is Creation => e !== null);
-           setHistory(validExamples);
-        } catch (e) {
-            console.error("Failed to load examples", e);
-        }
       }
     };
 
