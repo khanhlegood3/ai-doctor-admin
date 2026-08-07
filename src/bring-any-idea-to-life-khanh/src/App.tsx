@@ -8,6 +8,8 @@ import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
 import { bringToLife } from './lib/api';
+import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
+import { saveCreationToR2 } from './lib/historyR2Client';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
 const App: React.FC = () => {
@@ -16,49 +18,64 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<Creation[]>([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // Load history from local storage or fetch examples on mount
+  // Load history from IndexedDB on mount (di trú 1 lần từ localStorage cũ
+  // nếu có, xem lib/historyStorage.ts). Đã bỏ localStorage làm nơi lưu
+  // chính vì quota ~5MB rất dễ đầy khi mỗi creation kèm 1 ảnh gốc base64
+  // (xem cảnh báo "Local storage full or error saving history" trước đây).
+  //
+  // ĐÃ BỎ: bản gốc còn tải thêm 3 "creation mẫu" từ bucket demo của Google
+  // (storage.googleapis.com/sideprojects-asronline/...) khi chưa có lịch sử.
+  // Bucket đó chỉ cho phép CORS từ origin gốc của app AI Studio nên khi chạy
+  // trên domain dự án này request luôn bị chặn (lỗi CORS, không phải lỗi
+  // thật) — bỏ hẳn bước này, người dùng mới sẽ bắt đầu với lịch sử trống.
   useEffect(() => {
     const initHistory = async () => {
-      const saved = localStorage.getItem('gemini_app_history');
-      let loadedHistory: Creation[] = [];
-
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          loadedHistory = parsed.map((item: any) => ({
-              ...item,
-              timestamp: new Date(item.timestamp)
-          }));
-        } catch (e) {
-          console.error("Failed to load history", e);
+      try {
+        await migrateFromLocalStorageOnce();
+        const rows = await getAllCreations();
+        if (rows.length > 0) {
+          setHistory(rows.map((r) => ({ ...r, timestamp: new Date(r.timestamp) })));
         }
-      }
-
-      // ĐÃ BỎ: bản gốc còn tải thêm 3 "creation mẫu" từ bucket demo của
-      // Google (storage.googleapis.com/sideprojects-asronline/...) khi
-      // chưa có lịch sử trong localStorage. Bucket đó chỉ cho phép CORS từ
-      // origin gốc của app AI Studio, nên khi chạy trên domain của dự án
-      // này request luôn bị chặn (lỗi CORS, không phải lỗi thật của app) —
-      // bỏ hẳn bước này, người dùng mới sẽ bắt đầu với lịch sử trống thay
-      // vì thấy toàn lỗi mạng vô hại trong console.
-      if (loadedHistory.length > 0) {
-        setHistory(loadedHistory);
+      } catch (e) {
+        console.error('Failed to load history from IndexedDB', e);
       }
     };
 
     initHistory();
   }, []);
 
-  // Save history when it changes
-  useEffect(() => {
-    if (history.length > 0) {
-        try {
-            localStorage.setItem('gemini_app_history', JSON.stringify(history));
-        } catch (e) {
-            console.warn("Local storage full or error saving history", e);
-        }
+  // Lưu 1 creation vào CẢ HAI nơi: IndexedDB (đọc lại tức thì, không cần
+  // mạng) và R2 (sao lưu bền, không phụ thuộc trình duyệt/thiết bị) — R2
+  // chạy fire-and-forget, lỗi không chặn UX chính vì IndexedDB đã lưu xong.
+  const persistCreation = async (creation: Creation, imageBase64?: string, mimeType?: string) => {
+    const timestampIso = creation.timestamp.toISOString();
+    try {
+      await putCreation({
+        id: creation.id,
+        name: creation.name,
+        html: creation.html,
+        originalImage: creation.originalImage,
+        timestamp: timestampIso,
+      });
+    } catch (e) {
+      console.error('Failed to save creation to IndexedDB', e);
     }
-  }, [history]);
+
+    saveCreationToR2({
+      id: creation.id,
+      name: creation.name,
+      html: creation.html,
+      imageBase64,
+      mimeType,
+      timestamp: timestampIso,
+    }).then((result) => {
+      if (result) {
+        patchCreation(creation.id, { r2JsonUrl: result.jsonUrl, r2ImageUrl: result.imageUrl }).catch((e) =>
+          console.warn('Failed to patch IndexedDB with R2 urls', e)
+        );
+      }
+    });
+  };
 
   // Helper to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -105,6 +122,7 @@ const App: React.FC = () => {
         };
         setActiveCreation(newCreation);
         setHistory(prev => [newCreation, ...prev]);
+        persistCreation(newCreation, imageBase64, mimeType);
       }
 
     } catch (error) {
@@ -154,6 +172,19 @@ const App: React.FC = () => {
 
                 // Set as active immediately
                 setActiveCreation(importedCreation);
+
+                // originalImage (nếu có) là data URL đầy đủ (data:<mime>;base64,<data>) —
+                // tách ra để truyền cho persistCreation giống hệt luồng handleGenerate.
+                let importedImageBase64: string | undefined;
+                let importedMimeType: string | undefined;
+                if (importedCreation.originalImage?.startsWith('data:')) {
+                  const match = importedCreation.originalImage.match(/^data:([^;]+);base64,(.*)$/);
+                  if (match) {
+                    importedMimeType = match[1];
+                    importedImageBase64 = match[2];
+                  }
+                }
+                persistCreation(importedCreation, importedImageBase64, importedMimeType);
             } else {
                 alert("Invalid creation file format.");
             }

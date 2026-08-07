@@ -26,6 +26,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
+import { saveBringAnyIdeaToLifeCreationToR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -187,6 +188,30 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (bring-any-idea-to-life) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life proxy error' })
+    }
+  }
+
+  // --- Nhánh sao lưu creation "Bring Any Idea to Life" lên R2 (KHÔNG gọi AI) ---
+  // Chạy SONG SONG với IndexedDB cục bộ ở client (xem
+  // src/bring-any-idea-to-life-khanh/src/lib/historyStorage.ts +
+  // historyR2Client.ts) — lỗi ở nhánh này không được chặn UX chính vì
+  // IndexedDB đã lưu xong trước khi gọi sang đây (fire-and-forget).
+  if (body.provider === 'bring-any-idea-to-life-save-r2') {
+    console.log('[groq-proxy] (bring-any-idea-to-life-save-r2) id:', body.id, '| hasImage:', Boolean(body.imageBase64))
+    try {
+      const payload = await saveBringAnyIdeaToLifeCreationToR2({
+        id: body.id,
+        name: body.name,
+        html: body.html,
+        imageBase64: body.imageBase64,
+        mimeType: body.mimeType,
+        timestamp: body.timestamp,
+      })
+      return res.status(201).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-save-r2) error:', err?.message || err)
+      const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life R2 save error' })
     }
   }
 
