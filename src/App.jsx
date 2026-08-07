@@ -1276,6 +1276,33 @@ class PanelErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error('Panel render error:', error, info)
+
+    // Sau khi deploy bản build mới, tên file JS (hash) của các panel lazy-load
+    // sẽ đổi và file cũ bị xoá khỏi server. Nếu tab của user đang mở từ trước
+    // lúc deploy, import() sẽ 404 vào file hash cũ. Trường hợp này không phải
+    // lỗi trong code panel — chỉ cần reload lại 1 lần để lấy index.html +
+    // hash mới là hết lỗi. Dùng sessionStorage để tránh reload loop vô hạn
+    // nếu lỗi 404 là do nguyên nhân khác (vd network/CDN thật sự hỏng).
+    const msg = String(error?.message || '')
+    const isStaleChunkError = /fetch dynamically imported module|Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError/i.test(msg)
+    if (isStaleChunkError) {
+      const reloadKey = 'cdoc_stale_chunk_reload_once'
+      try {
+        if (!sessionStorage.getItem(reloadKey)) {
+          sessionStorage.setItem(reloadKey, '1')
+          window.location.reload()
+        }
+      } catch (_) {
+        // sessionStorage có thể bị chặn (private mode) — bỏ qua, để user
+        // thấy UI lỗi bên dưới và tự bấm nút thay vì reload ngầm.
+      }
+    }
+  }
+
+  componentDidMount() {
+    try {
+      sessionStorage.removeItem('cdoc_stale_chunk_reload_once')
+    } catch (_) {}
   }
 
   componentDidUpdate(prevProps) {
