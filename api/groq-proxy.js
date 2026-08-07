@@ -21,6 +21,7 @@
 
 import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 import { runDinoPalGenerate, DinoPalProxyError } from './_lib/dinoPalProxy.js'
+import { runArcadeSpriteGenerate, ArcadeSpriteError } from './_lib/arcadeSprite.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
@@ -410,6 +411,28 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (gemini-comic) error:', err?.message || err)
       const status = err instanceof GeminiComicError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Comic generate proxy error' })
+    }
+  }
+
+  // --- Nhánh One Shot Arcade (ảnh: Pollinations ẩn danh | lời villain: Groq) ---
+  // Mô tả ngoại hình từ ảnh KHÔNG đi qua nhánh này — client gọi thẳng nhánh
+  // Groq mặc định bên dưới với model vision 'meta-llama/llama-4-scout-17b-16e-instruct'
+  // (giống FullDocumentSummarizationPanel.jsx), xem api/_lib/arcadeSprite.js.
+  if (body.provider === 'arcade-sprite') {
+    console.log('[groq-proxy] (arcade-sprite) action:', body.action)
+    try {
+      const payload = await runArcadeSpriteGenerate({
+        action: body.action,
+        description: body.description,
+        villainDescription: body.villainDescription,
+        situation: body.situation,
+        lang: body.lang,
+      })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (arcade-sprite) error:', err?.message || err)
+      const status = err instanceof ArcadeSpriteError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Arcade sprite proxy error' })
     }
   }
 

@@ -8,6 +8,8 @@ import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
 import { DemoTemplates } from './components/DemoTemplates';
+import { OneShotArcadeCard } from './components/OneShotArcadeCard';
+import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
 import { bringToLife } from './lib/api';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
 import { saveCreationToR2 } from './lib/historyR2Client';
@@ -168,6 +170,21 @@ const App: React.FC = () => {
     });
   };
 
+  // "One Shot Arcade" — KHÁC handleSelectDemo ở trên: đây KHÔNG phải mẫu
+  // tĩnh, mà là 1 mini-game tự chứa GỌI AI THẬT lúc chơi (Groq Vision +
+  // Pollinations, xem src/lib/oneShotArcade.ts). Vẫn dùng chung LivePreview
+  // để tận dụng UI có sẵn (fullscreen, tải HTML về, nút back...), nhưng cố
+  // tình KHÔNG lưu vào lịch sử thật (IndexedDB/R2) vì "creation" ở đây là 1
+  // trò chơi, không phải nội dung người dùng tạo ra để lưu lại xem sau.
+  const handleOpenOneShotArcade = () => {
+    setActiveCreation({
+      id: 'one-shot-arcade',
+      name: 'One Shot Arcade',
+      html: ONE_SHOT_ARCADE_HTML,
+      timestamp: new Date(),
+    });
+  };
+
   const handleImportClick = () => {
     importInputRef.current?.click();
   };
@@ -255,6 +272,9 @@ const App: React.FC = () => {
 
           {/* 2b. Demo template gallery — xem ngay các mẫu có sẵn, không cần AI */}
           <DemoTemplates onSelect={handleSelectDemo} disabled={isFocused} />
+
+          {/* 2c. One Shot Arcade — mini-game AI thật, tách riêng khỏi gallery ở trên */}
+          <OneShotArcadeCard onSelect={handleOpenOneShotArcade} disabled={isFocused} />
 
         </div>
         
