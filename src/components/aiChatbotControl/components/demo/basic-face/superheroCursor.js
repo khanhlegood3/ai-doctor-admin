@@ -1,13 +1,36 @@
-// superheroCursor.js — con trỏ chuột tuỳ chỉnh cho trang "🤖 AI chatbot
-// control": "Không dùng icon" (con trỏ mặc định), "🦸 Siêu nhân bay", hoặc
-// "🐱 Con mèo" — tất cả SVG tự vẽ, silhouette chung chung, KHÔNG dựa theo
-// bất kỳ nhân vật/hình ảnh có bản quyền nào.
+// superheroCursor.js — con trỏ chuột tuỳ chỉnh + các tuỳ chọn hiệu ứng liên
+// quan, dùng chung cho trang "🤖 AI chatbot control" VÀ 2 trang "Anh Hùng"
+// (ChooseUserRolePanel / DonationHeroPanel):
 //
-// Người dùng chọn Kiểu + màu (+ hướng, nếu là kiểu Siêu nhân) ở
-// SuperheroCursorPicker.jsx; lựa chọn lưu localStorage riêng cho trang này
-// (cosmetic cá nhân, không cần đồng bộ IndexedDB).
-import { useState } from 'react'
+//   - Kiểu con trỏ: "Không dùng icon" (mặc định trình duyệt), "🦸 Siêu nhân
+//     bay", hoặc ĐỦ 12 CON GIÁP (Tý → Hợi, xem zodiacAnimals.js) — tất cả
+//     SVG tự vẽ, silhouette chung chung, KHÔNG dựa theo bất kỳ nhân
+//     vật/hình ảnh có bản quyền nào, cùng 1 phong cách vẽ với con mèo gốc.
+//   - flyEffectEnabled: bật/tắt hiệu ứng click chuột "🦸 siêu nhân bay tới /
+//     🕸️ người nhện đu dây tới" (ClickHeroSpiderEffects.jsx). Tắt = click
+//     chuột hoạt động bình thường, chuột phải trả lại menu ngữ cảnh mặc
+//     định của trình duyệt.
+//   - gazeTrackEnabled: bật/tắt hiệu ứng mắt + mũi khuôn mặt AI tròn
+//     "nhìn"/hướng theo vị trí con trỏ chuột (SharedFaceAvatar trackCursor).
+//
+// Người dùng chọn Kiểu + màu (+ hướng, nếu là kiểu Siêu nhân) + 2 tuỳ chọn
+// bật/tắt hiệu ứng ở SuperheroCursorPicker.jsx (chỉ hiển thị UI ở trang
+// "🤖 AI chatbot control"); lựa chọn lưu localStorage DÙNG CHUNG cho cả 3
+// trang (cosmetic cá nhân, không cần đồng bộ IndexedDB) — 2 trang Anh Hùng
+// chỉ ĐỌC lại các giá trị này (không có UI đổi) để áp dụng y hệt.
+//
+// Đồng bộ NGAY LẬP TỨC trong cùng 1 tab (kể cả giữa các component đang
+// mount cùng lúc trên cùng 1 trang, ví dụ khối chat nhúng bên trong trang
+// "🤖 AI chatbot control") bằng 1 CustomEvent nội bộ —
+// `window.addEventListener('storage', ...)` chỉ bắn giữa CÁC TAB khác
+// nhau, không đủ cho trường hợp này.
+import { useEffect, useState } from 'react'
 import { ZODIAC_ANIMALS, ZODIAC_SVG_BUILDERS } from './zodiacAnimals'
+
+const PREFS_CHANGE_EVENT = 'aiChatbotControl:cursorEffectsChange'
+function notifyPrefsChanged() {
+  try { window.dispatchEvent(new Event(PREFS_CHANGE_EVENT)) } catch {}
+}
 
 export const CURSOR_TYPES = [
   { id: 'none', vi: 'Không dùng icon', en: 'No icon' },
@@ -88,7 +111,18 @@ export function buildCursorPreviewSrc({ type, color, poseId }) {
 const CURSOR_TYPE_KEY = 'aiChatbotControl:cursorType'
 const CURSOR_COLOR_KEY = 'aiChatbotControl:cursorColor'
 const CURSOR_POSE_KEY = 'aiChatbotControl:cursorPose'
+const FLY_EFFECT_KEY = 'aiChatbotControl:flyEffectEnabled'
+const GAZE_TRACK_KEY = 'aiChatbotControl:gazeTrackEnabled'
 export const DEFAULT_CURSOR_COLOR = '#ea4335'
+
+function readBoolPref(key, defaultValue) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === '1') return true
+    if (raw === '0') return false
+  } catch {}
+  return defaultValue
+}
 
 export function useSuperheroCursor() {
   const [type, setTypeState] = useState(() => {
@@ -101,10 +135,78 @@ export function useSuperheroCursor() {
     try { return localStorage.getItem(CURSOR_POSE_KEY) || CURSOR_POSES[0].id } catch { return CURSOR_POSES[0].id }
   })
 
-  const setType = (next) => { setTypeState(next); try { localStorage.setItem(CURSOR_TYPE_KEY, next) } catch {} }
-  const setColor = (next) => { setColorState(next); try { localStorage.setItem(CURSOR_COLOR_KEY, next) } catch {} }
-  const setPoseId = (next) => { setPoseIdState(next); try { localStorage.setItem(CURSOR_POSE_KEY, next) } catch {} }
+  // Đồng bộ ngay lập tức trong cùng 1 tab (ví dụ: bảng chọn ở
+  // AIChatbotControlPanel và khuôn mặt AI trong EmbeddedGlobalAIChat cùng
+  // mount 1 lúc trên cùng trang) + giữa các tab khác nhau (storage event).
+  useEffect(() => {
+    const onChange = () => {
+      try {
+        setTypeState(localStorage.getItem(CURSOR_TYPE_KEY) || 'hero')
+        setColorState(localStorage.getItem(CURSOR_COLOR_KEY) || DEFAULT_CURSOR_COLOR)
+        setPoseIdState(localStorage.getItem(CURSOR_POSE_KEY) || CURSOR_POSES[0].id)
+      } catch {}
+    }
+    window.addEventListener(PREFS_CHANGE_EVENT, onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener(PREFS_CHANGE_EVENT, onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+
+  const setType = (next) => { setTypeState(next); try { localStorage.setItem(CURSOR_TYPE_KEY, next) } catch {}; notifyPrefsChanged() }
+  const setColor = (next) => { setColorState(next); try { localStorage.setItem(CURSOR_COLOR_KEY, next) } catch {}; notifyPrefsChanged() }
+  const setPoseId = (next) => { setPoseIdState(next); try { localStorage.setItem(CURSOR_POSE_KEY, next) } catch {}; notifyPrefsChanged() }
 
   const cursorCss = buildCursorCss({ type, color, poseId })
   return { type, setType, color, setColor, poseId, setPoseId, cursorCss }
+}
+
+// Bật/tắt hiệu ứng click chuột "siêu nhân bay tới / người nhện đu dây tới"
+// (mặc định BẬT, giữ đúng hành vi trước đây). Dùng chung cho trang
+// "🤖 AI chatbot control" (có UI đổi) và 2 trang Anh Hùng (chỉ đọc lại).
+export function useFlyEffectEnabled() {
+  const [enabled, setEnabledState] = useState(() => readBoolPref(FLY_EFFECT_KEY, true))
+
+  useEffect(() => {
+    const onChange = () => setEnabledState(readBoolPref(FLY_EFFECT_KEY, true))
+    window.addEventListener(PREFS_CHANGE_EVENT, onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener(PREFS_CHANGE_EVENT, onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+
+  const setEnabled = (next) => {
+    setEnabledState(next)
+    try { localStorage.setItem(FLY_EFFECT_KEY, next ? '1' : '0') } catch {}
+    notifyPrefsChanged()
+  }
+  return [enabled, setEnabled]
+}
+
+// Bật/tắt hiệu ứng mắt + mũi khuôn mặt AI tròn "nhìn theo" hướng con trỏ
+// chuột (mặc định BẬT, giữ đúng hành vi trước đây ở trang
+// "🤖 AI chatbot control"). Dùng chung cho cả 3 nơi hiển thị khuôn mặt AI
+// (khối chat nhúng trong trang chatbot control + nút mic 2 trang Anh Hùng).
+export function useGazeTrackEnabled() {
+  const [enabled, setEnabledState] = useState(() => readBoolPref(GAZE_TRACK_KEY, true))
+
+  useEffect(() => {
+    const onChange = () => setEnabledState(readBoolPref(GAZE_TRACK_KEY, true))
+    window.addEventListener(PREFS_CHANGE_EVENT, onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener(PREFS_CHANGE_EVENT, onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+
+  const setEnabled = (next) => {
+    setEnabledState(next)
+    try { localStorage.setItem(GAZE_TRACK_KEY, next ? '1' : '0') } catch {}
+    notifyPrefsChanged()
+  }
+  return [enabled, setEnabled]
 }

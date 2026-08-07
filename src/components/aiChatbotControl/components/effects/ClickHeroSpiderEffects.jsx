@@ -53,7 +53,7 @@ function spiderFigureSvg(color) {
   )
 }
 
-export function useClickHeroSpiderEffects(color = '#ea4335') {
+export function useClickHeroSpiderEffects(color = '#ea4335', enabled = true) {
   const [effects, setEffects] = useState([])
   const seqRef = useRef(0)
 
@@ -85,15 +85,19 @@ export function useClickHeroSpiderEffects(color = '#ea4335') {
   }, [])
 
   const handleClick = useCallback((e) => {
+    if (!enabled) return
     if (isInteractiveTextTarget(e.target)) return
     spawn('hero', e.clientX, e.clientY)
-  }, [spawn])
+  }, [spawn, enabled])
 
   const handleContextMenu = useCallback((e) => {
+    // Tắt "không dùng hiệu ứng bay": không preventDefault, trả lại menu
+    // ngữ cảnh (copy/paste...) mặc định của trình duyệt cho chuột phải.
+    if (!enabled) return
     if (isInteractiveTextTarget(e.target)) return
     e.preventDefault()
     spawn('spider', e.clientX, e.clientY)
-  }, [spawn])
+  }, [spawn, enabled])
 
   const layer = (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>

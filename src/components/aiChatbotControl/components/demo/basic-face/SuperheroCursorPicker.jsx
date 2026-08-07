@@ -5,7 +5,10 @@ import React from 'react'
 import { AGENT_COLORS } from '../../../lib/presets/agents'
 import { CURSOR_TYPES, CURSOR_POSES, buildCursorPreviewSrc } from './superheroCursor'
 
-export default function SuperheroCursorPicker({ isDark, isVi, border, text, muted, type, setType, color, setColor, poseId, setPoseId }) {
+export default function SuperheroCursorPicker({
+  isDark, isVi, border, text, muted, type, setType, color, setColor, poseId, setPoseId,
+  flyEffectEnabled, setFlyEffectEnabled, gazeTrackEnabled, setGazeTrackEnabled,
+}) {
   const chipStyle = (active) => ({
     display: 'flex', alignItems: 'center', gap: 6,
     border: `1px solid ${border}`,
@@ -15,6 +18,9 @@ export default function SuperheroCursorPicker({ isDark, isVi, border, text, mute
     color: active ? '#fff' : text,
     fontSize: 11, fontWeight: 800, cursor: 'pointer',
   })
+
+  const toggleRowStyle = { display: 'flex', alignItems: 'center', gap: 8 }
+  const toggleLabelStyle = { fontSize: 11, fontWeight: 800, color: text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -69,6 +75,33 @@ export default function SuperheroCursorPicker({ isDark, isVi, border, text, mute
           </div>
         </div>
       )}
+
+      {/* 2 tuỳ chọn bật/tắt hiệu ứng độc lập với kiểu con trỏ ở trên — áp
+          dụng đồng bộ luôn cho 2 trang Anh Hùng (không có UI riêng ở đó). */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4, borderTop: `1px dashed ${border}` }}>
+        <label style={toggleRowStyle}>
+          <input
+            type="checkbox"
+            checked={!flyEffectEnabled}
+            onChange={(e) => setFlyEffectEnabled(!e.target.checked)}
+            style={{ width: 15, height: 15, cursor: 'pointer' }}
+          />
+          <span style={toggleLabelStyle}>
+            {isVi ? 'Không dùng hiệu ứng bay (siêu nhân / người nhện khi click chuột)' : 'No flying effect (hero / spider on mouse click)'}
+          </span>
+        </label>
+        <label style={toggleRowStyle}>
+          <input
+            type="checkbox"
+            checked={!gazeTrackEnabled}
+            onChange={(e) => setGazeTrackEnabled(!e.target.checked)}
+            style={{ width: 15, height: 15, cursor: 'pointer' }}
+          />
+          <span style={toggleLabelStyle}>
+            {isVi ? 'Không dùng hiệu ứng nhìn dõi theo (mắt/mũi khuôn mặt AI theo chuột)' : 'No gaze-tracking effect (AI face eyes/nose follow mouse)'}
+          </span>
+        </label>
+      </div>
     </div>
   )
 }

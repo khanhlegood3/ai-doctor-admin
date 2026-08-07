@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import EmbeddedGlobalAIChat from './aiChatbotControl/EmbeddedGlobalAIChat'
 import { useUser } from './aiChatbotControl/lib/state'
 import SuperheroCursorPicker from './aiChatbotControl/components/demo/basic-face/SuperheroCursorPicker.jsx'
-import { useSuperheroCursor } from './aiChatbotControl/components/demo/basic-face/superheroCursor.js'
+import { useSuperheroCursor, useFlyEffectEnabled, useGazeTrackEnabled } from './aiChatbotControl/components/demo/basic-face/superheroCursor.js'
 import { useClickHeroSpiderEffects } from './aiChatbotControl/components/effects/ClickHeroSpiderEffects.jsx'
 import './aiChatbotControl/aiChatbotControl.css'
 
@@ -39,7 +39,9 @@ export default function AIChatbotControlPanel() {
   const isVi = lang !== 'en'
 
   const { type: cursorType, setType: setCursorType, color: cursorColor, setColor: setCursorColor, poseId: cursorPoseId, setPoseId: setCursorPoseId, cursorCss } = useSuperheroCursor()
-  const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor)
+  const [flyEffectEnabled, setFlyEffectEnabled] = useFlyEffectEnabled()
+  const [gazeTrackEnabled, setGazeTrackEnabled] = useGazeTrackEnabled()
+  const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor, flyEffectEnabled)
   const [showCursorSettings, setShowCursorSettings] = useState(false)
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
   const text = isDark ? '#e8f0f8' : '#102033'
@@ -95,6 +97,8 @@ export default function AIChatbotControlPanel() {
               type={cursorType} setType={setCursorType}
               color={cursorColor} setColor={setCursorColor}
               poseId={cursorPoseId} setPoseId={setCursorPoseId}
+              flyEffectEnabled={flyEffectEnabled} setFlyEffectEnabled={setFlyEffectEnabled}
+              gazeTrackEnabled={gazeTrackEnabled} setGazeTrackEnabled={setGazeTrackEnabled}
             />
           </div>
         )}
@@ -106,7 +110,7 @@ export default function AIChatbotControlPanel() {
           chung với popup góc màn hình, trang Lịch sử Chat, và mic 2 trang
           Anh Hùng — xem EmbeddedGlobalAIChat.jsx. */}
       <div style={{ flex: 1, minHeight: 0, borderRadius: 16, overflow: 'hidden' }}>
-        <EmbeddedGlobalAIChat activePanelLabel={t('nav_aiChatbotControl')} />
+        <EmbeddedGlobalAIChat activePanelLabel={t('nav_aiChatbotControl')} trackCursor={gazeTrackEnabled} />
       </div>
     </div>
   )

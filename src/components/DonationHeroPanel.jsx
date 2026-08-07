@@ -9,6 +9,8 @@ import { getOrganById, lowerFirst } from '../data/organs.js';
 import BackButton from './common/BackButton.jsx';
 import AnatomyHoverOverlay from './AnatomyHoverOverlay.jsx';
 import HeroZoneStackPopup from './heroPanels/HeroZoneStackPopup.jsx';
+import { useSuperheroCursor, useFlyEffectEnabled } from './aiChatbotControl/components/demo/basic-face/superheroCursor.js';
+import { useClickHeroSpiderEffects } from './aiChatbotControl/components/effects/ClickHeroSpiderEffects.jsx';
 
 // ============================================================================
 // DonationHeroPanel — màn hình chào mừng cho tính năng "Anh Hùng Hiến Tặng"
@@ -147,6 +149,13 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
 
   const isGuest = mode === 'guest';
   const { isDark, isEn, toggleTheme, toggleLang } = useHeroPanelPrefs();
+  // Con trỏ chuột (12 con giáp / siêu nhân bay) + hiệu ứng click "siêu
+  // nhân bay tới / người nhện đu dây tới" — đọc lại đúng lựa chọn đã chọn
+  // ở trang "🤖 AI chatbot control" (không có UI đổi riêng ở đây, chỉ áp
+  // dụng đồng bộ y hệt, kể cả khi tắt bằng option "không dùng").
+  const { color: cursorColor, cursorCss } = useSuperheroCursor();
+  const [flyEffectEnabled] = useFlyEffectEnabled();
+  const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor, flyEffectEnabled);
   // "Trang sau" của ChooseUserRolePanel: đọc lại đúng Cơ quan người dùng đã
   // chọn (lưu trong IndexedDB) để hiển thị đúng tên + hình (emoji) — mặc
   // định 'mauhiem' (Hiến Máu Nhân Văn / Máu Hiếm) nếu chưa từng chọn.
@@ -175,8 +184,11 @@ export default function DonationHeroPanel({ mode = 'guest', onEnterAction, onBac
           ? 'bg-gradient-to-b from-[#0b1220] to-[#0f172a] text-gray-100'
           : 'bg-gradient-to-b from-[#f6faf7] to-[#eef7f1] text-[#16241c]'
       }`}
-      style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}
+      style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))', cursor: cursorCss }}
+      onClick={handleHeroSpiderClick}
+      onContextMenu={handleHeroSpiderRightClick}
     >
+      {clickEffectsLayer}
       <div className="max-w-2xl lg:max-w-3xl mx-auto">
 
         {/* Đổi giao diện sáng/tối + ngôn ngữ, và Tạo tài khoản (chỉ khách) */}

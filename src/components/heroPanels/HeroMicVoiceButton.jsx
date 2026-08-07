@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useGlobalAIChatbotEngine } from '../../lib/useGlobalAIChatbotEngine.js';
 import SharedFaceAvatar from '../aiChatbotControl/components/demo/basic-face/SharedFaceAvatar.jsx';
 import { useAgent } from '../aiChatbotControl/lib/state';
+import { useGazeTrackEnabled } from '../aiChatbotControl/components/demo/basic-face/superheroCursor.js';
 
 // ============================================================================
 // HeroMicVoiceButton — nút mic "trao đổi thoại trực tiếp" dùng riêng cho 2
@@ -47,6 +48,9 @@ export default function HeroMicVoiceButton({
   // "Anh Hùng" đã đúng màu/phong cách, không cần mở nơi kia trước.
   const faceColor = useAgent(state => state.current?.bodyColor) || '#ea4335';
   const faceStyle = useAgent(state => state.current?.faceStyle) || 'round';
+  // Hiệu ứng mắt/mũi "nhìn dõi theo" chuột — đồng bộ với lựa chọn bật/tắt
+  // ở trang "🤖 AI chatbot control" (mặc định BẬT, giữ đúng hành vi cũ).
+  const [gazeTrackEnabled] = useGazeTrackEnabled();
 
   const {
     busy,
@@ -122,6 +126,7 @@ export default function HeroMicVoiceButton({
             color={faceColor}
             style={faceStyle}
             size={faceSize}
+            trackCursor={gazeTrackEnabled}
           />
         </button>
       </div>
