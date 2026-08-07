@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pause, Play, RotateCcw, Square } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useGlobalAIChatbotEngine } from '../../lib/useGlobalAIChatbotEngine.js';
-import { renderBasicFace } from '../aiChatbotControl/components/demo/basic-face/basic-face-render';
+import SharedFaceAvatar from '../aiChatbotControl/components/demo/basic-face/SharedFaceAvatar.jsx';
 import { useAgent } from '../aiChatbotControl/lib/state';
 
 // ============================================================================
@@ -39,14 +39,14 @@ export default function HeroMicVoiceButton({
   const { user, loginAnonymous } = useAuth();
   const userKey = user?.uuid || null;
   const audioElementRef = useRef(null);
-  const faceCanvasRef = useRef(null);
   const [showPlaybackControls, setShowPlaybackControls] = useState(true);
 
-  // Màu khuôn mặt tròn đồng bộ với lựa chọn của user tại trang "🤖 AI chatbot
-  // control" (AgentEdit → colorPicker ghi vào cùng store `useAgent`, có
-  // persist localStorage) — nên ngay lần đầu vào 2 trang "Anh Hùng" đã đúng
-  // màu, không cần mở panel kia trước.
+  // Màu + phong cách khuôn mặt tròn đồng bộ với lựa chọn của user ở trang
+  // "🤖 AI chatbot control" hoặc popup chatbot chung (đều ghi vào cùng kho
+  // `useAgent`, có persist localStorage) — nên ngay lần đầu vào 2 trang
+  // "Anh Hùng" đã đúng màu/phong cách, không cần mở nơi kia trước.
   const faceColor = useAgent(state => state.current?.bodyColor) || '#ea4335';
+  const faceStyle = useAgent(state => state.current?.faceStyle) || 'round';
 
   const {
     busy,
@@ -71,43 +71,11 @@ export default function HeroMicVoiceButton({
   const isActive = recording || transcribing || busy || speaking;
   const icon = recording ? '🎙️' : transcribing ? '⏳' : busy ? '💭' : speaking ? '🔊' : null;
 
-  // Khuôn mặt tròn của "Trợ lý thoại companion" (ported từ basic-face-render.js
-  // của keynote-companion) thay cho icon Mic — render trực tiếp lên canvas,
-  // không cần LiveAPIProvider vì đây chỉ là avatar tĩnh/biểu cảm nhẹ theo
-  // trạng thái recording/transcribing/busy/speaking của CHÍNH nút này.
+  // Khuôn mặt tròn của "Trợ lý thoại companion" thay cho icon Mic —
+  // SharedFaceAvatar tự vẽ + tự animate theo state, không cần LiveAPIProvider
+  // vì đây chỉ là avatar tĩnh/biểu cảm nhẹ theo trạng thái của CHÍNH nút này.
   const faceSize = Math.max(buttonSize - 12, 20);
-  useEffect(() => {
-    const ctx = faceCanvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    let frameId;
-    const start = performance.now();
-
-    const draw = (now) => {
-      const t = (now - start) / 1000;
-      let eyeScale = 1;
-      let mouthScale = 0.12;
-
-      if (recording) {
-        eyeScale = 1.15;
-        mouthScale = 0.08;
-      } else if (transcribing || busy) {
-        eyeScale = 0.55 + Math.sin(t * 3) * 0.15;
-        mouthScale = 0.08;
-      } else if (speaking) {
-        eyeScale = 1;
-        mouthScale = 0.15 + Math.abs(Math.sin(t * 8)) * 0.35;
-      } else {
-        eyeScale = (t % 4) > 3.85 ? 0.15 : 1;
-        mouthScale = 0.12;
-      }
-
-      renderBasicFace({ ctx, eyeScale, mouthScale, color: faceColor });
-      frameId = requestAnimationFrame(draw);
-    };
-
-    frameId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frameId);
-  }, [recording, transcribing, busy, speaking, faceColor]);
+  const faceState = recording ? 'listening' : (transcribing || busy) ? 'thinking' : speaking ? 'speaking' : 'idle';
   const label = recording
     ? (isVi ? 'Đang nghe...' : 'Listening...')
     : transcribing
@@ -149,12 +117,11 @@ export default function HeroMicVoiceButton({
               <span className="absolute top-0 left-[-100%] h-full w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-45deg] group-hover:animate-shine" />
             </span>
           )}
-          <canvas
-            ref={faceCanvasRef}
-            width={faceSize}
-            height={faceSize}
-            className="relative"
-            style={{ display: 'block', borderRadius: '50%' }}
+          <SharedFaceAvatar
+            state={faceState}
+            color={faceColor}
+            style={faceStyle}
+            size={faceSize}
           />
         </button>
       </div>

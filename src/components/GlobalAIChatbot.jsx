@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useGlobalAIChatbotEngine, quickPrompts, MAX_FILES, getModeLabel } from '../lib/useGlobalAIChatbotEngine.js'
+import SharedFaceAvatar from './aiChatbotControl/components/demo/basic-face/SharedFaceAvatar.jsx'
+import FaceAvatarPicker from './aiChatbotControl/components/demo/basic-face/FaceAvatarPicker.jsx'
+import { useAgent } from './aiChatbotControl/lib/state'
 
 // Single named export used by the journey panels; do not add a second no-op export below.
 export function CompactGlobalAIChatBar({ activePanelLabel }) {
@@ -149,6 +152,14 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
 
   const styles = useMemo(() => createStyles(isDark, fullscreen), [isDark, fullscreen])
 
+  const faceColor = useAgent(state => state.current?.bodyColor) || '#14b8a6'
+  const faceStyle = useAgent(state => state.current?.faceStyle) || 'round'
+  const faceState = recording ? 'listening' : (transcribing || busy) ? 'thinking' : speaking ? 'speaking' : 'idle'
+  const [showFaceSettings, setShowFaceSettings] = useState(false)
+  const pickerBorder = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
+  const pickerText = isDark ? '#e6ecff' : '#102033'
+  const pickerMuted = isDark ? '#9aa3b7' : '#64748b'
+
   useEffect(() => {
     window.setTimeout(() => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -204,13 +215,27 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
       <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeTopLeft }} aria-label="Đóng chatbot ở góc trên trái">×</button>
       <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeBottomLeft }} aria-label="Đóng chatbot ở góc dưới trái">×</button>
       <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeBottomRight }} aria-label="Đóng chatbot ở góc dưới phải">×</button>
-      <header style={styles.header}>
+      <header style={{ ...styles.header, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={() => setShowFaceSettings(v => !v)}
+          title={isVi ? 'Đổi màu / phong cách khuôn mặt' : 'Change face color / style'}
+          style={{ width: 44, height: 44, borderRadius: faceStyle === 'robot' ? 12 : (faceStyle === 'round' ? '50%' : 10), background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${pickerBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: 'pointer', flexShrink: 0, marginRight: 10 }}
+        >
+          <SharedFaceAvatar state={faceState} color={faceColor} style={faceStyle} size={42} />
+        </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={styles.title}>🦸 Hero AI 🤗</div>
           <div style={styles.subtitle}>{status}</div>
         </div>
         <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeTopRight }} aria-label="Đóng chatbot">×</button>
       </header>
+
+      {showFaceSettings && (
+        <div style={{ padding: '10px 16px', borderBottom: `1px solid ${pickerBorder}` }}>
+          <FaceAvatarPicker isDark={isDark} isVi={isVi} border={pickerBorder} text={pickerText} muted={pickerMuted} />
+        </div>
+      )}
 
       <div style={styles.metaRow}>
         <span style={styles.badge}>{getModeLabel(mode, isVi)}</span>

@@ -24,58 +24,8 @@ import { useApp } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useGlobalAIChatbotEngine, quickPrompts, MAX_FILES, getModeLabel } from '../../lib/useGlobalAIChatbotEngine.js'
 import SharedFaceAvatar from './components/demo/basic-face/SharedFaceAvatar.jsx'
-
-// Khuôn mặt tròn không có audio stream thật để phân tích âm lượng (TTS ở
-// đây phát qua thẻ <audio> tiếng Việt hoặc Web Speech API tiếng Anh, không
-// giống pipeline Gemini Live gốc của companion). Vì vậy dùng một "volume"
-// giả lập: dao động khi đang nói (speaking)/đang nghe (recording)/đang
-// suy nghĩ (busy), về 0 khi rảnh — đủ để khuôn mặt "sống động" mà không
-// cần Web Audio API.
-function useSyntheticVolume({ speaking, recording, busy }) {
-  const [volume, setVolume] = useState(0)
-  useEffect(() => {
-    let frameId
-    const active = speaking || recording || busy
-    if (!active) { setVolume(0); return }
-    const start = Date.now()
-    const speed = recording ? 0.012 : busy ? 0.006 : 0.01
-    const base = recording ? 0.32 : busy ? 0.16 : 0.28
-    const swing = recording ? 0.22 : busy ? 0.1 : 0.24
-    const tick = () => {
-      const t = Date.now() - start
-      setVolume(base + Math.abs(Math.sin(t * speed)) * swing)
-      frameId = requestAnimationFrame(tick)
-    }
-    frameId = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frameId)
-  }, [speaking, recording, busy])
-  return volume
-}
-
-// Tuỳ chỉnh khuôn mặt (màu sắc + phong cách) lưu trong localStorage, riêng
-// theo trình duyệt — không phải state đồng bộ IndexedDB như tin nhắn chat,
-// vì đây chỉ là sở thích hiển thị cá nhân, không cần đồng bộ nhiều thiết bị.
-const FACE_COLOR_KEY = 'sharedFaceAvatar:color'
-const FACE_STYLE_KEY = 'sharedFaceAvatar:style'
-const FACE_COLOR_PRESETS = ['#0f4c81', '#14b8a6', '#5eead4', '#f472b6', '#a78bfa', '#fb923c', '#f8fafc']
-
-function useFaceCustomization() {
-  const [color, setColorState] = useState(() => {
-    try { return localStorage.getItem(FACE_COLOR_KEY) || FACE_COLOR_PRESETS[0] } catch { return FACE_COLOR_PRESETS[0] }
-  })
-  const [style, setStyleState] = useState(() => {
-    try { return localStorage.getItem(FACE_STYLE_KEY) || 'round' } catch { return 'round' }
-  })
-  const setColor = (next) => {
-    setColorState(next)
-    try { localStorage.setItem(FACE_COLOR_KEY, next) } catch {}
-  }
-  const setStyle = (next) => {
-    setStyleState(next)
-    try { localStorage.setItem(FACE_STYLE_KEY, next) } catch {}
-  }
-  return { color, setColor, style, setStyle }
-}
+import FaceAvatarPicker from './components/demo/basic-face/FaceAvatarPicker.jsx'
+import { useAgent } from './lib/state'
 
 export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
   const { theme, lang } = useApp()
@@ -121,8 +71,9 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
     toggleMic()
   }
 
-  const faceVolume = useSyntheticVolume({ speaking, recording, busy })
-  const { color: faceColor, setColor: setFaceColor, style: faceStyle, setStyle: setFaceStyle } = useFaceCustomization()
+  const faceColor = useAgent(state => state.current?.bodyColor) || '#14b8a6'
+  const faceStyle = useAgent(state => state.current?.faceStyle) || 'round'
+  const faceState = recording ? 'listening' : (transcribing || busy) ? 'thinking' : speaking ? 'speaking' : 'idle'
   const [showFaceSettings, setShowFaceSettings] = useState(false)
 
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
@@ -164,7 +115,7 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
           title={isVi ? 'Đổi màu / phong cách khuôn mặt' : 'Change face color / style'}
           style={{ width: 64, height: 64, borderRadius: faceStyle === 'robot' ? 16 : '50%', background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: 'pointer', flexShrink: 0 }}
         >
-          <SharedFaceAvatar volume={faceVolume} size={62} color={faceColor} style={faceStyle} />
+          <SharedFaceAvatar state={faceState} size={62} color={faceColor} style={faceStyle} />
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span style={{ color: '#0f766e', background: isDark ? 'rgba(45, 212, 191, 0.16)' : '#ccfbf1', borderRadius: 999, padding: '3px 8px', fontWeight: 900, alignSelf: 'flex-start' }}>
@@ -178,35 +129,8 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
       </div>
 
       {showFaceSettings && (
-        <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${border}`, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: muted }}>{isVi ? 'Màu:' : 'Color:'}</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {FACE_COLOR_PRESETS.map(c => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setFaceColor(c)}
-                title={c}
-                style={{
-                  width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
-                  border: faceColor === c ? `2px solid ${isDark ? '#fff' : '#0f172a'}` : `1px solid ${border}`,
-                  boxShadow: faceColor === c ? '0 0 0 2px rgba(20,184,166,0.4)' : 'none',
-                }}
-              />
-            ))}
-            <label style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', border: `1px solid ${border}`, cursor: 'pointer', position: 'relative' }}>
-              <input type="color" value={faceColor} onChange={e => setFaceColor(e.target.value)} style={{ position: 'absolute', inset: -4, width: 30, height: 30, border: 'none', padding: 0, cursor: 'pointer' }} />
-            </label>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 800, color: muted, marginLeft: 8 }}>{isVi ? 'Phong cách:' : 'Style:'}</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" onClick={() => setFaceStyle('round')} style={smallBtnStyle(isDark, border, text)}>
-              {faceStyle === 'round' ? '● ' : ''}{isVi ? 'Tròn ấm áp' : 'Warm round'}
-            </button>
-            <button type="button" onClick={() => setFaceStyle('robot')} style={smallBtnStyle(isDark, border, text)}>
-              {faceStyle === 'robot' ? '● ' : ''}{isVi ? 'Vuông rô-bốt' : 'Robot square'}
-            </button>
-          </div>
+        <div style={{ flex: '0 0 auto', padding: '10px 14px', borderBottom: `1px solid ${border}` }}>
+          <FaceAvatarPicker isDark={isDark} isVi={isVi} border={border} text={text} muted={muted} />
         </div>
       )}
 

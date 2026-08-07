@@ -25,6 +25,19 @@ export const AGENT_COLORS = [
   '#24c1e0',
 ]
 
+// 7 phong cách hình nền cho khuôn mặt tròn AI (SharedFaceAvatar.jsx) —
+// dùng chung ở: trang "🤖 AI chatbot control", nút mic 2 trang "Anh Hùng",
+// và popup chatbot chung (GlobalAIChatbot.jsx).
+export const FACE_STYLES = [
+  { id: 'round', vi: 'Tròn ấm áp', en: 'Warm round' },
+  { id: 'robot', vi: 'Vuông rô-bốt', en: 'Robot square' },
+  { id: 'triangle', vi: 'Tam giác', en: 'Triangle' },
+  { id: 'star', vi: 'Ngôi sao', en: 'Star' },
+  { id: 'hexagon', vi: 'Lục giác', en: 'Hexagon' },
+  { id: 'diamond', vi: 'Kim cương', en: 'Diamond' },
+  { id: 'heart', vi: 'Trái tim', en: 'Heart' },
+]
+
 export const createNewAgent = (properties) => {
   return {
     id: Math.random().toString(36).substring(2, 15),
@@ -60,5 +73,6 @@ a real doctor for personal health decisions, especially for anything serious. \
 If someone describes an emergency (chest pain, trouble breathing, fainting, seizures, heavy \
 bleeding), you tell them to seek emergency care immediately.`,
   bodyColor: '#14b8a6',
+  faceStyle: 'round',
   voice: 'Aoede',
 }
