@@ -14,7 +14,7 @@
 //   <div onClick={handleClick} onContextMenu={handleContextMenu}>...{layer}</div>
 import React, { useCallback, useRef, useState } from 'react'
 
-const EFFECT_DURATION_MS = 900
+const EFFECT_DURATION_MS = 1050
 
 // Bỏ qua khi click/right-click đang nhắm vào ô nhập liệu, nút bấm... để
 // không phá trải nghiệm gõ chữ / menu ngữ cảnh copy-paste bình thường.
@@ -59,13 +59,24 @@ export function useClickHeroSpiderEffects(color = '#ea4335') {
 
   const spawn = useCallback((type, clientX, clientY) => {
     const id = `${Date.now()}-${seqRef.current++}`
-    // Điểm xuất phát ngẫu nhiên (góc trên) để mỗi lần bay/đu dây có hướng
-    // hơi khác nhau, tự nhiên hơn.
-    const fromAngle = -60 - Math.random() * 60 // -60°..-120° (từ phía trên)
-    const fromDist = 260 + Math.random() * 160
-    const rad = (fromAngle * Math.PI) / 180
-    const dx = Math.cos(rad) * fromDist
-    const dy = Math.sin(rad) * fromDist
+    let dx, dy
+
+    if (type === 'spider') {
+      // Dây đu dài ~1/2 chiều cao màn hình, neo lệch trái/phải một chút
+      // cho có cú "đu" chứ không rơi thẳng đứng.
+      const ropeLength = window.innerHeight * (0.46 + Math.random() * 0.12)
+      const sideOffset = (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 90)
+      dx = sideOffset
+      dy = -Math.sqrt(Math.max(0, ropeLength * ropeLength - sideOffset * sideOffset))
+    } else {
+      // Điểm xuất phát ngẫu nhiên (góc trên) để mỗi lần bay có hướng hơi
+      // khác nhau, tự nhiên hơn.
+      const fromAngle = -60 - Math.random() * 60 // -60°..-120° (từ phía trên)
+      const fromDist = 320 + Math.random() * 180
+      const rad = (fromAngle * Math.PI) / 180
+      dx = Math.cos(rad) * fromDist
+      dy = Math.sin(rad) * fromDist
+    }
 
     setEffects(prev => [...prev, { id, type, x: clientX, y: clientY, dx, dy }])
     window.setTimeout(() => {
@@ -93,6 +104,11 @@ export function useClickHeroSpiderEffects(color = '#ea4335') {
           82%  { transform: translate(-50%, -50%) scale(1.18) rotate(6deg); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(0.92) rotate(0deg); opacity: 0; }
         }
+        @keyframes clickHeroTrail {
+          0%   { opacity: 0.75; transform: translate(-50%, -50%) scaleX(1); }
+          60%  { opacity: 0.25; }
+          100% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.4); }
+        }
         @keyframes clickHeroBurst {
           0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0.55; }
           100% { transform: translate(-50%, -50%) scale(2.1); opacity: 0; }
@@ -109,18 +125,29 @@ export function useClickHeroSpiderEffects(color = '#ea4335') {
         <React.Fragment key={effect.id}>
           <div
             style={{
-              position: 'absolute', left: effect.x, top: effect.y, width: 56, height: 56,
+              position: 'absolute', left: effect.x, top: effect.y,
+              width: Math.max(60, Math.hypot(effect.dx, effect.dy) * 0.6), height: 14,
+              background: `linear-gradient(90deg, transparent, ${color})`,
+              borderRadius: 8,
+              transformOrigin: '100% 50%',
+              transform: `translate(-100%, -50%) rotate(${(Math.atan2(effect.dy, effect.dx) * 180) / Math.PI}deg)`,
+              animation: `clickHeroTrail ${EFFECT_DURATION_MS * 0.55}ms ease-out forwards`,
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute', left: effect.x, top: effect.y, width: 108, height: 108,
               '--dx': `${effect.dx}px`, '--dy': `${effect.dy}px`,
               animation: `clickHeroFlyIn ${EFFECT_DURATION_MS}ms ease-out forwards`,
-              filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.35))',
+              filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.4))',
             }}
           >
             {heroFigureSvg(color)}
           </div>
           <div
             style={{
-              position: 'absolute', left: effect.x, top: effect.y, width: 70, height: 70,
-              borderRadius: '50%', border: `3px solid ${color}`,
+              position: 'absolute', left: effect.x, top: effect.y, width: 130, height: 130,
+              borderRadius: '50%', border: `4px solid ${color}`,
               animation: `clickHeroBurst ${EFFECT_DURATION_MS * 0.7}ms ease-out ${EFFECT_DURATION_MS * 0.55}ms forwards`,
             }}
           />
@@ -152,8 +179,8 @@ function SpiderSwingEffect({ effect, color }) {
         animation: `clickSpiderSwing ${EFFECT_DURATION_MS}ms cubic-bezier(0.3,0.6,0.3,1) forwards`,
       }}
     >
-      <div style={{ position: 'absolute', top: 0, left: '50%', width: 1.5, height: '100%', background: 'rgba(203,213,225,0.85)', transform: 'translateX(-50%)' }} />
-      <div style={{ position: 'absolute', left: '50%', bottom: 0, width: 40, height: 40, transform: 'translate(-50%, 50%)', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.35))' }}>
+      <div style={{ position: 'absolute', top: 0, left: '50%', width: 2, height: '100%', background: 'rgba(203,213,225,0.85)', transform: 'translateX(-50%)' }} />
+      <div style={{ position: 'absolute', left: '50%', bottom: 0, width: 48, height: 48, transform: 'translate(-50%, 50%)', filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.35))' }}>
         {spiderFigureSvg(color)}
       </div>
     </div>
