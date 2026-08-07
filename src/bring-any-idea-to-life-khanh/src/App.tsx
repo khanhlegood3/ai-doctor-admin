@@ -7,9 +7,11 @@ import { Hero } from './components/Hero';
 import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
 import { CreationHistory, Creation } from './components/CreationHistory';
+import { DemoTemplates } from './components/DemoTemplates';
 import { bringToLife } from './lib/api';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
 import { saveCreationToR2 } from './lib/historyR2Client';
+import { DemoTemplate } from './lib/demoTemplates';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
 const App: React.FC = () => {
@@ -153,6 +155,19 @@ const App: React.FC = () => {
     setActiveCreation(creation);
   };
 
+  // Bấm 1 mẫu trong "bộ mẫu demo" (DemoTemplates) -> xem ngay trong
+  // LivePreview, giống hệt loadMockExample() của Video to Learning: KHÔNG
+  // gọi AI, và KHÔNG ghi vào lịch sử thật (IndexedDB/R2) vì đây chỉ là mẫu
+  // có sẵn để tham khảo, không phải sáng tạo của người dùng.
+  const handleSelectDemo = (template: DemoTemplate) => {
+    setActiveCreation({
+      id: 'demo-' + template.id,
+      name: template.name,
+      html: template.html,
+      timestamp: new Date(),
+    });
+  };
+
   const handleImportClick = () => {
     importInputRef.current?.click();
   };
@@ -237,6 +252,9 @@ const App: React.FC = () => {
           <div className="w-full flex justify-center mb-8">
               <InputArea onGenerate={handleGenerate} isGenerating={isGenerating} disabled={isFocused} />
           </div>
+
+          {/* 2b. Demo template gallery — xem ngay các mẫu có sẵn, không cần AI */}
+          <DemoTemplates onSelect={handleSelectDemo} disabled={isFocused} />
 
         </div>
         
