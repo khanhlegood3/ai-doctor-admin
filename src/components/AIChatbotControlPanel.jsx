@@ -5,6 +5,7 @@ import EmbeddedGlobalAIChat from './aiChatbotControl/EmbeddedGlobalAIChat'
 import { useUser } from './aiChatbotControl/lib/state'
 import SuperheroCursorPicker from './aiChatbotControl/components/demo/basic-face/SuperheroCursorPicker.jsx'
 import { useSuperheroCursor } from './aiChatbotControl/components/demo/basic-face/superheroCursor.js'
+import { useClickHeroSpiderEffects } from './aiChatbotControl/components/effects/ClickHeroSpiderEffects.jsx'
 import './aiChatbotControl/aiChatbotControl.css'
 
 /**
@@ -38,6 +39,7 @@ export default function AIChatbotControlPanel() {
   const isVi = lang !== 'en'
 
   const { type: cursorType, setType: setCursorType, color: cursorColor, setColor: setCursorColor, poseId: cursorPoseId, setPoseId: setCursorPoseId, cursorCss } = useSuperheroCursor()
+  const { layer: clickEffectsLayer, handleClick: handleHeroSpiderClick, handleContextMenu: handleHeroSpiderRightClick } = useClickHeroSpiderEffects(cursorColor)
   const [showCursorSettings, setShowCursorSettings] = useState(false)
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
   const text = isDark ? '#e8f0f8' : '#102033'
@@ -58,7 +60,10 @@ export default function AIChatbotControlPanel() {
         gap: 12,
         cursor: cursorCss,
       }}
+      onClick={handleHeroSpiderClick}
+      onContextMenu={handleHeroSpiderRightClick}
     >
+      {clickEffectsLayer}
       <div>
         <h2 style={{ margin: 0, fontSize: 20, color: isDark ? '#e8f0f8' : '#1a2035' }}>
           🤖 {t('nav_aiChatbotControl')}
@@ -80,6 +85,9 @@ export default function AIChatbotControlPanel() {
         >
           🦸 {isVi ? 'Đổi con trỏ chuột siêu nhân' : 'Change superhero cursor'}
         </button>
+        <span style={{ marginLeft: 10, fontSize: 11, color: muted, fontStyle: 'italic' }}>
+          {isVi ? 'Click trái: siêu nhân bay tới · Click phải: người nhện đu dây tới' : 'Left-click: hero flies in · Right-click: spider swings in'}
+        </span>
         {showCursorSettings && (
           <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: `1px solid ${border}`, background: isDark ? 'rgba(7,12,27,0.5)' : 'rgba(255,255,255,0.6)' }}>
             <SuperheroCursorPicker
