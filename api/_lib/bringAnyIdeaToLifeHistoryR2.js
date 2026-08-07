@@ -36,8 +36,9 @@ function extFromMimeType(mimeType) {
  * @param {string} params.id - id của creation (client-side crypto.randomUUID())
  * @param {string} params.name
  * @param {string} params.html - HTML đầy đủ đã sinh ra
- * @param {string} [params.imageBase64] - ảnh gốc (không kèm tiền tố data:...;base64,)
+ * @param {string} [params.imageBase64] - ảnh/video gốc (không kèm tiền tố data:...;base64,)
  * @param {string} [params.mimeType]
+ * @param {string} [params.videoUrl] - link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
  * @param {string} [params.timestamp] - ISO string, mặc định là lúc gọi hàm
  * @param {Record<string,string>} [params.envSource]
  * @returns {Promise<{ jsonUrl: string, imageUrl: string|null }>}
@@ -48,6 +49,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
   html,
   imageBase64,
   mimeType,
+  videoUrl,
   timestamp,
   envSource = process.env,
 }) {
@@ -75,6 +77,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
     name: name || 'New Creation',
     html,
     imageUrl,
+    videoUrl: videoUrl || null,
     timestamp: timestamp || new Date().toISOString(),
   }
   const jsonBuffer = Buffer.from(JSON.stringify(creationRecord), 'utf-8')

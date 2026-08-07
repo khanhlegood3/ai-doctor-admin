@@ -15,12 +15,17 @@
 export async function bringToLife(
   prompt: string,
   fileBase64?: string,
-  mimeType?: string
+  mimeType?: string,
+  videoUrl?: string
 ): Promise<string> {
-  // Strong directive for file-only inputs with emphasis on NO external images
-  const finalPrompt = fileBase64
-    ? 'Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis.'
-    : prompt || 'Create a demo app that shows off your capabilities.';
+  const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
+
+  // Strong directive for file/video-only inputs with emphasis on NO external images
+  const finalPrompt = videoUrl || isVideoFile
+    ? 'Watch this video. Identify the key subject, action, process, or steps shown across it (not just one frame). If it is a tutorial/demo, turn it into an interactive step-by-step walkthrough or simulator of that process. If it is a real-world scene or activity, gamify it (e.g., a themed mini-game) or build a utility inspired by it. Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate any visuals using CSS, SVGs, or Emojis.'
+    : fileBase64
+      ? 'Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis.'
+      : prompt || 'Create a demo app that shows off your capabilities.';
 
   const res = await fetch('/api/groq-proxy', {
     method: 'POST',
@@ -30,6 +35,7 @@ export async function bringToLife(
       prompt: finalPrompt,
       fileBase64,
       mimeType,
+      videoUrl,
     }),
   });
 

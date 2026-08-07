@@ -22,6 +22,7 @@ export interface StoredCreation {
   name: string;
   html: string;
   originalImage?: string; // Base64 data URL — giữ cục bộ để hiện lại tức thì, không cần chờ R2
+  videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: string; // ISO string (IndexedDB struct clone được Date, nhưng dùng string cho nhất quán khi merge với dữ liệu cũ từ localStorage)
   r2JsonUrl?: string | null; // URL public của bản JSON đầy đủ trên R2 (điền sau khi saveCreationToR2 thành công)
   r2ImageUrl?: string | null; // URL public của ảnh gốc trên R2

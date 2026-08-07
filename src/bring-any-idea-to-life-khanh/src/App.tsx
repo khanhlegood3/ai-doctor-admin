@@ -55,6 +55,7 @@ const App: React.FC = () => {
         name: creation.name,
         html: creation.html,
         originalImage: creation.originalImage,
+        videoUrl: creation.videoUrl,
         timestamp: timestampIso,
       });
     } catch (e) {
@@ -67,6 +68,7 @@ const App: React.FC = () => {
       html: creation.html,
       imageBase64,
       mimeType,
+      videoUrl: creation.videoUrl,
       timestamp: timestampIso,
     }).then((result) => {
       if (result) {
@@ -95,7 +97,10 @@ const App: React.FC = () => {
     });
   };
 
-  const handleGenerate = async (promptText: string, file?: File) => {
+  // `videoUrl` được truyền khi người dùng dán link YouTube/Facebook thay vì upload
+  // file (xem InputArea.tsx) — Gemini "xem" trực tiếp video qua link, không cần
+  // tải base64 lên (tính năng mang từ "Video to Learning" sang).
+  const handleGenerate = async (promptText: string, file?: File, videoUrl?: string) => {
     setIsGenerating(true);
     // Clear active creation to show loading state
     setActiveCreation(null);
@@ -109,15 +114,16 @@ const App: React.FC = () => {
         mimeType = file.type.toLowerCase();
       }
 
-      const html = await bringToLife(promptText, imageBase64, mimeType);
+      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl);
       
       if (html) {
         const newCreation: Creation = {
           id: crypto.randomUUID(),
-          name: file ? file.name : 'New Creation',
+          name: file ? file.name : videoUrl ? videoUrl : 'New Creation',
           html: html,
-          // Store the full data URL for easy display
+          // Store the full data URL for easy display (ảnh/PDF/video upload trực tiếp)
           originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : undefined,
+          videoUrl,
           timestamp: new Date(),
         };
         setActiveCreation(newCreation);
@@ -127,7 +133,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Failed to generate:", error);
-      alert("Something went wrong while bringing your file to life. Please try again.");
+      alert("Something went wrong while bringing your idea to life. Please try again.");
     } finally {
       setIsGenerating(false);
     }

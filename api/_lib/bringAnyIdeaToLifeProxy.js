@@ -47,7 +47,11 @@ export class BringAnyIdeaToLifeProxyError extends Error {
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file)
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
-const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel
+const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel (ảnh/PDF/text)
+// Video (upload trực tiếp hoặc link YouTube/Facebook) tốn nhiều thời gian xử lý hơn
+// ảnh tĩnh — dùng timeout dài hơn, vẫn dưới maxDuration 120s của api/groq-proxy.js
+// (xem vercel.json), giống hệt GEMINI_TIMEOUT_MS của videoToLearningProxy.js.
+const videoTimeoutMs = 110_000
 const maxRetriesPerKey = 2 // retry TRÊN CÙNG 1 key cho lỗi tạm thời (timeout/mạng)
 
 const withTimeout = (promise, ms) => {
@@ -59,15 +63,16 @@ const withTimeout = (promise, ms) => {
 
 // Giữ nguyên y hệt system instruction gốc trong services/gemini.ts.
 const SYSTEM_INSTRUCTION = `You are an expert AI Engineer and Product Designer specializing in "bringing artifacts to life".
-Your goal is to take a user uploaded file—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, or a picture of a real-world object (like a messy desk)—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
+Your goal is to take a user uploaded file or video—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, a picture of a real-world object (like a messy desk), or a video (uploaded directly, or a YouTube/Facebook video link) showing a process, demo, tutorial, or scene—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
 
 CORE DIRECTIVES:
-1. **Analyze & Abstract**: Look at the image.
+1. **Analyze & Abstract**: Look at the image or watch the video.
     - **Sketches/Wireframes**: Detect buttons, inputs, and layout. Turn them into a modern, clean UI.
     - **Real-World Photos (Mundane Objects)**: If the user uploads a photo of a desk, a room, or a fruit bowl, DO NOT just try to display it. **Gamify it** or build a **Utility** around it.
       - *Cluttered Desk* -> Create a "Clean Up" game where clicking items (represented by emojis or SVG shapes) clears them, or a Trello-style board.
       - *Fruit Bowl* -> A nutrition tracker or a still-life painting app.
     - **Documents/Forms**: specific interactive wizards or dashboards.
+    - **Videos**: Identify the key subject, action, process, or steps shown across the video (not just a single frame). If it's a tutorial or demo, turn it into an interactive step-by-step walkthrough or simulator of that process. If it's a real-world scene or activity, gamify it or build a utility inspired by what happens in it, same spirit as the real-world photo case above.
 
 2. **NO EXTERNAL IMAGES**:
     - **CRITICAL**: Do NOT use <img src="..."> with external URLs (like imgur, placeholder.com, or generic internet URLs). They will fail.
@@ -141,13 +146,22 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
   return data?.choices?.[0]?.message?.content || ''
 }
 
-// --- Gemini (multimodal, dự phòng khi Groq lỗi) ---
-async function callGemini({ prompt, fileBase64, mimeType, envSource }) {
+// --- Gemini (multimodal, dự phòng khi Groq lỗi cho ảnh/PDF; BẮT BUỘC cho video vì
+// Groq vision (qwen) không hỗ trợ video) ---
+async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource }) {
+  const isVideo = Boolean(videoUrl) || /^video\//i.test(mimeType || '')
+  const effectiveTimeoutMs = isVideo ? videoTimeoutMs : timeoutMs
+
   return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
     const parts = [{ text: prompt }]
-    if (fileBase64 && mimeType) {
+    if (videoUrl) {
+      // Link YouTube/Facebook: Gemini "xem" trực tiếp qua fileUri, giống hệt
+      // cách videoToLearningProxy.js xử lý video link (không cần tải file về).
+      parts.push({ fileData: { mimeType: 'video/mp4', fileUri: videoUrl } })
+    } else if (fileBase64 && mimeType) {
+      // Ảnh/PDF hoặc video upload trực tiếp từ máy người dùng đều đi qua nhánh này.
       parts.push({ inlineData: { data: fileBase64, mimeType } })
     }
 
@@ -162,7 +176,7 @@ async function callGemini({ prompt, fileBase64, mimeType, envSource }) {
           },
         })
 
-        const response = await withTimeout(modelPromise, timeoutMs)
+        const response = await withTimeout(modelPromise, effectiveTimeoutMs)
 
         const html = response.text || ''
         if (!html) throw new BringAnyIdeaToLifeProxyError('Không có nội dung trả về từ Gemini.', 502)
@@ -171,6 +185,12 @@ async function callGemini({ prompt, fileBase64, mimeType, envSource }) {
         if (isRotatableApiError(err)) throw err // để withApiKeyRotation() bắt và đổi key
         if (attempt === maxRetriesPerKey - 1) {
           if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+          if (err?.message === 'timeout') {
+            throw new BringAnyIdeaToLifeProxyError(
+              `Gemini xử lý video quá lâu (vượt quá ${Math.round(effectiveTimeoutMs / 1000)} giây). Video có thể quá dài — hãy thử video ngắn hơn.`,
+              504,
+            )
+          }
           throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini generate error', 502)
         }
         await new Promise((res) => setTimeout(res, 1200 * 2 ** attempt))
@@ -180,8 +200,9 @@ async function callGemini({ prompt, fileBase64, mimeType, envSource }) {
   }, { envSource })
 }
 
-// --- Điều phối Groq (mặc định, miễn phí) ↔ Gemini (fallback tự động) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, envSource }) {
+// --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
+// video, fallback tự động cho ảnh/PDF/text) ---
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
@@ -192,6 +213,20 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
       'Chưa cấu hình GROQ_API_KEY lẫn GEMINI_API_KEY (hoặc các biến *_API_KEY1, *_API_KEY2, ...) trên server. Thêm ít nhất một trong hai trong Vercel → Settings → Environment Variables rồi redeploy.',
       501,
     )
+  }
+
+  // Video (upload trực tiếp hoặc link YouTube/Facebook): Groq vision (qwen) KHÔNG
+  // hỗ trợ video, chỉ ảnh — bắt buộc đi thẳng Gemini, không thử Groq trước.
+  const isVideo = Boolean(videoUrl) || /^video\//i.test(mimeType || '')
+  if (isVideo) {
+    if (!hasGemini) {
+      throw new BringAnyIdeaToLifeProxyError(
+        'Xử lý video (tải lên hoặc link YouTube/Facebook) cần GEMINI_API_KEY (Groq chưa hỗ trợ video). Thêm biến GEMINI_API_KEY trong Vercel → Settings → Environment Variables rồi redeploy.',
+        501,
+      )
+    }
+    const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource }))
+    return { html, source: 'gemini' }
   }
 
   if (hasGroq) {

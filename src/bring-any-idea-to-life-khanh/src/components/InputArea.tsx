@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useCallback, useState, useEffect } from 'react';
-import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { classifyVideoUrl } from '../lib/videoLink';
 
 interface InputAreaProps {
-  onGenerate: (prompt: string, file?: File) => void;
+  // `videoUrl` được truyền khi người dùng dán link YouTube/Facebook thay vì upload file
+  // (tính năng mang từ "Video to Learning" sang, xem VideoToLearningPanel/App.tsx).
+  onGenerate: (prompt: string, file?: File, videoUrl?: string) => void;
   isGenerating: boolean;
   disabled?: boolean;
 }
@@ -43,12 +46,35 @@ const CyclingText = () => {
 
 export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, disabled = false }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [videoLinkValue, setVideoLinkValue] = useState('');
+  const [videoLinkError, setVideoLinkError] = useState<string | null>(null);
 
   const handleFile = (file: File) => {
-    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+    if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.startsWith('video/')) {
       onGenerate("", file);
     } else {
-      alert("Please upload an image or PDF.");
+      alert("Please upload an image, PDF, or video.");
+    }
+  };
+
+  const handleVideoLinkSubmit = () => {
+    if (disabled || isGenerating) return;
+    const raw = videoLinkValue.trim();
+    if (!raw) return;
+
+    const classified = classifyVideoUrl(raw);
+    if (!classified) {
+      setVideoLinkError('Vui lòng dán một link video YouTube hoặc video/reel Facebook hợp lệ.');
+      return;
+    }
+    setVideoLinkError(null);
+    onGenerate("", undefined, classified.url);
+  };
+
+  const handleVideoLinkKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleVideoLinkSubmit();
     }
   };
 
@@ -136,20 +162,57 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
                     </h3>
                     <p className="text-zinc-500 text-xs sm:text-base md:text-lg font-light tracking-wide">
                         <span className="hidden md:inline">Drag & Drop</span>
-                        <span className="md:hidden">Tap</span> to upload any file
+                        <span className="md:hidden">Tap</span> to upload an image, PDF, or video
                     </p>
                 </div>
             </div>
 
             <input
                 type="file"
-                accept="image/*,application/pdf"
+                accept="image/*,application/pdf,video/*"
                 className="hidden"
                 onChange={handleFileChange}
                 disabled={isGenerating || disabled}
             />
         </label>
       </div>
+
+      {/* Video link input — mang từ "Video to Learning" sang: người dùng có thể dán
+          link YouTube/Facebook thay vì upload file, Gemini sẽ "xem" trực tiếp video. */}
+      <div className="mt-4 flex items-center gap-3 text-zinc-600">
+        <div className="h-px flex-1 bg-zinc-800" />
+        <span className="text-xs font-mono uppercase tracking-wider">or paste a video link</span>
+        <div className="h-px flex-1 bg-zinc-800" />
+      </div>
+
+      <div className="mt-3 flex flex-col sm:flex-row items-stretch gap-2">
+        <div className="relative flex-1">
+          <LinkIcon className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={videoLinkValue}
+            onChange={(e) => {
+              setVideoLinkValue(e.target.value);
+              if (videoLinkError) setVideoLinkError(null);
+            }}
+            onKeyDown={handleVideoLinkKeyDown}
+            disabled={isGenerating || disabled}
+            placeholder="https://www.youtube.com/watch?v=... or a Facebook video/reel link"
+            className={`w-full rounded-lg bg-zinc-900/50 border px-3 py-2.5 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50 ${
+              videoLinkError ? 'border-red-500/60 focus:border-red-500' : 'border-zinc-700 focus:border-blue-500'
+            }`}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleVideoLinkSubmit}
+          disabled={isGenerating || disabled || !videoLinkValue.trim()}
+          className="shrink-0 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors"
+        >
+          Bring to life
+        </button>
+      </div>
+      {videoLinkError && <p className="mt-2 text-xs text-red-400">{videoLinkError}</p>}
     </div>
   );
 };

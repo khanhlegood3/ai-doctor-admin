@@ -8,8 +8,9 @@ export interface SaveCreationToR2Payload {
   id: string;
   name: string;
   html: string;
-  imageBase64?: string; // kèm hoặc không kèm tiền tố data:...;base64,
+  imageBase64?: string; // kèm hoặc không kèm tiền tố data:...;base64, (ảnh/PDF, hoặc video upload trực tiếp)
   mimeType?: string;
+  videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: string; // ISO string
 }
 

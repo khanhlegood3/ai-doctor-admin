@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
+import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
 interface LivePreviewProps {
   creation: Creation | null;
@@ -148,9 +149,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
         }
     }, [isLoading]);
 
-    // Default to Split View when a new creation with an image is loaded
+    // Default to Split View when a new creation with an image or video source is loaded
     useEffect(() => {
-        if (creation?.originalImage) {
+        if (creation?.originalImage || creation?.videoUrl) {
             setShowSplitView(true);
         } else {
             setShowSplitView(false);
@@ -212,7 +213,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
         <div className="flex items-center justify-end space-x-1 w-32">
             {!isLoading && creation && (
                 <>
-                    {creation.originalImage && (
+                    {(creation.originalImage || creation.videoUrl) && (
                          <button 
                             onClick={() => setShowSplitView(!showSplitView)}
                             title={showSplitView ? "Show App Only" : "Compare with Original"}
@@ -275,28 +276,51 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
           </div>
         ) : creation?.html ? (
           <>
-            {/* Split View: Left Panel (Original Image) */}
-            {showSplitView && creation.originalImage && (
+            {/* Split View: Left Panel (Original Image / Video) */}
+            {showSplitView && (creation.originalImage || creation.videoUrl) && (
                 <div className="w-full md:w-1/2 h-1/2 md:h-full border-b md:border-b-0 md:border-r border-zinc-800 bg-[#0c0c0e] relative flex flex-col shrink-0">
                     <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur text-zinc-400 text-[10px] font-mono uppercase px-2 py-1 rounded border border-zinc-800">
                         Input Source
                     </div>
                     <div className="w-full h-full p-6 flex items-center justify-center overflow-hidden">
-                        {creation.originalImage.startsWith('data:application/pdf') ? (
+                        {creation.videoUrl ? (
+                            (() => {
+                                const classified = classifyVideoUrl(creation.videoUrl);
+                                return classified ? (
+                                    <iframe
+                                        title="Original video source"
+                                        src={getVideoEmbedUrl(classified)}
+                                        className="w-full h-full rounded shadow-xl border border-zinc-800/50"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                    />
+                                ) : (
+                                    <a href={creation.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-sm underline break-all px-4 text-center">
+                                        {creation.videoUrl}
+                                    </a>
+                                );
+                            })()
+                        ) : creation.originalImage?.startsWith('data:application/pdf') ? (
                             <PdfRenderer dataUrl={creation.originalImage} />
-                        ) : (
+                        ) : creation.originalImage?.startsWith('data:video') ? (
+                            <video
+                                src={creation.originalImage}
+                                controls
+                                className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                            />
+                        ) : creation.originalImage ? (
                             <img 
                                 src={creation.originalImage} 
                                 alt="Original Input" 
                                 className="max-w-full max-h-full object-contain shadow-xl border border-zinc-800/50 rounded"
                             />
-                        )}
+                        ) : null}
                     </div>
                 </div>
             )}
 
             {/* App Preview Panel */}
-            <div className={`relative h-full bg-white transition-all duration-500 ${showSplitView && creation.originalImage ? 'w-full md:w-1/2 h-1/2 md:h-full' : 'w-full'}`}>
+            <div className={`relative h-full bg-white transition-all duration-500 ${showSplitView && (creation.originalImage || creation.videoUrl) ? 'w-full md:w-1/2 h-1/2 md:h-full' : 'w-full'}`}>
                  <iframe
                     title="Gemini Live Preview"
                     srcDoc={buildSafeSrcDoc(creation.html)}

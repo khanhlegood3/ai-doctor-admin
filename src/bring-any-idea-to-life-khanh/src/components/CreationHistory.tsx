@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React from 'react';
-import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon, FilmIcon } from '@heroicons/react/24/outline';
 
 export interface Creation {
   id: string;
   name: string;
   html: string;
-  originalImage?: string; // Base64 data URL
+  originalImage?: string; // Base64 data URL (ảnh/PDF, hoặc video upload trực tiếp)
+  videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: Date;
 }
 
@@ -33,6 +34,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
       <div className="flex overflow-x-auto space-x-4 pb-2 px-2 scrollbar-hide">
         {history.map((item) => {
           const isPdf = item.originalImage?.startsWith('data:application/pdf');
+          const isVideo = Boolean(item.videoUrl) || item.originalImage?.startsWith('data:video');
           return (
             <button
               key={item.id}
@@ -42,7 +44,9 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
               <div className="p-4 flex flex-col h-full">
                 <div className="flex items-start justify-between mb-2">
                   <div className="p-1.5 bg-zinc-800 rounded group-hover:bg-zinc-700 transition-colors border border-zinc-700/50">
-                      {isPdf ? (
+                      {isVideo ? (
+                          <FilmIcon className="w-4 h-4 text-zinc-400" />
+                      ) : isPdf ? (
                           <DocumentIcon className="w-4 h-4 text-zinc-400" />
                       ) : item.originalImage ? (
                           <PhotoIcon className="w-4 h-4 text-zinc-400" />
