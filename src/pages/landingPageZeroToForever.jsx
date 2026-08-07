@@ -739,10 +739,12 @@ export default function LandingPageZeroToForever({
   })
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
-  // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Game hóa / Zero to Hero" trong
+  // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Cộng đồng / Tích cực" trong
   // Feature Pillars — cùng 1 trò chơi (/src/games/body-protection-html.html?game=auto) mở khi
   // bấm Cấp 1 "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel).
   const [showGamePopup, setShowGamePopup] = useState(false)
+  const [showVibeTrackingSection, setShowVibeTrackingSection] = useState(false)
+  const [showDinoJumpSection, setShowDinoJumpSection] = useState(false)
   // Popup Super Hero Captain  Game — mở khi bấm logo che badge Framer ở Hero
   // iframe. Cùng nội dung/kiểu popup với thẻ Cấp 2 "Explorer" ở trang "Anh
   // Hùng Hiến Tặng" (DonationHeroPanel.jsx: showCaptainKhanhPreview, iframe
@@ -840,25 +842,6 @@ export default function LandingPageZeroToForever({
       {/* ══════════════════════════ TRANG CHỦ ══════════════════════════ */}
       {page === 'home' && (
         <>
-          {/* Vibe Tracking — copy lên đầu trang landing, trước cả game
-              khủng long và Hero, để user mở camera phân tích vibe ngay. */}
-          <div className="zofo-hero-section pt-28 pb-6 px-3 sm:px-4 lg:px-6 relative overflow-hidden">
-            <div className="zofo-stars"></div>
-            <div className="w-full max-w-none mx-auto relative z-10">
-              <VibeTrackingEmbedSection lang={language} />
-            </div>
-          </div>
-
-          {/* Khủng long nhảy bằng camera AI có pose — đặt NGAY TRÊN ĐẦU
-              trang landing (trước Hero), camera mặc định mở luôn,
-              user tự chọn ẩn/hiện camera qua checkbox trong game. */}
-          <div className="zofo-hero-section py-6 px-6 lg:px-12 relative overflow-hidden">
-            <div className="zofo-stars"></div>
-            <div className="container mx-auto max-w-5xl relative z-10">
-              <PoseCameraDinoJumpSection lang={language} variant="hero" />
-            </div>
-          </div>
-
           {/* Hero Section */}
           <header className="zofo-hero-section min-h-[90vh] flex items-center pt-8 pb-32 px-6 lg:px-12 relative overflow-hidden">
             <div className="zofo-stars"></div>
@@ -957,6 +940,27 @@ export default function LandingPageZeroToForever({
             </div>
           </header>
 
+
+          {/* YouTube playlist — đặt sau khung NASA/astronaut Hero, trước Zone nội tạng. */}
+          <section className="zofo-hero-section relative overflow-hidden px-3 sm:px-4 lg:px-12 py-10">
+            <div className="zofo-stars"></div>
+            <div className="absolute inset-0 zofo-hero-glow"></div>
+            <div className="container mx-auto max-w-5xl relative z-10">
+              <div className="rounded-3xl overflow-hidden border border-white/10 bg-white/5 p-2 shadow-2xl shadow-black/30 backdrop-blur-sm">
+                <div className="relative w-full rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '16 / 9' }}>
+                  <iframe
+                    title={language === 'vi' ? 'Danh sách phát video Zero to Forever' : 'Zero to Forever video playlist'}
+                    src="https://www.youtube.com/embed/JfGcCG6AuE0?list=PLfIRVddr1qvA"
+                    className="absolute inset-0 h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* ── Organ zone map (chỉ phần vẽ nội tạng, mode "Sắp xếp các nút cơ
               quan thành dáng người thân thiện") bên trái + "Hero Right: Graphic"
               (infinity + astronaut) bên phải, đặt ngay dưới Hero+Iframe. ── */}
@@ -1017,10 +1021,10 @@ export default function LandingPageZeroToForever({
               {[
                 { icon: Droplet, bg: 'bg-red-50 dark:bg-red-500/10', color: 'text-[#FF543C]' },
                 { icon: HeartPulse, bg: 'bg-green-50 dark:bg-green-500/10', color: 'text-green-500' },
-                { icon: Brain, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', hot: true, onClick: () => setShowGamePopup(true) },
-                { icon: Trophy, bg: 'bg-orange-50 dark:bg-orange-500/10', color: 'text-yellow-500' },
+                { icon: Brain, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', hot: true, onClick: () => setShowVibeTrackingSection((prev) => !prev) },
+                { icon: Trophy, bg: 'bg-orange-50 dark:bg-orange-500/10', color: 'text-yellow-500', onClick: () => setShowDinoJumpSection((prev) => !prev) },
                 { icon: Award, bg: 'bg-purple-50 dark:bg-purple-500/10', color: 'text-[#8B4DFF]' },
-                { icon: Users, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]' },
+                { icon: Users, bg: 'bg-blue-50 dark:bg-blue-500/10', color: 'text-[#4B6BFF]', onClick: () => setShowGamePopup(true) },
               ].map((item, i) => (
                 <div
                   key={i}
@@ -1052,6 +1056,27 @@ export default function LandingPageZeroToForever({
               ))}
             </div>
           </section>
+
+
+          {/* Vibe Tracking / Dino Jump — chỉ mount sau khi user bấm đúng pillar,
+              nên camera không bị yêu cầu ngay khi load landing page. */}
+          {(showVibeTrackingSection || showDinoJumpSection) && (
+            <section className="zofo-hero-section relative overflow-hidden px-3 sm:px-4 lg:px-12 py-10">
+              <div className="zofo-stars"></div>
+              <div className="container mx-auto max-w-5xl relative z-10 space-y-8">
+                {showVibeTrackingSection && (
+                  <div className="rounded-3xl bg-[#0B132B] p-1 sm:p-2 overflow-hidden">
+                    <VibeTrackingEmbedSection lang={language} />
+                  </div>
+                )}
+                {showDinoJumpSection && (
+                  <div className="rounded-3xl bg-[#0B132B] p-2">
+                    <PoseCameraDinoJumpSection lang={language} variant="hero" />
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* AI Coach + Journey + Phone Mockup */}
           <section className="container mx-auto max-w-7xl px-4 lg:px-8 py-20">
@@ -1981,7 +2006,7 @@ export default function LandingPageZeroToForever({
 
       <LandingFooter t={t} setPage={setPage} />
 
-      {/* ── Popup: Game bảo vệ cơ thể — mở khi bấm ô "Game hóa / Zero to Hero"
+      {/* ── Popup: Game bảo vệ cơ thể — mở khi bấm ô "Cộng đồng / Tích cực"
           trong Feature Pillars. Cùng trò chơi + kiểu popup với thẻ Cấp 1
           "Awaken" ở trang "Anh Hùng Hiến Tặng" (DonationHeroPanel.jsx). ── */}
       {showGamePopup && (
