@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import EmbeddedGlobalAIChat from './aiChatbotControl/EmbeddedGlobalAIChat'
 import { useUser } from './aiChatbotControl/lib/state'
+import SuperheroCursorPicker from './aiChatbotControl/components/demo/basic-face/SuperheroCursorPicker.jsx'
+import { useSuperheroCursor } from './aiChatbotControl/components/demo/basic-face/superheroCursor.js'
 import './aiChatbotControl/aiChatbotControl.css'
 
 /**
@@ -29,10 +31,17 @@ import './aiChatbotControl/aiChatbotControl.css'
  * based browsers today.
  */
 export default function AIChatbotControlPanel() {
-  const { t, theme } = useApp()
+  const { t, theme, lang } = useApp()
   const { user } = useAuth()
   const { setName, setInfo } = useUser()
   const isDark = theme === 'dark'
+  const isVi = lang !== 'en'
+
+  const { color: cursorColor, setColor: setCursorColor, poseId: cursorPoseId, setPoseId: setCursorPoseId, cursorCss } = useSuperheroCursor()
+  const [showCursorSettings, setShowCursorSettings] = useState(false)
+  const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
+  const text = isDark ? '#e8f0f8' : '#102033'
+  const muted = isDark ? 'rgba(226, 232, 240, 0.64)' : '#64748b'
 
   useEffect(() => {
     setName(user?.name || '')
@@ -47,6 +56,7 @@ export default function AIChatbotControlPanel() {
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+        cursor: cursorCss,
       }}
     >
       <div>
@@ -56,6 +66,29 @@ export default function AIChatbotControlPanel() {
         <p style={{ margin: '4px 0 0', fontSize: 13, color: isDark ? 'rgba(232,240,248,0.55)' : '#666' }}>
           {t('aiChatbotControlSubtitle')}
         </p>
+      </div>
+
+      {/* Con trỏ chuột hình "siêu nhân bay" (tự vẽ, riêng cho trang này) +
+          bảng chọn màu/hướng bay. Khuôn mặt AI ở khối chat bên dưới cũng
+          "nhìn" theo hướng con trỏ này (xem trackCursor trong
+          EmbeddedGlobalAIChat.jsx). */}
+      <div style={{ flex: '0 0 auto' }}>
+        <button
+          type="button"
+          onClick={() => setShowCursorSettings(v => !v)}
+          style={{ border: `1px solid ${border}`, borderRadius: 999, padding: '6px 12px', background: isDark ? 'rgba(15,23,42,0.74)' : '#fff', color: text, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+        >
+          🦸 {isVi ? 'Đổi con trỏ chuột siêu nhân' : 'Change superhero cursor'}
+        </button>
+        {showCursorSettings && (
+          <div style={{ marginTop: 8, padding: 10, borderRadius: 12, border: `1px solid ${border}`, background: isDark ? 'rgba(7,12,27,0.5)' : 'rgba(255,255,255,0.6)' }}>
+            <SuperheroCursorPicker
+              isDark={isDark} isVi={isVi} border={border} text={text} muted={muted}
+              color={cursorColor} setColor={setCursorColor}
+              poseId={cursorPoseId} setPoseId={setCursorPoseId}
+            />
+          </div>
+        )}
       </div>
 
       {/* Không còn tab: khuôn mặt tròn AI (từ Trợ lý thoại companion) +

@@ -115,7 +115,7 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
           title={isVi ? 'Đổi màu / phong cách khuôn mặt' : 'Change face color / style'}
           style={{ width: 64, height: 64, borderRadius: faceStyle === 'robot' ? 16 : '50%', background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: 'pointer', flexShrink: 0 }}
         >
-          <SharedFaceAvatar state={faceState} size={62} color={faceColor} style={faceStyle} />
+          <SharedFaceAvatar state={faceState} size={62} color={faceColor} style={faceStyle} trackCursor />
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <span style={{ color: '#0f766e', background: isDark ? 'rgba(45, 212, 191, 0.16)' : '#ccfbf1', borderRadius: 999, padding: '3px 8px', fontWeight: 900, alignSelf: 'flex-start' }}>
