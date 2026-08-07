@@ -1,0 +1,42 @@
+/* ĐÃ ĐỔI: bản gốc dùng Tailwind qua CDN (script src tới cdn.tailwindcss.com)
+   trong index.html — không dùng được khi nhúng vào build Vite của dự án
+   chính. Ở đây dùng 3 directive @tailwind chuẩn v3 để tương thích pipeline
+   PostCSS + tailwind.config.js hiện có của repo (content glob của
+   tailwind.config.js đã bao gồm mọi file .js/.ts/.jsx/.tsx dưới thư mục
+   src, nên vẫn quét được toàn bộ class Tailwind dùng trong các component
+   bên dưới). Các class tuỳ biến (bg-dot-grid, animate-spin-slow, ...)
+   không phải class Tailwind sinh ra, được định nghĩa thủ công ngay trong
+   file này. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #09090b; /* Zinc 950 */
+  color: #fafafa;
+}
+
+/* Technical Dot Grid Background */
+.bg-dot-grid {
+  background-size: 40px 40px;
+  background-image: radial-gradient(circle, #3f3f46 1px, transparent 1px);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(250%); }
+  100% { transform: translateX(-100%); }
+}

@@ -10,6 +10,7 @@ import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_li
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
+import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './api/_lib/bringAnyIdeaToLifeProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
 // không cần deploy lên Vercel mới test được nút "Convert InBody Image
@@ -254,6 +255,26 @@ function geminiComicDevMiddleware(env) {
             return
           }
 
+          if (parsed.provider === 'bring-any-idea-to-life') {
+            try {
+              const payload = await runBringAnyIdeaToLifeGenerate({
+                prompt: parsed.prompt,
+                fileBase64: parsed.fileBase64,
+                mimeType: parsed.mimeType,
+                envSource: env,
+              })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[bring-any-idea-to-life-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Bring Any Idea to Life proxy error' }))
+            }
+            return
+          }
+
           if (parsed.provider === 'kol-youtube-fetch') {
             try {
               const payload = await fetchYoutubeClipToR2(parsed.youtubeUrl, { envSource: env })
@@ -330,6 +351,7 @@ export default defineConfig(({ mode }) => {
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
           videoAnalyzerKhanh: resolve(__dirname, 'src/video-analyzer-khanh/index.html'),
+          bringAnyIdeaToLifeKhanh: resolve(__dirname, 'src/bring-any-idea-to-life-khanh/index.html'),
           humanTankCameraKeyReact: resolve(__dirname, 'src/games/human-tank-camera-key.html'),
           coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
           bodyProtectionHtmlReact: resolve(__dirname, 'src/games/body-protection-html.html'),

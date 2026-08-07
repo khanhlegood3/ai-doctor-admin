@@ -25,6 +25,7 @@ import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTracki
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
+import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -169,6 +170,23 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (video-to-learning) error:', err?.message || err)
       const status = err instanceof VideoToLearningProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Video to Learning proxy error' })
+    }
+  }
+
+  // --- Nhánh Bring Any Idea to Life (Gemini 3 Pro thật server-side, cần GEMINI_API_KEY trả phí) ---
+  if (body.provider === 'bring-any-idea-to-life') {
+    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64))
+    try {
+      const payload = await runBringAnyIdeaToLifeGenerate({
+        prompt: body.prompt,
+        fileBase64: body.fileBase64,
+        mimeType: body.mimeType,
+      })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life) error:', err?.message || err)
+      const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life proxy error' })
     }
   }
 
