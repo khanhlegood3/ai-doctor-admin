@@ -35,6 +35,7 @@
 
 import { GoogleGenAI } from '@google/genai'
 import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
+import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
   constructor(message, status = 500) {
@@ -202,8 +203,22 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource })
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, envSource }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
+
+  // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
+  // từ trình duyệt, xem imageUrlFetch.js), rồi coi như file ảnh bình thường —
+  // dùng chung pipeline Groq/Gemini bên dưới, không cần nhánh riêng.
+  if (imageUrl && !fileBase64) {
+    try {
+      const fetched = await fetchImageAsBase64(imageUrl)
+      fileBase64 = fetched.base64
+      mimeType = fetched.mimeType
+    } catch (err) {
+      if (err instanceof ImageUrlFetchError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
+      throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không tải được ảnh từ URL.', 502)
+    }
+  }
 
   const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
   const hasGemini = countApiKeyPool('GEMINI_API_KEY', { envSource }) > 0

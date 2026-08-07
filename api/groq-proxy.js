@@ -176,13 +176,14 @@ export default async function handler(req, res) {
 
   // --- Nhánh Bring Any Idea to Life (Gemini 3 Pro thật server-side, cần GEMINI_API_KEY trả phí) ---
   if (body.provider === 'bring-any-idea-to-life') {
-    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl))
+    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl), '| hasImageUrl:', Boolean(body.imageUrl))
     try {
       const payload = await runBringAnyIdeaToLifeGenerate({
         prompt: body.prompt,
         fileBase64: body.fileBase64,
         mimeType: body.mimeType,
         videoUrl: body.videoUrl,
+        imageUrl: body.imageUrl,
       })
       return res.status(200).json(payload)
     } catch (err) {

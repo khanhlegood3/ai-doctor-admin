@@ -3,13 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useCallback, useState, useEffect } from 'react';
-import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { classifyVideoUrl } from '../lib/videoLink';
+
+// Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try demo
+// image" sẽ tự điền link này vào ô nhập, không tự động gọi AI.
+const DEMO_IMAGE_URL = 'https://kimi-img.moonshot.cn/pub/websites/template/full-images/10-calm-space-fullstack-en-long.png';
+
+// Nhận diện sơ bộ 1 chuỗi có PHẢI là URL http/https hay không, dùng để quyết
+// định link người dùng dán vào ô là link ẢNH (khi không khớp video ở trên).
+function isHttpUrl(value: string): boolean {
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const parsed = new URL(withScheme);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeUrl(value: string): string {
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
 
 interface InputAreaProps {
   // `videoUrl` được truyền khi người dùng dán link YouTube/Facebook thay vì upload file
   // (tính năng mang từ "Video to Learning" sang, xem VideoToLearningPanel/App.tsx).
-  onGenerate: (prompt: string, file?: File, videoUrl?: string) => void;
+  // `imageUrl` được truyền khi người dùng dán link ẢNH bất kỳ (tính năng "đọc hình từ
+  // URL") — server sẽ tải ảnh về, không cần trình duyệt fetch/convert (tránh CORS).
+  onGenerate: (prompt: string, file?: File, videoUrl?: string, imageUrl?: string) => void;
   isGenerating: boolean;
   disabled?: boolean;
 }
@@ -46,8 +68,8 @@ const CyclingText = () => {
 
 export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, disabled = false }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [videoLinkValue, setVideoLinkValue] = useState('');
-  const [videoLinkError, setVideoLinkError] = useState<string | null>(null);
+  const [linkValue, setLinkValue] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const handleFile = (file: File) => {
     if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.startsWith('video/')) {
@@ -57,25 +79,41 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     }
   };
 
-  const handleVideoLinkSubmit = () => {
+  // 1 ô nhập chung cho cả link video (YouTube/Facebook) lẫn link ảnh: thử phân
+  // loại video trước (classifyVideoUrl), nếu không khớp thì coi cả chuỗi còn
+  // lại là link ẢNH (miễn là 1 URL http/https hợp lệ) — xem imageUrlFetch.js
+  // ở server cho bước tải ảnh thật.
+  const handleLinkSubmit = (rawValue?: string) => {
     if (disabled || isGenerating) return;
-    const raw = videoLinkValue.trim();
+    const raw = (rawValue ?? linkValue).trim();
     if (!raw) return;
 
-    const classified = classifyVideoUrl(raw);
-    if (!classified) {
-      setVideoLinkError('Vui lòng dán một link video YouTube hoặc video/reel Facebook hợp lệ.');
+    const classifiedVideo = classifyVideoUrl(raw);
+    if (classifiedVideo) {
+      setLinkError(null);
+      onGenerate("", undefined, classifiedVideo.url);
       return;
     }
-    setVideoLinkError(null);
-    onGenerate("", undefined, classified.url);
+
+    if (isHttpUrl(raw)) {
+      setLinkError(null);
+      onGenerate("", undefined, undefined, normalizeUrl(raw));
+      return;
+    }
+
+    setLinkError('Vui lòng dán một link video YouTube/Facebook, hoặc link ảnh hợp lệ.');
   };
 
-  const handleVideoLinkKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleLinkKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleVideoLinkSubmit();
+      handleLinkSubmit();
     }
+  };
+
+  const handleTryDemoImage = () => {
+    setLinkValue(DEMO_IMAGE_URL);
+    setLinkError(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,11 +215,12 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
         </label>
       </div>
 
-      {/* Video link input — mang từ "Video to Learning" sang: người dùng có thể dán
-          link YouTube/Facebook thay vì upload file, Gemini sẽ "xem" trực tiếp video. */}
+      {/* Link input chung (video YouTube/Facebook HOẶC ảnh) — mang từ "Video to
+          Learning" sang cho video, và thêm mới "đọc hình từ URL" cho ảnh: server
+          tự phân loại/tải nội dung, người dùng chỉ cần dán 1 link duy nhất. */}
       <div className="mt-4 flex items-center gap-3 text-zinc-600">
         <div className="h-px flex-1 bg-zinc-800" />
-        <span className="text-xs font-mono uppercase tracking-wider">or paste a video link</span>
+        <span className="text-xs font-mono uppercase tracking-wider">or paste a video/image link</span>
         <div className="h-px flex-1 bg-zinc-800" />
       </div>
 
@@ -190,29 +229,40 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
           <LinkIcon className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            value={videoLinkValue}
+            value={linkValue}
             onChange={(e) => {
-              setVideoLinkValue(e.target.value);
-              if (videoLinkError) setVideoLinkError(null);
+              setLinkValue(e.target.value);
+              if (linkError) setLinkError(null);
             }}
-            onKeyDown={handleVideoLinkKeyDown}
+            onKeyDown={handleLinkKeyDown}
             disabled={isGenerating || disabled}
-            placeholder="https://www.youtube.com/watch?v=... or a Facebook video/reel link"
+            placeholder="YouTube/Facebook video link, or a direct image URL (.png, .jpg...)"
             className={`w-full rounded-lg bg-zinc-900/50 border px-3 py-2.5 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50 ${
-              videoLinkError ? 'border-red-500/60 focus:border-red-500' : 'border-zinc-700 focus:border-blue-500'
+              linkError ? 'border-red-500/60 focus:border-red-500' : 'border-zinc-700 focus:border-blue-500'
             }`}
           />
         </div>
         <button
           type="button"
-          onClick={handleVideoLinkSubmit}
-          disabled={isGenerating || disabled || !videoLinkValue.trim()}
+          onClick={() => handleLinkSubmit()}
+          disabled={isGenerating || disabled || !linkValue.trim()}
           className="shrink-0 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors"
         >
           Bring to life
         </button>
       </div>
-      {videoLinkError && <p className="mt-2 text-xs text-red-400">{videoLinkError}</p>}
+      {linkError && <p className="mt-2 text-xs text-red-400">{linkError}</p>}
+
+      <button
+        type="button"
+        onClick={handleTryDemoImage}
+        disabled={isGenerating || disabled}
+        className="mt-2 inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
+        title={DEMO_IMAGE_URL}
+      >
+        <PhotoIcon className="w-3.5 h-3.5" />
+        Try a demo image URL
+      </button>
     </div>
   );
 };
