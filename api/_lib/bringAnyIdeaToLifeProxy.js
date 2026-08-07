@@ -81,9 +81,33 @@ CORE DIRECTIVES:
 RESPONSE FORMAT:
 Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`html ... \`\`\`). Start immediately with <!DOCTYPE html>.`
 
+// Bug đã gặp: qwen/qwen3.6-27b là reasoning model, mặc định trả về cả khối
+// <think>...</think> TRƯỚC phần code thật. Hệ quả kép:
+//   1. cleanHtml() trước đây chỉ dọn markdown fence, không dọn <think> — nên
+//      toàn bộ nội dung suy luận (text thô, không phải HTML) bị nhét thẳng
+//      vào iframe preview và hiển thị ra như text thường (không phải web app
+//      thật) — đây là nguyên nhân của bug "chỉ ra text/JSON, không ra web
+//      preview" và cũng là nguyên nhân bug màu chữ trùng nền trước đó.
+//   2. Không set max_tokens → phần <think> (có thể rất dài) ngốn gần hết
+//      ngân sách token, khiến HTML thật bị cắt cụt giữa chừng (thiếu
+//      </style>, <body>, <script>...) trước khi kịp sinh xong.
+// Fix: (a) reasoning_format: 'hidden' để Groq tự bỏ hẳn phần suy luận khỏi
+// response (model vẫn "nghĩ" nhưng không trả về, theo docs Groq), dồn toàn
+// bộ ngân sách token cho code thật; (b) đặt max_tokens đủ lớn cho 1 trang
+// HTML/CSS/JS đầy đủ; (c) cleanHtml() vẫn dọn phòng hờ <think> nếu lỡ còn
+// sót (ví dụ nhánh fallback Gemini, hoặc Groq đổi hành vi trong tương lai).
+const GROQ_MAX_TOKENS = 8000
+
 function cleanHtml(text) {
+  let out = text || ''
+  // Dọn hẳn khối <think>...</think> nếu model lỡ trả kèm (phòng hờ, xem ghi chú trên).
+  out = out.replace(/<think>[\s\S]*?<\/think>/gi, '')
+  // Phòng trường hợp bị cắt cụt giữa chừng khối <think> (không có thẻ đóng):
+  // bỏ luôn từ <think> tới hết, vì phần sau đó (nếu có) không phải HTML thật.
+  out = out.replace(/<think>[\s\S]*$/i, '')
   // Dọn markdown fence nếu model vẫn lỡ bọc bất chấp system instruction.
-  return (text || '').replace(/^```html\s*/, '').replace(/^```\s*/, '').replace(/```$/, '')
+  out = out.replace(/^\s*```html\s*/i, '').replace(/^\s*```\s*/, '').replace(/```\s*$/, '')
+  return out.trim()
 }
 
 // --- Groq (vision, miễn phí, ưu tiên gọi trước) ---
@@ -100,6 +124,8 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
       { role: 'user', content },
     ],
     temperature: 0.5,
+    max_tokens: GROQ_MAX_TOKENS,
+    reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho code thật (xem ghi chú trên)
   }
 
   const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
