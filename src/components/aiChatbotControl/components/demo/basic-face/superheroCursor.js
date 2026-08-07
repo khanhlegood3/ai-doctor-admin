@@ -7,11 +7,15 @@
 // SuperheroCursorPicker.jsx; lựa chọn lưu localStorage riêng cho trang này
 // (cosmetic cá nhân, không cần đồng bộ IndexedDB).
 import { useState } from 'react'
+import { ZODIAC_ANIMALS, ZODIAC_SVG_BUILDERS } from './zodiacAnimals'
 
 export const CURSOR_TYPES = [
   { id: 'none', vi: 'Không dùng icon', en: 'No icon' },
   { id: 'hero', vi: '🦸 Siêu nhân bay', en: '🦸 Flying hero' },
-  { id: 'cat', vi: '🐱 Con mèo', en: '🐱 Cat' },
+  // Đủ bộ 12 con giáp (Mão = Mèo, đã có sẵn ở đây từ trước) — mỗi con là
+  // 1 icon SVG tự vẽ riêng, xem zodiacAnimals.js.
+  ...ZODIAC_ANIMALS.filter(a => a.id !== 'cat').map(a => ({ id: a.id, vi: `🐾 ${a.vi}`, en: `🐾 ${a.en}` })),
+  { id: 'cat', vi: '🐱 Mão · Mèo', en: '🐱 Cat' },
 ]
 
 export const CURSOR_POSES = [
@@ -61,6 +65,7 @@ function catSvgMarkup({ color = '#ea4335' }) {
 
 function svgForType({ type, color, poseId }) {
   if (type === 'cat') return catSvgMarkup({ color })
+  if (ZODIAC_SVG_BUILDERS[type]) return ZODIAC_SVG_BUILDERS[type]({ color })
   const pose = CURSOR_POSES.find(p => p.id === poseId) || CURSOR_POSES[0]
   return heroSvgMarkup({ color, rotate: pose.rotate, flip: pose.flip })
 }
