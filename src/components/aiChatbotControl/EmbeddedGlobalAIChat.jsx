@@ -23,6 +23,34 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useGlobalAIChatbotEngine, quickPrompts, MAX_FILES, getModeLabel } from '../../lib/useGlobalAIChatbotEngine.js'
+import SharedFaceAvatar from './components/demo/basic-face/SharedFaceAvatar.jsx'
+
+// Khuôn mặt tròn không có audio stream thật để phân tích âm lượng (TTS ở
+// đây phát qua thẻ <audio> tiếng Việt hoặc Web Speech API tiếng Anh, không
+// giống pipeline Gemini Live gốc của companion). Vì vậy dùng một "volume"
+// giả lập: dao động khi đang nói (speaking)/đang nghe (recording)/đang
+// suy nghĩ (busy), về 0 khi rảnh — đủ để khuôn mặt "sống động" mà không
+// cần Web Audio API.
+function useSyntheticVolume({ speaking, recording, busy }) {
+  const [volume, setVolume] = useState(0)
+  useEffect(() => {
+    let frameId
+    const active = speaking || recording || busy
+    if (!active) { setVolume(0); return }
+    const start = Date.now()
+    const speed = recording ? 0.012 : busy ? 0.006 : 0.01
+    const base = recording ? 0.32 : busy ? 0.16 : 0.28
+    const swing = recording ? 0.22 : busy ? 0.1 : 0.24
+    const tick = () => {
+      const t = Date.now() - start
+      setVolume(base + Math.abs(Math.sin(t * speed)) * swing)
+      frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameId)
+  }, [speaking, recording, busy])
+  return volume
+}
 
 export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
   const { theme, lang } = useApp()
@@ -68,6 +96,9 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
     toggleMic()
   }
 
+  const faceVolume = useSyntheticVolume({ speaking, recording, busy })
+  const faceColor = isDark ? '#5eead4' : '#0f4c81'
+
   const border = isDark ? 'rgba(148, 163, 184, 0.24)' : 'rgba(15, 76, 129, 0.16)'
   const text = isDark ? '#e8f0f8' : '#102033'
   const muted = isDark ? 'rgba(226, 232, 240, 0.64)' : '#64748b'
@@ -93,18 +124,23 @@ export default function EmbeddedGlobalAIChat({ activePanelLabel }) {
           flex: '0 0 auto',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '10px 14px',
+          gap: 12,
+          padding: '12px 14px',
           borderBottom: `1px solid ${border}`,
           color: muted,
           fontSize: 11,
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ color: '#0f766e', background: isDark ? 'rgba(45, 212, 191, 0.16)' : '#ccfbf1', borderRadius: 999, padding: '4px 8px', fontWeight: 900 }}>
-          {getModeLabel(mode, isVi)}
-        </span>
-        <span style={{ fontWeight: 800 }}>{status}</span>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: isDark ? 'rgba(15,23,42,0.6)' : '#fff', border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <SharedFaceAvatar volume={faceVolume} radius={90} size={40} color={faceColor} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={{ color: '#0f766e', background: isDark ? 'rgba(45, 212, 191, 0.16)' : '#ccfbf1', borderRadius: 999, padding: '3px 8px', fontWeight: 900, alignSelf: 'flex-start' }}>
+            {getModeLabel(mode, isVi)}
+          </span>
+          <span style={{ fontWeight: 800 }}>{status}</span>
+        </div>
         <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>
           {isVi ? 'Đồng bộ với chatbot chung toàn dự án' : 'Synced with the project-wide chatbot'}
         </span>

@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import ChatterbotsApp from './aiChatbotControl/ChatterbotsApp'
 import EmbeddedGlobalAIChat from './aiChatbotControl/EmbeddedGlobalAIChat'
 import { useUser } from './aiChatbotControl/lib/state'
 import './aiChatbotControl/aiChatbotControl.css'
@@ -30,33 +29,15 @@ import './aiChatbotControl/aiChatbotControl.css'
  * based browsers today.
  */
 export default function AIChatbotControlPanel() {
-  const { t, theme, lang } = useApp()
+  const { t, theme } = useApp()
   const { user } = useAuth()
   const { setName, setInfo } = useUser()
   const isDark = theme === 'dark'
-  const isVi = lang !== 'en'
-  // 'voice' = trợ lý thoại companion gốc (ChatterbotsApp/Gemini);
-  // 'chat' = chat văn bản + giọng nói dùng chung bộ não/kho lưu trữ với 2
-  // trang Anh Hùng — xem EmbeddedGlobalAIChat.jsx để biết chi tiết đồng bộ.
-  const [activeTab, setActiveTab] = useState('chat')
 
   useEffect(() => {
     setName(user?.name || '')
     setInfo(user?.specialty ? `Chuyên khoa / vai trò: ${user.specialty}` : '')
   }, [user?.name, user?.specialty, setName, setInfo])
-
-  const tabBtn = (key, label) => ({
-    border: `1px solid ${isDark ? 'rgba(148,163,184,0.28)' : 'rgba(15,76,129,0.18)'}`,
-    borderRadius: 999,
-    padding: '7px 14px',
-    fontSize: 12.5,
-    fontWeight: 900,
-    cursor: 'pointer',
-    background: activeTab === key
-      ? 'linear-gradient(135deg, #0f4c81, #14b8a6)'
-      : (isDark ? 'rgba(15,23,42,0.74)' : '#fff'),
-    color: activeTab === key ? '#fff' : (isDark ? '#e8f0f8' : '#1a2035'),
-  })
 
   return (
     <div
@@ -77,24 +58,13 @@ export default function AIChatbotControlPanel() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => setActiveTab('chat')} style={tabBtn('chat')}>
-          💬 {isVi ? 'Chat AI chung (Việt/English)' : 'Shared AI chat (Vietnamese/English)'}
-        </button>
-        <button type="button" onClick={() => setActiveTab('voice')} style={tabBtn('voice')}>
-          🎙️ {isVi ? 'Trợ lý thoại companion' : 'Voice companion'}
-        </button>
-      </div>
-
-      <div
-        className={activeTab === 'voice' ? 'ai-chatbot-control-root' : undefined}
-        style={{ flex: 1, minHeight: 0, borderRadius: 16, overflow: 'hidden' }}
-      >
-        {activeTab === 'chat' ? (
-          <EmbeddedGlobalAIChat activePanelLabel={t('nav_aiChatbotControl')} />
-        ) : (
-          <ChatterbotsApp />
-        )}
+      {/* Không còn tab: khuôn mặt tròn AI (từ Trợ lý thoại companion) +
+          chat văn bản/giọng nói song ngữ được gộp chung 1 khối duy nhất,
+          toàn bộ lịch sử chat đọc/ghi từ CÙNG một kho IndexedDB dùng
+          chung với popup góc màn hình, trang Lịch sử Chat, và mic 2 trang
+          Anh Hùng — xem EmbeddedGlobalAIChat.jsx. */}
+      <div style={{ flex: 1, minHeight: 0, borderRadius: 16, overflow: 'hidden' }}>
+        <EmbeddedGlobalAIChat activePanelLabel={t('nav_aiChatbotControl')} />
       </div>
     </div>
   )
