@@ -896,45 +896,17 @@ export default function LandingPageZeroToForever({
                 </div>
               </div>
 
-              {/* Hero Right: Embedded Framer iframe — level with the big "Zero to Forever" heading. Always visible (was `hidden lg:block`, which removed it on mobile). */}
+              {/* Hero Right: Captain Khánh Game — thay vào vị trí NASA/Framer cũ. */}
               <div className="relative w-full h-[340px] sm:h-[420px] lg:h-full lg:min-h-[500px]">
                 <div className="relative w-full h-full rounded-3xl overflow-hidden border border-white/10 zofo-shadow-neon-purple bg-white/5 backdrop-blur-sm">
                   <iframe
-                    src="https://strange-tenure-258776.framer.app/"
-                    title="Zero to Forever - Framer Embed"
+                    src="https://captain-khanh-game.vercel.app/"
+                    title="Captain Khánh Game"
                     className="absolute inset-0 w-full h-full"
                     style={{ border: 'none' }}
                     loading="lazy"
-                    allow="clipboard-write; encrypted-media; picture-in-picture"
+                    allow="clipboard-write; encrypted-media; picture-in-picture; gamepad"
                   />
-                  {/* Che badge "Made in Framer" ở góc phải-dưới iframe bằng logo
-                      thật của app (asset local trong repo — không hotlink ngoài
-                      để tránh vỡ ảnh). Đặt ĐÚNG góc phải-dưới (bottom-0 right-0,
-                      không lệch % nữa). Logo bấm được (onClick = mở popup
-                      Super Hero Captain  Game, giống thẻ Cấp 2 "Explorer" ở
-                      trang "Anh Hùng Hiến Tặng") — nên KHÔNG còn
-                      pointer-events-none trên wrapper nữa. */}
-                  <div className="absolute bottom-0 right-0 z-20 p-1.5 sm:p-2">
-                    {/* Box nền được kéo rộng theo chiều ngang (scale-x-[1.4667] =
-                        mức 2/3 trước đó × 1.1, tức tăng thêm 10%; origin bên
-                        phải nên chỉ "nở" sang trái, mép phải-dưới vẫn neo cố
-                        định đúng góc iframe) để che phần lớn chữ "Made in
-                        Framer" trên mobile. Ảnh logo bên trong được
-                        scale-x-[0.6818] ngược lại để không bị kéo méo hình.
-                        Trên lg (laptop) giữ nguyên như cũ vì đã OK. */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCaptainKhanhGamePopup(true)}
-                      aria-label={language === 'en' ? 'Open Super Hero Captain  Game' : 'Mở Super Hero Captain  Game'}
-                      className="origin-right scale-x-[1.4667] lg:scale-x-100 rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl cursor-pointer block"
-                    >
-                      <img
-                        src={zofoLogo}
-                        alt="Zero to Forever"
-                        className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto object-contain origin-right scale-x-[0.6818] lg:scale-x-100"
-                      />
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1391,6 +1363,39 @@ export default function LandingPageZeroToForever({
                       <QrCode className="w-3 h-3" /> {t.common.scanToDownload}
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+
+          {/* NASA / Framer Embed — chuyển xuống trước phần brand logo cuối cùng. */}
+          <section className="zofo-hero-section relative overflow-hidden px-3 sm:px-4 lg:px-12 py-10">
+            <div className="zofo-stars"></div>
+            <div className="absolute inset-0 zofo-hero-glow"></div>
+            <div className="container mx-auto max-w-7xl relative z-10">
+              <div className="relative w-full h-[340px] sm:h-[520px] lg:h-[680px] rounded-3xl overflow-hidden border border-white/10 zofo-shadow-neon-purple bg-white/5 backdrop-blur-sm">
+                <iframe
+                  src="https://strange-tenure-258776.framer.app/"
+                  title="Zero to Forever - NASA Framer Embed"
+                  className="absolute inset-0 w-full h-full"
+                  style={{ border: 'none' }}
+                  loading="lazy"
+                  allow="clipboard-write; encrypted-media; picture-in-picture"
+                />
+                <div className="absolute bottom-0 right-0 z-20 p-1.5 sm:p-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCaptainKhanhGamePopup(true)}
+                    aria-label={language === 'en' ? 'Open Super Hero Captain Game' : 'Mở Super Hero Captain Game'}
+                    className="rounded-lg bg-[#0B0F1A] px-2.5 py-1.5 shadow-xl cursor-pointer block"
+                  >
+                    <img
+                      src={zofoLogo}
+                      alt="Zero to Forever"
+                      className="h-[64px] sm:h-[84px] lg:h-[100px] w-auto object-contain"
+                    />
+                  </button>
                 </div>
               </div>
             </div>
