@@ -6,6 +6,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+// Đồng bộ màu + level của Dino với Dino Pal (tab "nuôi thú ảo" cặp đôi, xem
+// DinoJumpPanel.jsx / DinoPalSection.jsx). Dino Pal và Dino Jump là 2 app
+// Vite multi-page riêng nhưng build ra CÙNG origin (nhúng iframe cùng-origin,
+// xem vite.config.js) → đọc chung 1 IndexedDB (xem lib/dinoSharedProgress.ts,
+// file giống hệt bản trong src/dino-pal-khanh/) là đủ để đồng bộ, không cần
+// backend round-trip. Dino Pal là bên GHI (màu/level/tiến trình), Dino Jump
+// chỉ ĐỌC — nếu người chơi chưa từng mở Dino Pal thì không có gì để đồng bộ,
+// dino vẫn dùng màu mặc định của chủ đề nội tạng như cũ.
+import { loadDinoProgress, subscribeDinoProgress } from '../lib/dinoSharedProgress';
 
 // --- TYPES & INTERFACES ---
 
@@ -568,6 +577,31 @@ const DinoGame: React.FC = () => {
     const [bodyTheme, setBodyTheme] = useState<BodyTheme>(DEFAULT_BODY_THEME);
     const bodyThemeRef = useRef<BodyTheme>(DEFAULT_BODY_THEME);
 
+    // Màu + level của Dino Pal đọc được từ IndexedDB dùng chung (xem import ở
+    // đầu file) — dùng ref (không phải state) vì được đọc mỗi frame bên trong
+    // vòng lặp game (imperative canvas loop), không cần re-render component.
+    const dinoPalSyncRef = useRef<{ color: string | null; level: number | null }>({ color: null, level: null });
+
+    useEffect(() => {
+        let cancelled = false;
+        loadDinoProgress()
+            .then((progress) => {
+                if (cancelled || !progress) return;
+                dinoPalSyncRef.current = { color: progress.babyColor || null, level: progress.currentLevel || null };
+            })
+            .catch((err) => console.warn('[dino-jump] loadDinoProgress (đồng bộ Dino Pal) failed:', err));
+        // Nhận cập nhật realtime khi Dino Pal (mở ở tab/iframe khác cùng origin) lưu tiến trình mới.
+        const unsubscribe = subscribeDinoProgress((progress) => {
+            dinoPalSyncRef.current = progress
+                ? { color: progress.babyColor || null, level: progress.currentLevel || null }
+                : { color: null, level: null };
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, []);
+
     // --- ENGINE STATE (Mutable) ---
     const engineRef = useRef<GameEngineState>({
         gameRunning: false,
@@ -799,7 +833,12 @@ const DinoGame: React.FC = () => {
                 dino.grounded = true;
             }
         }
-        engine.dino.draw(ctx, theme);
+        // Tô màu Dino theo màu đã chọn trong Dino Pal (nếu có) — chỉ override
+        // màu "primary" dùng để vẽ thân/đầu/đuôi Dino (xem createDino().draw),
+        // giữ nguyên toàn bộ theme môi trường (nội tạng/nền/mặt đất) không đổi.
+        const syncedColor = dinoPalSyncRef.current.color;
+        const dinoDrawTheme = syncedColor ? { ...theme, primary: syncedColor } : theme;
+        engine.dino.draw(ctx, dinoDrawTheme);
         if (engine.shieldRemaining > 0) {
             ctx.save();
             ctx.globalAlpha = 0.45 + Math.sin(timestamp / 80) * 0.25;
@@ -872,7 +911,17 @@ const DinoGame: React.FC = () => {
             ctx.font = "16px 'Press Start 2P'";
             ctx.textAlign = "right";
             ctx.fillText(scoreStr, canvas.width - 20, 30);
-            
+
+            // Badge level Dino Pal (nếu người chơi đã từng nuôi Dino ở tab "Dino
+            // Pal") — chỉ hiển thị thông tin, không ảnh hưởng luật chơi/điểm số.
+            const syncedLevel = dinoPalSyncRef.current.level;
+            if (syncedLevel) {
+                ctx.font = "10px monospace";
+                ctx.textAlign = "right";
+                ctx.fillStyle = theme.primary;
+                ctx.fillText(`Dino Pal Lv.${syncedLevel}`, canvas.width - 20, 46);
+            }
+
             engine.animationId = requestAnimationFrame(runGameLoop);
         }
     };

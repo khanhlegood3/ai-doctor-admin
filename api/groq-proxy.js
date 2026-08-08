@@ -30,6 +30,7 @@ import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningP
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
 import { saveBringAnyIdeaToLifeCreationToR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
+import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -394,6 +395,36 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (dino-pal) error:', err?.message || err)
       const status = err instanceof DinoPalProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Dino pal proxy error' })
+    }
+  }
+
+  // --- Nhánh sao lưu/khôi phục tiến trình Dino Pal lên R2 (màu sắc, level,
+  // XP, giai đoạn lớn lên, tiền, đồ đã mua...) — dùng SONG SONG với
+  // IndexedDB cục bộ (nguồn đồng bộ realtime với Dino Jump, xem
+  // src/dino-pal-khanh/src/lib/dinoSharedProgress.ts +
+  // dinoProgressR2Client.ts) — lỗi ở nhánh này không được chặn UX chính vì
+  // IndexedDB đã lưu xong trước khi gọi sang đây (fire-and-forget).
+  if (body.provider === 'dino-pal-save-progress') {
+    console.log('[groq-proxy] (dino-pal-save-progress) deviceId:', body.deviceId)
+    try {
+      const payload = await saveDinoPalProgressToR2({ deviceId: body.deviceId, progress: body.progress })
+      return res.status(201).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (dino-pal-save-progress) error:', err?.message || err)
+      const status = err instanceof DinoPalProgressR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Dino pal save progress error' })
+    }
+  }
+
+  if (body.provider === 'dino-pal-load-progress') {
+    console.log('[groq-proxy] (dino-pal-load-progress) deviceId:', body.deviceId)
+    try {
+      const payload = await loadDinoPalProgressFromR2({ deviceId: body.deviceId })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (dino-pal-load-progress) error:', err?.message || err)
+      const status = err instanceof DinoPalProgressR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Dino pal load progress error' })
     }
   }
 

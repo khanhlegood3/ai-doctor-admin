@@ -36,6 +36,13 @@ import petCardBg from "./assets/pet-card-bg.svg";
 import useAudio from "./hooks/useAudio";
 import FooterLeftContent from "./components/FooterLeftContent";
 
+// Lưu/khôi phục tiến trình (màu sắc, level, giai đoạn lớn lên...) — xem
+// src/dino-pal-khanh/src/lib/dinoSharedProgress.ts (IndexedDB, CÙNG database
+// với dino-jump-khanh vì 2 app cùng origin → đây là kênh đồng bộ với Dino
+// Jump) và dinoProgressR2Client.ts (sao lưu bền lên Cloudflare R2).
+import { saveDinoProgress, loadDinoProgress, clearDinoProgress, type DinoSharedProgress } from "./lib/dinoSharedProgress";
+import { saveDinoProgressToR2, loadDinoProgressFromR2 } from "./lib/dinoProgressR2Client";
+
 const SHOP_ITEMS: ShopItem[] = [
   { id: "party_hat", name: "Party hat", price: 100, icon: "party-hat" },
   { id: "cool_shades", name: "Cool Shades", price: 250, icon: "cool-shades" },
@@ -144,8 +151,93 @@ const App: React.FC = () => {
   const [slideStyle, setSlideStyle] = useState("translate-y-0 opacity-100");
   const [isMoneyBouncing, setIsMoneyBouncing] = useState(false);
   const prevMoneyRef = useRef(money);
+  const lastR2SaveRef = useRef(0); // throttle: chỉ gọi sao lưu R2 tối đa mỗi 8s (IndexedDB vẫn lưu mỗi lần)
+
+  // --- Khôi phục tiến trình đã lưu khi mở lại app (IndexedDB trước, R2 làm
+  // phương án dự phòng nếu IndexedDB trống — vd đổi trình duyệt/xoá site
+  // data) — bỏ qua nếu DEBUG_SKIP_START đã tự set MOCK_PET.
+  useEffect(() => {
+    if (DEBUG_SKIP_START) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        let progress = await loadDinoProgress();
+        if (!progress) {
+          progress = await loadDinoProgressFromR2();
+          if (progress) saveDinoProgress(progress).catch(() => {}); // đồng bộ ngược về IndexedDB cho lần sau
+        }
+        if (cancelled || !progress || !progress.personality) return;
+
+        const restoredPet: PetData = {
+          personality: progress.personality as PetData["personality"],
+          stats: progress.stats,
+          babyColor: progress.babyColor,
+          babySecondaryColor: progress.babySecondaryColor,
+          adultColor: progress.adultColor,
+          adultSecondaryColor: progress.adultSecondaryColor,
+          stage: progress.stage,
+          ownedAccessories: progress.ownedAccessories as AccessoryType[],
+          equippedAccessory: progress.equippedAccessory as AccessoryType | undefined,
+          money: progress.money,
+        };
+
+        statsRef.current = progress.stats;
+        setDisplayStats(progress.stats);
+        setPet(restoredPet);
+        setName(progress.name);
+        setSelectedColor(progress.babyColor);
+        setSelectedTextColor(GOOGLE_COLORS.find((c) => c.hex === progress.babyColor)?.textColor || "#000");
+        setExperience(progress.experience);
+        setCurrentLevel(progress.currentLevel);
+        setDaysPassed(progress.daysPassed);
+        setMoney(progress.money);
+        setOwnedAccessories(progress.ownedAccessories as AccessoryType[]);
+        setEquippedAccessory(progress.equippedAccessory as AccessoryType | undefined);
+        setDialogue(`Welcome back! ${progress.name} missed you.`);
+      } catch (err) {
+        console.warn("[dino-pal] resume progress failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- Lưu tiến trình bất cứ khi nào các mốc quan trọng thay đổi (level,
+  // XP, ngày trôi qua, tiền, đồ đã mua/trang bị) — IndexedDB lưu mỗi lần
+  // (rẻ, cục bộ), R2 được throttle 8s/lần (qua mạng, không cần dồn dập).
+  // Đây cũng là nơi DUY NHẤT ghi vào kênh đồng bộ mà Dino Jump đọc lại.
+  useEffect(() => {
+    if (!pet || isGameOver) return;
+    const snapshot: Omit<DinoSharedProgress, "id" | "updatedAt"> = {
+      name: pet.personality?.name || name || "Rex",
+      babyColor: pet.babyColor,
+      babySecondaryColor: pet.babySecondaryColor,
+      adultColor: pet.adultColor,
+      adultSecondaryColor: pet.adultSecondaryColor,
+      stage: pet.stage,
+      currentLevel,
+      experience,
+      daysPassed,
+      money,
+      ownedAccessories,
+      equippedAccessory,
+      stats: statsRef.current,
+      personality: pet.personality,
+    };
+    saveDinoProgress(snapshot).catch((err) => console.warn("[dino-pal] saveDinoProgress (IndexedDB) failed:", err));
+
+    const now = Date.now();
+    if (now - lastR2SaveRef.current > 8000) {
+      lastR2SaveRef.current = now;
+      saveDinoProgressToR2({ ...snapshot, id: "pet", updatedAt: new Date().toISOString() }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pet, currentLevel, experience, daysPassed, money, ownedAccessories, equippedAccessory, isGameOver]);
 
   const playAgain = () => {
+    clearDinoProgress().catch(() => {}); // bắt đầu nuôi con mới → xoá tiến trình cũ khỏi cả IndexedDB lẫn báo cho Dino Jump biết
     setPet(null);
     setName("");
     setSelectedColor(GOOGLE_COLORS[0].hex);
