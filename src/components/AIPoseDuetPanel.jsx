@@ -139,6 +139,7 @@ export default function AIPoseDuetPanel() {
   const [poseReady, setPoseReady] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [duetStatus, setDuetStatus] = useState('')
+  const [slowLoadHint, setSlowLoadHint] = useState(false)
 
   const vision = useMediaPipeVision()
   const visionRef = useRef(vision)
@@ -152,6 +153,7 @@ export default function AIPoseDuetPanel() {
     setCamOpen(false)
     setCamStarting(false)
     setPoseReady(false)
+    setSlowLoadHint(false)
   }, [])
 
   useEffect(() => () => stopCamera(), [stopCamera])
@@ -174,6 +176,7 @@ export default function AIPoseDuetPanel() {
         await videoRef.current.play().catch(() => {})
       }
       setCamOpen(true)
+      setSlowLoadHint(false)
       await visionRef.current.ensureLoaded({ face: false, pose: true, object: false })
     } catch (error) {
       console.error('AI Pose Duet camera error:', error)
@@ -183,6 +186,18 @@ export default function AIPoseDuetPanel() {
       setCamStarting(false)
     }
   }, [stopCamera, lang])
+
+
+  useEffect(() => {
+    if (!camOpen || poseReady) { setSlowLoadHint(false); return }
+    const timer = setTimeout(() => setSlowLoadHint(true), 10_000)
+    return () => clearTimeout(timer)
+  }, [camOpen, poseReady])
+
+  const retryLoadModel = useCallback(() => {
+    setSlowLoadHint(false)
+    visionRef.current.ensureLoaded({ face: false, pose: true, object: false })
+  }, [])
 
   // Vòng lặp phát hiện pose thời gian thực cho khung Duet Camera
   useEffect(() => {
@@ -346,13 +361,32 @@ export default function AIPoseDuetPanel() {
               {camOpen && <canvas ref={canvasRef} className="pd-canvas-overlay" style={{ transform: 'scaleX(-1)' }} />}
 
               {camOpen && !poseReady && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-                  <div className="flex flex-col items-center">
-                    <svg className="animate-spin h-8 w-8 text-cyan-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span className="text-xs text-cyan-400 font-mono">{t('Tải mô hình AI...', 'Loading AI model...')}</span>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 p-4 text-center">
+                  <div className="flex flex-col items-center max-w-[220px]">
+                    {vision.status !== 'error' && (
+                      <svg className="animate-spin h-8 w-8 text-cyan-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    )}
+                    <span className="text-xs text-cyan-400 font-mono">
+                      {vision.status === 'error'
+                        ? t('Không tải được mô hình AI Pose', 'Could not load the AI pose model')
+                        : t('Tải mô hình AI...', 'Loading AI model...')}
+                    </span>
+                    {slowLoadHint && vision.status !== 'error' && (
+                      <p className="text-[11px] text-amber-300 mt-2 leading-snug">
+                        {t('Tải hơi lâu — có thể do mạng chậm. Bạn có thể chờ thêm hoặc thử lại.', 'This is taking longer than usual — the network may be slow. You can wait or retry.')}
+                      </p>
+                    )}
+                    {vision.status === 'error' && vision.error && (
+                      <p className="text-[10px] text-red-300 mt-2 break-words">{vision.error}</p>
+                    )}
+                    {(slowLoadHint || vision.status === 'error') && (
+                      <button type="button" onClick={retryLoadModel} className="mt-3 bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-full text-xs font-bold">
+                        {t('Thử lại', 'Retry')}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
