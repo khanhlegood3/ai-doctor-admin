@@ -23,6 +23,14 @@ import StatBar from "./components/StatBar";
 import ActionsPanel from "./components/ActionsPanel";
 import InfoDialog from './components/builds/infoDialog'
 import { getPath } from "./utils/path";
+// 3 ảnh trang trí gốc (hidden-game-dinosoar-left.png, hidden-build-dino-
+// right.png, hidden-build-bg.png) trên host gstatic.com/aistudio của
+// dino-pal.zip đã 404 VĨNH VIỄN (đã kiểm chứng — không phải do rate-limit
+// hay chặn tạm) → tự host lại bằng SVG riêng (xem src/assets/), không còn
+// phụ thuộc host ngoài.
+import dinoDecorationLeft from "./assets/dino-decoration-left.svg";
+import dinoDecorationRight from "./assets/dino-decoration-right.svg";
+import petCardBg from "./assets/pet-card-bg.svg";
 
 // Audio imports
 import useAudio from "./hooks/useAudio";
@@ -721,10 +729,10 @@ const App: React.FC = () => {
         `}</style>
           {/* Background decoration */}
         <div className="fixed top-[586px] left-10 -translate-y-106 -translate-x-1/2 pointer-events-none z-0 hidden xl:block">
-          <img src={getPath("/media/images/builds/hidden-game-dinosoar-left.png")} />
+          <img src={dinoDecorationLeft} />
         </div>
         <div className="fixed bottom-[0px] max-w-90 -left-[340px] translate-y-60 -translate-x-50 pointer-events-none z-0 xl:hidden" style={{width: '410px', left: '-220px'}}>
-          <img src={getPath("/media/images/builds/hidden-game-dinosoar-left.png")} />
+          <img src={dinoDecorationLeft} />
         </div>
         <div className="flex flex-col items-center text-center w-full">
           {/* Dino Icon */}
@@ -837,10 +845,10 @@ const App: React.FC = () => {
         <div className="h-full w-full flex flex-col items-center justify-center p-6 bg-black font-sans font-medium text-white">
           {/* Background decoration */}
           <div className="fixed top-[588px] -right-8 -translate-y-52 translate-x-1/2 pointer-events-none z-0 hidden xl:block">
-            <img src={getPath("/media/images/builds/hidden-build-dino-right.png")} />
+            <img src={dinoDecorationRight} />
           </div>
           <div className="fixed max-w-42 bottom-[180px] right-0 translate-y-60 translate-x-1/2 pointer-events-none z-0 xl:hidden" style={{ width: '180px'}}>
-            <img src={getPath("/media/images/builds/hidden-build-dino-right.png")} />
+            <img src={dinoDecorationRight} />
           </div>
         </div>
       </div>
@@ -1068,7 +1076,7 @@ const App: React.FC = () => {
           <div
             className="flex-1 bg-[#131313] rounded-[20px] relative flex flex-col items-center justify-center p-4 md:p-8 min-h-[340px] lg:min-h-0"
             style={{
-              backgroundImage: `url(${getPath("/media/images/builds/hidden-build-bg.png")})`,
+              backgroundImage: `url(${petCardBg})`,
               backgroundSize: 'contain',
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat'

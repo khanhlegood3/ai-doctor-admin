@@ -5,6 +5,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { getPath } from '../../utils/path'
+// info-icon.png (gstatic) hoạt động bình thường (đã kiểm chứng), nhưng vẫn
+// tự host lại cho đồng nhất — không phụ thuộc host ngoài như các asset
+// khác của app này.
+import infoIcon from '../../assets/info-icon.png'
 
 const InfoDialog: React.FC<{
   title: string;
@@ -57,12 +61,12 @@ const InfoDialog: React.FC<{
     >
       <div className="flex h-full w-full flex-col overflow-hidden relative">
         <img
-          src={getPath('/images/builds/info-icon.png')}
+          src={infoIcon}
           className="w-[188px] h-[188px] absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 select-none"
           alt="Information Icon"
         />
         <img
-          src={getPath('/images/builds/info-icon.png')}
+          src={infoIcon}
           className="w-[188px] h-[188px] absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 select-none"
           alt="Information Icon"
         />
