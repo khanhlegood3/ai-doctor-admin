@@ -11,6 +11,7 @@ import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
 import { bringToLife } from './lib/api';
+import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
 import { saveCreationToR2 } from './lib/historyR2Client';
 import { DemoTemplate } from './lib/demoTemplates';
@@ -117,8 +118,32 @@ const App: React.FC = () => {
       let mimeType: string | undefined;
 
       if (file) {
-        imageBase64 = await fileToBase64(file);
-        mimeType = file.type.toLowerCase();
+        const rawMimeType = file.type.toLowerCase();
+
+        if (rawMimeType.startsWith('image/')) {
+          // Luôn nén ảnh qua canvas trước khi gửi — ảnh chụp thẳng từ camera
+          // (2-8MB) + base64 overhead ~33% dễ vượt giới hạn cứng 4.5MB của
+          // Vercel serverless function, khiến request bị chặn ở tầng network
+          // và Safari báo "Load failed" (không phải lỗi từ server) — xem
+          // lib/imageCompress.ts.
+          const compressed = await compressImageFile(file);
+          imageBase64 = compressed.base64;
+          mimeType = compressed.mimeType;
+        } else {
+          // PDF / video: không nén được dễ dàng ở client. Chặn sớm với
+          // thông báo rõ ràng thay vì để request âm thầm thất bại với
+          // "Load failed" khi vượt giới hạn 4.5MB của Vercel.
+          if (file.size > MAX_UNCOMPRESSED_FILE_BYTES) {
+            throw new Error(
+              `File "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)}MB) vượt quá giới hạn ` +
+                `${(MAX_UNCOMPRESSED_FILE_BYTES / 1024 / 1024).toFixed(1)}MB cho PDF/video (giới hạn request ` +
+                `body của Vercel serverless function). Hãy dùng file nhỏ hơn, hoặc với video hãy dán link ` +
+                `YouTube/Facebook thay vì upload trực tiếp.`
+            );
+          }
+          imageBase64 = await fileToBase64(file);
+          mimeType = rawMimeType;
+        }
       }
 
       const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl);
