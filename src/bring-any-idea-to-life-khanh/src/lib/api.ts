@@ -28,27 +28,53 @@ export async function bringToLife(
       ? 'Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis.'
       : prompt || 'Create a demo app that shows off your capabilities.';
 
-  const res = await fetch('/api/groq-proxy', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      provider: 'bring-any-idea-to-life',
-      prompt: finalPrompt,
-      fileBase64,
-      mimeType,
-      videoUrl,
-      imageUrl,
-    }),
+  const ENDPOINT = '/api/groq-proxy';
+  const PROVIDER = 'bring-any-idea-to-life';
+
+  // Log rõ đang gọi API nào TRƯỚC khi gửi request, để dễ debug khi trang bị
+  // treo/chậm (server thật sự chạy Groq qwen/qwen3.6-27b trước, fallback
+  // Gemini gemini-3.6-flash nếu Groq lỗi — xem api/_lib/bringAnyIdeaToLifeProxy.js).
+  console.log(`[bringToLife] Calling ${ENDPOINT} (provider: "${PROVIDER}")`, {
+    hasFile: Boolean(fileBase64),
+    mimeType,
+    hasVideoUrl: Boolean(videoUrl),
+    hasImageUrl: Boolean(imageUrl),
   });
+
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: PROVIDER,
+        prompt: finalPrompt,
+        fileBase64,
+        mimeType,
+        videoUrl,
+        imageUrl,
+      }),
+    });
+  } catch (networkErr) {
+    // fetch() ném lỗi khi mất mạng / CORS / server không phản hồi được request
+    // (khác với lỗi HTTP status, được bắt ở nhánh !res.ok bên dưới).
+    console.error(`[bringToLife] Network error calling ${ENDPOINT} (provider: "${PROVIDER}"):`, networkErr);
+    throw new Error(`Không kết nối được tới ${ENDPOINT} (provider: "${PROVIDER}"): ${(networkErr as Error)?.message || 'network error'}`);
+  }
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data?.error || `Bring Any Idea to Life proxy error (${res.status})`);
+    const realError = data?.error || `HTTP ${res.status} ${res.statusText}`;
+    console.error(`[bringToLife] ${ENDPOINT} (provider: "${PROVIDER}") returned error [status ${res.status}]:`, realError);
+    throw new Error(`[${PROVIDER}] ${realError}`);
   }
   if (typeof data?.html !== 'string') {
-    throw new Error('No html returned from Bring Any Idea to Life proxy');
+    console.error(`[bringToLife] ${ENDPOINT} (provider: "${PROVIDER}") returned no html. Full response:`, data);
+    throw new Error(`[${PROVIDER}] No html returned from proxy (response had no "html" field)`);
   }
+
+  console.log(`[bringToLife] Success via ${ENDPOINT} (provider: "${PROVIDER}", source: "${data?.source || 'unknown'}")`);
 
   return data.html;
 }

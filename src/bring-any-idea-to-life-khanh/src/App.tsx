@@ -141,8 +141,14 @@ const App: React.FC = () => {
       }
 
     } catch (error) {
-      console.error("Failed to generate:", error);
-      alert("Something went wrong while bringing your idea to life. Please try again.");
+      // Hiện lỗi THẬT (đã bao gồm tên provider + status code, xem lib/api.ts)
+      // thay vì thông báo chung chung — trước đây popup luôn hiện
+      // "Something went wrong... Please try again." bất kể lỗi thật là gì
+      // (hết quota Groq/Gemini, sai key, timeout, mất mạng...), khiến không
+      // debug được lý do trang bị treo/chậm.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[handleGenerate] Failed to generate:', error);
+      alert(`Lỗi khi tạo app:\n\n${message}`);
     } finally {
       setIsGenerating(false);
     }
