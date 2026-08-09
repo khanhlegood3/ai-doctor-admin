@@ -22,6 +22,7 @@ import { useApp } from '../context/AppContext'
 import AnatomyHoverOverlay from '../components/AnatomyHoverOverlay.jsx'
 import HeroPopupCornerCloseButtons from '../components/heroPanels/HeroPopupCornerCloseButtons.jsx'
 import PoseCameraDinoJumpSection from '../components/health-games/PoseCameraDinoJumpSection.jsx'
+import BringAnyIdeaToLifeEmbedSection from '../components/health-games/BringAnyIdeaToLifeEmbedSection.jsx'
 import { VibeTrackingEmbedSection } from '../components/VibeTrackingPanel.jsx'
 
 /**
@@ -1860,6 +1861,16 @@ export default function LandingPageZeroToForever({
           <section className="container mx-auto max-w-5xl px-4 lg:px-8 pb-16">
             <div className="rounded-3xl bg-[#0B132B] p-2">
               <PoseCameraDinoJumpSection lang={language} variant="hero" />
+            </div>
+          </section>
+
+          {/* "Bring Any Idea to Life" — mang từ trong app (chỉ dành cho user
+              đã đăng nhập) ra menu game công khai trên landing page, đặt sau
+              Dino Jump trong sub-menu "Game sức khỏe" để ai cũng thử được
+              ngay mà không cần đăng nhập. */}
+          <section className="container mx-auto max-w-5xl px-4 lg:px-8 pb-16">
+            <div className="rounded-3xl bg-[#0B132B] p-2">
+              <BringAnyIdeaToLifeEmbedSection lang={language} variant="hero" />
             </div>
           </section>
 
