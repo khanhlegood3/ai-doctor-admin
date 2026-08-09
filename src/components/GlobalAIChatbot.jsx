@@ -181,7 +181,7 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
       <button type="button" onClick={() => setOpen(true)} className="global-ai-chatbot-fab" style={styles.fab} aria-label="Mở Hero AI">
         <span style={styles.fabIcon}>🦸</span>
         <span>
-          <strong>Hero AI 🤗</strong>
+          <strong>Hero AI</strong>
           <small></small>
         </span>
       </button>
@@ -225,7 +225,7 @@ export default function GlobalAIChatbot({ activePanelLabel }) {
           <SharedFaceAvatar state={faceState} color={faceColor} style={faceStyle} size={42} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={styles.title}>🦸 Hero AI 🤗</div>
+          <div style={styles.title}>🦸 Hero AI</div>
           <div style={styles.subtitle}>{status}</div>
         </div>
         <button type="button" onClick={() => setOpen(false)} style={{ ...styles.closeBtn, ...styles.closeTopRight }} aria-label="Đóng chatbot">×</button>
