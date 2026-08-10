@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { AudioLines, Hand } from 'lucide-react';
 import VibeVizTab from './components/VibeVizTab';
 import CustomAnalyticsTab from './components/CustomAnalyticsTab';
+import VibeHistoryCalendar from './components/VibeHistoryCalendar';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'vibeviz' | 'sign'>('sign');
@@ -53,6 +54,10 @@ export default function App() {
       <main className="w-full max-w-full min-w-0 flex-1 flex flex-col items-stretch overflow-x-hidden">
         {activeTab === 'vibeviz' ? <VibeVizTab /> : <CustomAnalyticsTab />}
       </main>
+
+      <footer className="mt-8 w-full max-w-full min-w-0">
+        <VibeHistoryCalendar />
+      </footer>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand,
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
-import VibeHistoryCalendar from './VibeHistoryCalendar';
 import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
@@ -335,11 +334,6 @@ export default function SignLanguageAnalyticsTab() {
     }
   };
 
-  useEffect(() => {
-    if (handLandmarker && faceLandmarker && !isPlayingRef.current) {
-      startCamera();
-    }
-  }, [handLandmarker, faceLandmarker]);
 
   const stopMedia = () => {
     setIsPlaying(false);
@@ -1553,8 +1547,6 @@ export default function SignLanguageAnalyticsTab() {
           </div>
         </div>
       </div>
-
-      <VibeHistoryCalendar kind="sign" />
 
       <style>{`
         @keyframes floatUp {

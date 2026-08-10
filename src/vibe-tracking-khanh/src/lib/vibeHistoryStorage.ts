@@ -97,8 +97,10 @@ export async function saveVibeHistory(params: { kind: VibeHistoryKind; blob?: Bl
   return record;
 }
 
-export async function listVibeHistory(kind: VibeHistoryKind): Promise<VibeHistoryRecord[]> {
+export async function listVibeHistory(kind?: VibeHistoryKind): Promise<VibeHistoryRecord[]> {
   const user = readCurrentUser();
   const all = await getAllRecords({ ownerUuid: user?.uuid || null, includeUnowned: !user?.uuid });
-  return all.filter((r: any) => r.sourceModule === VIBE_HISTORY_SOURCE_MODULE && r.kind === kind).sort((a: any, b: any) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')));
+  return all
+    .filter((r: any) => r.sourceModule === VIBE_HISTORY_SOURCE_MODULE && (!kind || r.kind === kind))
+    .sort((a: any, b: any) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')));
 }
