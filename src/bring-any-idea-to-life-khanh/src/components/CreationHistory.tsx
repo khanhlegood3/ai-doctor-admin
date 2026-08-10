@@ -17,10 +17,11 @@ export interface Creation {
 interface CreationHistoryProps {
   history: Creation[];
   onSelect: (creation: Creation) => void;
+  onLoadR2: () => void;
+  isLoadingR2: boolean;
 }
 
-export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect }) => {
-  if (history.length === 0) return null;
+export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onLoadR2, isLoadingR2 }) => {
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -28,9 +29,20 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
         <ClockIcon className="w-4 h-4 text-zinc-500" />
         <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500">Archive</h2>
         <div className="h-px flex-1 bg-zinc-800"></div>
+        <button
+          type="button"
+          onClick={onLoadR2}
+          disabled={isLoadingR2}
+          className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-300 transition-colors hover:border-blue-400 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isLoadingR2 ? 'Loading R2...' : 'Load history from R2'}
+        </button>
       </div>
       
       {/* Horizontal Scroll Container for Compact Layout */}
+      {history.length === 0 ? (
+        <div className="px-2 pb-2 text-xs text-zinc-600">No local history yet. Load previous searches from R2 to restore saved creations.</div>
+      ) : (
       <div className="flex overflow-x-auto space-x-4 pb-2 px-2 scrollbar-hide">
         {history.map((item) => {
           const isPdf = item.originalImage?.startsWith('data:application/pdf');
@@ -73,6 +85,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
           );
         })}
       </div>
+      )}
       <style>{`
         .scrollbar-hide::-webkit-scrollbar {
             display: none;

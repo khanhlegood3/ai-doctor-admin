@@ -13,7 +13,7 @@ import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
 import { bringToLife } from './lib/api';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
-import { saveCreationToR2 } from './lib/historyR2Client';
+import { saveCreationToR2, loadAllCreationsFromR2 } from './lib/historyR2Client';
 import { DemoTemplate } from './lib/demoTemplates';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [activeCreation, setActiveCreation] = useState<Creation | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [history, setHistory] = useState<Creation[]>([]);
+  const [isLoadingR2History, setIsLoadingR2History] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Load history from IndexedDB on mount (di trú 1 lần từ localStorage cũ
@@ -216,6 +217,45 @@ const App: React.FC = () => {
     });
   };
 
+
+  const handleLoadR2History = async () => {
+    setIsLoadingR2History(true);
+    try {
+      const rows = await loadAllCreationsFromR2();
+      const loaded = rows.map((row) => ({
+        id: row.id,
+        name: row.name || 'New Creation',
+        html: row.html,
+        originalImage: row.imageUrl || undefined,
+        videoUrl: row.videoUrl || undefined,
+        timestamp: new Date(row.timestamp || Date.now()),
+      }));
+
+      for (const item of loaded) {
+        await putCreation({
+          id: item.id,
+          name: item.name,
+          html: item.html,
+          originalImage: item.originalImage,
+          videoUrl: item.videoUrl,
+          timestamp: item.timestamp.toISOString(),
+        });
+      }
+
+      setHistory((prev) => {
+        const byId = new Map<string, Creation>();
+        [...loaded, ...prev].forEach((item) => byId.set(item.id, item));
+        return Array.from(byId.values()).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      });
+    } catch (err) {
+      console.error('Failed to load history from R2', err);
+      const message = err instanceof Error ? err.message : String(err);
+      alert(`Không tải được history từ R2:\n\n${message}`);
+    } finally {
+      setIsLoadingR2History(false);
+    }
+  };
+
   const handleImportClick = () => {
     importInputRef.current?.click();
   };
@@ -280,7 +320,7 @@ const App: React.FC = () => {
       {/* Centered Content Container */}
       <div 
         className={`
-          min-h-full flex flex-col w-full max-w-7xl mx-auto px-4 sm:px-6 relative z-10 
+          min-h-full flex flex-col w-full max-w-[96rem] mx-auto px-4 sm:px-6 relative z-10 
           transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1)
           ${isFocused 
             ? 'opacity-0 scale-95 blur-sm pointer-events-none h-[100dvh] overflow-hidden' 
@@ -312,7 +352,7 @@ const App: React.FC = () => {
         {/* 3. History Section & Footer - Stays at bottom */}
         <div className="flex-shrink-0 pb-6 w-full mt-auto flex flex-col items-center gap-6">
             <div className="w-full px-2 md:px-0">
-                <CreationHistory history={history} onSelect={handleSelectCreation} />
+                <CreationHistory history={history} onSelect={handleSelectCreation} onLoadR2={handleLoadR2History} isLoadingR2={isLoadingR2History} />
             </div>
             
             <a 

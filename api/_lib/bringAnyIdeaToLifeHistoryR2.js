@@ -16,7 +16,7 @@
 //   bring-any-idea-to-life/images/<id>.<ext>   - ảnh gốc user upload (nếu có)
 //   bring-any-idea-to-life/creations/<id>.json - { id, name, html, imageUrl, timestamp }
 
-import { uploadBufferToR2, getR2PublicUrl } from './r2Storage.js'
+import { uploadBufferToR2, getR2PublicUrl, listR2Keys } from './r2Storage.js'
 
 export class BringAnyIdeaToLifeHistoryR2Error extends Error {
   constructor(message, status = 400) {
@@ -85,4 +85,32 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
   await uploadBufferToR2({ buffer: jsonBuffer, key: jsonKey, contentType: 'application/json', envSource })
 
   return { jsonUrl: getR2PublicUrl(jsonKey, { envSource }), imageUrl }
+}
+
+
+/**
+ * Load toàn bộ creation JSON đã sao lưu trong R2, không scope theo user để
+ * đáp ứng nút admin/landing "Load history from R2".
+ * @param {object} params
+ * @param {Record<string,string>} [params.envSource]
+ * @returns {Promise<{ creations: Array<object>, count: number }>}
+ */
+export async function loadAllBringAnyIdeaToLifeCreationsFromR2({ envSource = process.env } = {}) {
+  const keys = await listR2Keys({ prefix: 'bring-any-idea-to-life/creations/', envSource })
+  const creations = []
+
+  await Promise.all(keys.filter((key) => key.endsWith('.json')).map(async (key) => {
+    const url = getR2PublicUrl(key, { envSource })
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const item = await res.json()
+      if (item?.id && item?.html) creations.push(item)
+    } catch (err) {
+      console.warn('[bring-any-idea-to-life-r2] skip unreadable creation:', key, err?.message || err)
+    }
+  }))
+
+  creations.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
+  return { creations, count: creations.length }
 }
