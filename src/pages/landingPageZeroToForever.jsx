@@ -1868,8 +1868,8 @@ export default function LandingPageZeroToForever({
               đã đăng nhập) ra menu game công khai trên landing page, đặt sau
               Dino Jump trong sub-menu "Game sức khỏe" để ai cũng thử được
               ngay mà không cần đăng nhập. */}
-          <section className="container mx-auto max-w-5xl px-4 lg:px-8 pb-16">
-            <div className="rounded-3xl bg-[#0B132B] p-2">
+          <section className="w-full max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-6 pb-16 overflow-hidden">
+            <div className="rounded-3xl bg-[#0B132B] p-1 sm:p-2 overflow-hidden">
               <BringAnyIdeaToLifeEmbedSection lang={language} variant="hero" />
             </div>
           </section>
