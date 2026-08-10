@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
@@ -12,6 +12,7 @@ interface LivePreviewProps {
   isLoading: boolean;
   isFocused: boolean;
   onReset: () => void;
+  onUploadMissingSource?: (creation: Creation, file: File) => Promise<void>;
 }
 
 // Add type definition for the global pdfjsLib
@@ -132,9 +133,11 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
+    const [isUploadingSource, setIsUploadingSource] = useState(false);
+    const missingSourceInputRef = useRef<HTMLInputElement>(null);
 
     // Handle loading animation steps
     useEffect(() => {
@@ -157,6 +160,29 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
             setShowSplitView(false);
         }
     }, [creation]);
+
+
+    const handleMissingSourceChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !creation || !onUploadMissingSource) return;
+        setIsUploadingSource(true);
+        try {
+            await onUploadMissingSource(creation, file);
+            setShowSplitView(true);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            alert(`Không upload được file gốc lên R2:
+
+${message}`);
+        } finally {
+            setIsUploadingSource(false);
+            event.target.value = '';
+        }
+    };
+
+    const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
+    const isOriginalVideo = Boolean(creation?.originalImage) && (/^video\//i.test(originalMimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation?.originalImage || ''));
+    const isOriginalPdf = Boolean(creation?.originalImage) && (originalMimeType === 'application/pdf' || /\.pdf(\?|$)/i.test(creation?.originalImage || ''));
 
     const handleExport = () => {
         if (!creation) return;
@@ -220,6 +246,17 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
                             className={`p-1.5 rounded-md transition-all ${showSplitView ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
                         >
                             <ViewColumnsIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {!creation.originalImage && !creation.videoUrl && onUploadMissingSource && (
+                        <button
+                            onClick={() => missingSourceInputRef.current?.click()}
+                            disabled={isUploadingSource}
+                            title="Upload missing original file to R2"
+                            className="text-zinc-500 hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800 disabled:opacity-50"
+                        >
+                            <ArrowUpTrayIcon className="w-4 h-4" />
                         </button>
                     )}
 
@@ -300,9 +337,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
                                     </a>
                                 );
                             })()
-                        ) : creation.originalImage?.startsWith('data:application/pdf') ? (
+                        ) : isOriginalPdf && creation.originalImage?.startsWith('data:') ? (
                             <PdfRenderer dataUrl={creation.originalImage} />
-                        ) : creation.originalImage?.startsWith('data:video') ? (
+                        ) : isOriginalVideo ? (
                             <video
                                 src={creation.originalImage}
                                 controls
@@ -330,6 +367,13 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
             </div>
           </>
         ) : null}
+        <input
+            ref={missingSourceInputRef}
+            type="file"
+            accept="image/*,application/pdf,video/*"
+            className="hidden"
+            onChange={handleMissingSourceChange}
+        />
       </div>
     </div>
   );

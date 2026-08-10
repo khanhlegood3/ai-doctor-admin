@@ -10,7 +10,8 @@ export interface Creation {
   id: string;
   name: string;
   html: string;
-  originalImage?: string; // Base64 data URL (ảnh/PDF, hoặc video upload trực tiếp)
+  originalImage?: string; // Base64 data URL hoặc URL R2 của ảnh/PDF/video upload trực tiếp
+  mimeType?: string | null; // MIME của originalImage khi originalImage là URL R2
   videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: Date;
 }

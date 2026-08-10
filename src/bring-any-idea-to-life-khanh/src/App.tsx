@@ -13,7 +13,7 @@ import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
 import { bringToLife } from './lib/api';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
-import { saveCreationToR2, loadAllCreationsFromR2 } from './lib/historyR2Client';
+import { saveCreationToR2, loadAllCreationsFromR2, uploadSourceFileToR2 } from './lib/historyR2Client';
 import { DemoTemplate } from './lib/demoTemplates';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
@@ -53,7 +53,7 @@ const App: React.FC = () => {
   // Lưu 1 creation vào CẢ HAI nơi: IndexedDB (đọc lại tức thì, không cần
   // mạng) và R2 (sao lưu bền, không phụ thuộc trình duyệt/thiết bị) — R2
   // chạy fire-and-forget, lỗi không chặn UX chính vì IndexedDB đã lưu xong.
-  const persistCreation = async (creation: Creation, imageBase64?: string, mimeType?: string) => {
+  const persistCreation = async (creation: Creation, imageBase64?: string, mimeType?: string, sourceUrl?: string) => {
     const timestampIso = creation.timestamp.toISOString();
     try {
       await putCreation({
@@ -62,6 +62,7 @@ const App: React.FC = () => {
         html: creation.html,
         originalImage: creation.originalImage,
         videoUrl: creation.videoUrl,
+        mimeType: creation.mimeType || mimeType || null,
         timestamp: timestampIso,
       });
     } catch (e) {
@@ -73,12 +74,13 @@ const App: React.FC = () => {
       name: creation.name,
       html: creation.html,
       imageBase64,
-      mimeType,
+      sourceUrl,
+      mimeType: creation.mimeType || mimeType,
       videoUrl: creation.videoUrl,
       timestamp: timestampIso,
     }).then((result) => {
       if (result) {
-        patchCreation(creation.id, { r2JsonUrl: result.jsonUrl, r2ImageUrl: result.imageUrl }).catch((e) =>
+        patchCreation(creation.id, { r2JsonUrl: result.jsonUrl, r2ImageUrl: result.imageUrl, originalImage: result.imageUrl || creation.originalImage, mimeType: creation.mimeType || mimeType || null }).catch((e) =>
           console.warn('Failed to patch IndexedDB with R2 urls', e)
         );
       }
@@ -117,9 +119,22 @@ const App: React.FC = () => {
     try {
       let imageBase64: string | undefined;
       let mimeType: string | undefined;
+      let r2SourceUrl: string | undefined;
+      const creationId = crypto.randomUUID();
 
       if (file) {
-        const rawMimeType = file.type.toLowerCase();
+        const rawMimeType = (file.type || 'application/octet-stream').toLowerCase();
+
+        // Lưu file gốc user chọn từ máy tính/điện thoại lên R2 trước (ảnh/video/PDF),
+        // độc lập với bản base64/nén dùng để gửi AI. Nhánh dán YouTube/Facebook không đi qua đây.
+        try {
+          const uploadedSource = await uploadSourceFileToR2(creationId, file);
+          r2SourceUrl = uploadedSource.publicUrl;
+        } catch (uploadErr) {
+          console.error('[bring-any-idea-to-life] Source file R2 upload failed:', uploadErr);
+          const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+          throw new Error(`Không upload được file gốc lên R2 nên chưa tạo app. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
+        }
 
         if (rawMimeType.startsWith('image/')) {
           // Luôn nén ảnh qua canvas trước khi gửi — ảnh chụp thẳng từ camera
@@ -151,19 +166,20 @@ const App: React.FC = () => {
       
       if (html) {
         const newCreation: Creation = {
-          id: crypto.randomUUID(),
+          id: creationId,
           name: file ? file.name : videoUrl ? videoUrl : imageUrl ? imageUrl : 'New Creation',
           html: html,
           // Store the full data URL for easy display (ảnh/PDF/video upload trực tiếp),
           // hoặc thẳng link ảnh gốc nếu đến từ URL (không cần base64 lại ở client,
           // trình duyệt tự tải ảnh để hiển thị Split View).
-          originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : imageUrl,
+          originalImage: r2SourceUrl || (imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : imageUrl),
+          mimeType: mimeType || null,
           videoUrl,
           timestamp: new Date(),
         };
         setActiveCreation(newCreation);
         setHistory(prev => [newCreation, ...prev]);
-        persistCreation(newCreation, imageBase64, mimeType);
+        persistCreation(newCreation, r2SourceUrl ? undefined : imageBase64, mimeType, r2SourceUrl);
       }
 
     } catch (error) {
@@ -227,6 +243,7 @@ const App: React.FC = () => {
         name: row.name || 'New Creation',
         html: row.html,
         originalImage: row.imageUrl || undefined,
+        mimeType: row.mimeType || null,
         videoUrl: row.videoUrl || undefined,
         timestamp: new Date(row.timestamp || Date.now()),
       }));
@@ -237,6 +254,7 @@ const App: React.FC = () => {
           name: item.name,
           html: item.html,
           originalImage: item.originalImage,
+          mimeType: item.mimeType || null,
           videoUrl: item.videoUrl,
           timestamp: item.timestamp.toISOString(),
         });
@@ -254,6 +272,37 @@ const App: React.FC = () => {
     } finally {
       setIsLoadingR2History(false);
     }
+  };
+
+
+  const handleUploadMissingSource = async (creation: Creation, file: File) => {
+    const uploaded = await uploadSourceFileToR2(creation.id, file);
+    const updated: Creation = {
+      ...creation,
+      originalImage: uploaded.publicUrl,
+      mimeType: file.type || 'application/octet-stream',
+    };
+    setActiveCreation(updated);
+    setHistory((prev) => prev.map((item) => (item.id === creation.id ? updated : item)));
+    await putCreation({
+      id: updated.id,
+      name: updated.name,
+      html: updated.html,
+      originalImage: updated.originalImage,
+      mimeType: updated.mimeType,
+      videoUrl: updated.videoUrl,
+      timestamp: updated.timestamp.toISOString(),
+      r2ImageUrl: uploaded.publicUrl,
+    });
+    await saveCreationToR2({
+      id: updated.id,
+      name: updated.name,
+      html: updated.html,
+      sourceUrl: uploaded.publicUrl,
+      mimeType: updated.mimeType || undefined,
+      videoUrl: updated.videoUrl,
+      timestamp: updated.timestamp.toISOString(),
+    });
   };
 
   const handleImportClick = () => {
@@ -372,6 +421,7 @@ const App: React.FC = () => {
         isLoading={isGenerating}
         isFocused={isFocused}
         onReset={handleReset}
+        onUploadMissingSource={handleUploadMissingSource}
       />
 
       {/* Subtle Import Button (Bottom Right) */}
