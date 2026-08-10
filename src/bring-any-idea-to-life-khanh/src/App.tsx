@@ -280,6 +280,7 @@ const App: React.FC = () => {
     const updated: Creation = {
       ...creation,
       originalImage: uploaded.publicUrl,
+      videoUrl: undefined,
       mimeType: file.type || 'application/octet-stream',
     };
     setActiveCreation(updated);
@@ -303,6 +304,73 @@ const App: React.FC = () => {
       videoUrl: updated.videoUrl,
       timestamp: updated.timestamp.toISOString(),
     });
+  };
+
+
+
+  const handleDeleteUploadedSource = async (creation: Creation) => {
+    const updated: Creation = {
+      ...creation,
+      originalImage: undefined,
+      mimeType: null,
+    };
+    setActiveCreation(updated);
+    setHistory((prev) => prev.map((item) => (item.id === creation.id ? updated : item)));
+    await putCreation({
+      id: updated.id,
+      name: updated.name,
+      html: updated.html,
+      originalImage: undefined,
+      mimeType: null,
+      videoUrl: updated.videoUrl,
+      timestamp: updated.timestamp.toISOString(),
+      r2ImageUrl: null,
+    });
+    await saveCreationToR2({
+      id: updated.id,
+      name: updated.name,
+      html: updated.html,
+      mimeType: undefined,
+      videoUrl: updated.videoUrl,
+      timestamp: updated.timestamp.toISOString(),
+    });
+  };
+
+  const handleRegenerateFromUploadedSource = async (creation: Creation) => {
+    if (!creation.originalImage) return;
+    const mimeType = creation.mimeType || '';
+    const isVideoSource = /^video\//i.test(mimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation.originalImage);
+    if (creation.originalImage.startsWith('data:')) {
+      const match = creation.originalImage.match(/^data:([^;]+);base64,(.*)$/);
+      if (!match) throw new Error('File gốc dạng data URL không hợp lệ.');
+      await handleGenerate('', new File([Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0))], creation.name, { type: match[1] }));
+      return;
+    }
+
+    setIsGenerating(true);
+    setActiveCreation(null);
+    try {
+      const html = await bringToLife('', undefined, undefined, isVideoSource ? creation.originalImage : undefined, isVideoSource ? undefined : creation.originalImage);
+      const newCreation: Creation = {
+        id: crypto.randomUUID(),
+        name: `${creation.name} (rerun)`,
+        html,
+        originalImage: creation.originalImage,
+        mimeType: creation.mimeType || null,
+        timestamp: new Date(),
+      };
+      setActiveCreation(newCreation);
+      setHistory((prev) => [newCreation, ...prev]);
+      persistCreation(newCreation, undefined, newCreation.mimeType || undefined, creation.originalImage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[handleRegenerateFromUploadedSource] Failed to regenerate:', error);
+      alert(`Lỗi khi chạy lại từ file đã upload:
+
+${message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleImportClick = () => {
@@ -422,6 +490,8 @@ const App: React.FC = () => {
         isFocused={isFocused}
         onReset={handleReset}
         onUploadMissingSource={handleUploadMissingSource}
+        onDeleteUploadedSource={handleDeleteUploadedSource}
+        onRegenerateFromUploadedSource={handleRegenerateFromUploadedSource}
       />
 
       {/* Subtle Import Button (Bottom Right) */}
