@@ -24,7 +24,7 @@ interface CreationHistoryProps {
 
 const ITEMS_PER_PAGE = 5;
 
-function buildSafePreviewSrcDoc(html: string): string {
+export function buildSafePreviewSrcDoc(html: string): string {
   const baseStyle = '<style>html,body{background:#ffffff;color:#111111;color-scheme:light;}</style>';
 
   if (/<head[^>]*>/i.test(html)) {
@@ -78,6 +78,32 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
 
   const canGoPrevious = currentPage > 1;
   const canGoNext = currentPage < pageCount;
+  const paginationControls = history.length > 0 ? (
+    <div className="flex flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-2 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500">
+        Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, history.length)} of {history.length} creations · 5 per page
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          disabled={!canGoPrevious}
+          className="inline-flex items-center gap-1 rounded-full border border-zinc-700 px-3 py-1 text-[11px] font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <ChevronLeftIcon className="h-3 w-3" /> Prev
+        </button>
+        <span className="min-w-16 text-center text-[11px] font-mono text-zinc-400">Page {currentPage}/{pageCount}</span>
+        <button
+          type="button"
+          onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+          disabled={!canGoNext}
+          className="inline-flex items-center gap-1 rounded-full border border-zinc-700 px-3 py-1 text-[11px] font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next <ChevronRightIcon className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -96,32 +122,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
           </button>
         </div>
 
-        {history.length > 0 && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500">
-              Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, history.length)} of {history.length} creations · 5 per page
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={!canGoPrevious}
-                className="inline-flex items-center gap-1 rounded-full border border-zinc-700 px-3 py-1 text-[11px] font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronLeftIcon className="h-3 w-3" /> Prev
-              </button>
-              <span className="min-w-16 text-center text-[11px] font-mono text-zinc-400">Page {currentPage}/{pageCount}</span>
-              <button
-                type="button"
-                onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
-                disabled={!canGoNext}
-                className="inline-flex items-center gap-1 rounded-full border border-zinc-700 px-3 py-1 text-[11px] font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next <ChevronRightIcon className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        )}
+        {paginationControls}
       </div>
       
       {history.length === 0 ? (
@@ -175,6 +176,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
           })}
         </div>
       )}
+      {history.length > 0 && <div className="px-2 pt-3">{paginationControls}</div>}
     </div>
   );
 };
