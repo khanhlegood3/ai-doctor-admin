@@ -844,7 +844,7 @@ export default function LandingPageZeroToForever({
       {page === 'home' && (
         <>
           {/* Hero Section */}
-          <header className="zofo-hero-section min-h-[90vh] flex items-center pt-8 pb-32 px-6 lg:px-12 relative overflow-hidden">
+          <header className="zofo-hero-section min-h-[90vh] flex items-center pt-32 sm:pt-36 lg:pt-40 pb-32 px-6 lg:px-12 relative overflow-hidden">
             <div className="zofo-stars"></div>
             <div className="absolute inset-0 zofo-hero-glow"></div>
             <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
