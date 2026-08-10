@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, RefreshCw } from 'lucide-react';
 import { listVibeHistory, type VibeHistoryKind, type VibeHistoryRecord } from '../lib/vibeHistoryStorage';
 
-export default function VibeHistoryCalendar({ kind }: { kind: VibeHistoryKind }) {
+export default function VibeHistoryCalendar({ kind }: { kind?: VibeHistoryKind }) {
   const [records, setRecords] = useState<VibeHistoryRecord[]>([]);
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedDay, setSelectedDay] = useState(() => new Date().getDate());
@@ -18,7 +18,7 @@ export default function VibeHistoryCalendar({ kind }: { kind: VibeHistoryKind })
     </div>
     <div className="grid grid-cols-7 gap-2 mb-4">{Array.from({ length: Math.min(31, daysInMonth) }, (_, i) => i + 1).map(day => <button key={day} onClick={() => setSelectedDay(day)} className={`rounded-xl border-2 p-2 text-xs font-black ${selectedDay === day ? 'bg-emerald-500 border-black' : byDay[day]?.length ? 'bg-indigo-600 border-indigo-300' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>{day}<div className="text-[9px]">{byDay[day]?.length || ''}</div></button>)}</div>
     <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">{dayRecords.length ? dayRecords.map(r => <article key={r.id} className="bg-slate-900/80 border border-slate-700 rounded-2xl p-3">
-      <div className="font-black text-sm">{r.title}</div><div className="text-[10px] text-slate-400 mb-2">{new Date(r.uploadedAt).toLocaleString()} · synced to Upload Records</div>
+      <div className="font-black text-sm">{r.title}</div><div className="text-[10px] text-slate-400 mb-2">{new Date(r.uploadedAt).toLocaleString()} · {r.kind === 'sign' ? 'Sign Language' : 'Emotion Mesh'} · IndexedDB + R2 Upload Records</div>
       {r.r2Url ? <video src={r.r2Url} controls className="w-full rounded-xl bg-black mb-2" /> : <div className="text-xs text-amber-300 mb-2">Video chưa upload được lên R2, nhưng phân tích text đã lưu IndexedDB.</div>}
       <div className="text-sm text-indigo-100 whitespace-pre-wrap"><b>{r.analysisSummary}</b>{r.analysisDetails ? `\n\n${r.analysisDetails}` : ''}</div>
     </article>) : <div className="text-sm text-slate-400 italic border border-dashed border-slate-700 rounded-2xl p-4 text-center">No saved Vibe Tracking record for this day.</div>}</div>

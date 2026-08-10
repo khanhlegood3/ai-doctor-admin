@@ -4,7 +4,6 @@ import { Activity, AudioLines, Camera, RefreshCw, AlertCircle, ChevronDown, Chev
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
-import VibeHistoryCalendar from './VibeHistoryCalendar';
 import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
@@ -209,11 +208,6 @@ export default function VibeVizTab() {
     }
   };
 
-  useEffect(() => {
-    if (faceLandmarker && !webcamRunningRef.current) {
-      startCamera();
-    }
-  }, [faceLandmarker]);
 
   const stopCamera = () => {
     setWebcamRunning(false);
