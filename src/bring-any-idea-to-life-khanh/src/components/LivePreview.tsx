@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
@@ -13,6 +13,8 @@ interface LivePreviewProps {
   isFocused: boolean;
   onReset: () => void;
   onUploadMissingSource?: (creation: Creation, file: File) => Promise<void>;
+  onDeleteUploadedSource?: (creation: Creation) => Promise<void>;
+  onRegenerateFromUploadedSource?: (creation: Creation) => Promise<void>;
 }
 
 // Add type definition for the global pdfjsLib
@@ -133,10 +135,11 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
     const [isUploadingSource, setIsUploadingSource] = useState(false);
+    const [isDeletingSource, setIsDeletingSource] = useState(false);
     const missingSourceInputRef = useRef<HTMLInputElement>(null);
 
     // Handle loading animation steps
@@ -180,6 +183,32 @@ ${message}`);
             setIsUploadingSource(false);
             event.target.value = '';
         }
+    };
+
+
+    const hasUploadedSource = Boolean(creation?.originalImage) && !creation?.videoUrl;
+
+    const handleDeleteUploadedSource = async () => {
+        if (!creation || !onDeleteUploadedSource) return;
+        const ok = window.confirm('Xóa video/hình/PDF gốc khỏi khung Original Input cho creation này? Kết quả app hiện tại vẫn được giữ lại.');
+        if (!ok) return;
+        setIsDeletingSource(true);
+        try {
+            await onDeleteUploadedSource(creation);
+            setShowSplitView(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            alert(`Không xóa được file gốc:
+
+${message}`);
+        } finally {
+            setIsDeletingSource(false);
+        }
+    };
+
+    const handleRegenerateFromUploadedSource = async () => {
+        if (!creation || !onRegenerateFromUploadedSource) return;
+        await onRegenerateFromUploadedSource(creation);
     };
 
     const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
@@ -241,7 +270,7 @@ ${message}`);
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center justify-end space-x-1 w-32">
+        <div className="flex items-center justify-end space-x-1 w-48">
             {!isLoading && creation && (
                 <>
                     {(hasOriginalSource || canUploadMissingSource) && (
@@ -254,14 +283,35 @@ ${message}`);
                         </button>
                     )}
 
-                    {!creation.originalImage && !creation.videoUrl && onUploadMissingSource && (
+                    {onUploadMissingSource && (!creation.originalImage || creation.videoUrl) && (
                         <button
                             onClick={() => missingSourceInputRef.current?.click()}
                             disabled={isUploadingSource}
-                            title="Upload missing original file to R2"
+                            title={creation.videoUrl ? "Upload file from computer/phone to replace the link in Original Input" : "Upload missing original file to R2"}
                             className="text-zinc-500 hover:text-zinc-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800 disabled:opacity-50"
                         >
                             <ArrowUpTrayIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {hasUploadedSource && onRegenerateFromUploadedSource && (
+                        <button
+                            onClick={handleRegenerateFromUploadedSource}
+                            title="Run again from uploaded file to create a new result"
+                            className="text-zinc-500 hover:text-emerald-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800"
+                        >
+                            <ArrowPathIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {hasUploadedSource && onDeleteUploadedSource && (
+                        <button
+                            onClick={handleDeleteUploadedSource}
+                            disabled={isDeletingSource}
+                            title="Delete uploaded video/image/PDF from Original Input"
+                            className="text-zinc-500 hover:text-red-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800 disabled:opacity-50"
+                        >
+                            <TrashIcon className="w-4 h-4" />
                         </button>
                     )}
 
@@ -322,7 +372,38 @@ ${message}`);
             {shouldShowOriginalPanel && (
                 <div className="w-full md:w-1/2 h-1/2 md:h-full border-b md:border-b-0 md:border-r border-zinc-800 bg-[#0c0c0e] relative flex flex-col shrink-0">
                     <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur text-zinc-400 text-[10px] font-mono uppercase px-2 py-1 rounded border border-zinc-800">
-                        Input Source
+                        Original Input
+                    </div>
+                    <div className="absolute top-4 right-4 z-10 flex flex-wrap justify-end gap-2">
+                        {onUploadMissingSource && (
+                            <button
+                                type="button"
+                                onClick={() => missingSourceInputRef.current?.click()}
+                                disabled={isUploadingSource}
+                                className="rounded-full border border-blue-400/40 bg-blue-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-200 backdrop-blur transition-colors hover:bg-blue-500/25 disabled:opacity-50"
+                            >
+                                Upload R2
+                            </button>
+                        )}
+                        {hasUploadedSource && onRegenerateFromUploadedSource && (
+                            <button
+                                type="button"
+                                onClick={handleRegenerateFromUploadedSource}
+                                className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-200 backdrop-blur transition-colors hover:bg-emerald-500/25"
+                            >
+                                Chạy lại
+                            </button>
+                        )}
+                        {hasUploadedSource && onDeleteUploadedSource && (
+                            <button
+                                type="button"
+                                onClick={handleDeleteUploadedSource}
+                                disabled={isDeletingSource}
+                                className="rounded-full border border-red-400/40 bg-red-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-red-200 backdrop-blur transition-colors hover:bg-red-500/25 disabled:opacity-50"
+                            >
+                                Xóa file
+                            </button>
+                        )}
                     </div>
                     <div className="w-full h-full p-6 flex items-center justify-center overflow-hidden">
                         {creation.videoUrl ? (
