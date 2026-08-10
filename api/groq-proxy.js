@@ -29,7 +29,7 @@ import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
-import { saveBringAnyIdeaToLifeCreationToR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
+import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
@@ -238,6 +238,19 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (bring-any-idea-to-life-save-r2) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life R2 save error' })
+    }
+  }
+
+
+  if (body.provider === 'bring-any-idea-to-life-load-r2') {
+    console.log('[groq-proxy] (bring-any-idea-to-life-load-r2) load all creations')
+    try {
+      const payload = await loadAllBringAnyIdeaToLifeCreationsFromR2({})
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-load-r2) error:', err?.message || err)
+      const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life R2 load error' })
     }
   }
 

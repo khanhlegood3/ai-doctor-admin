@@ -17,7 +17,7 @@ export default function BringAnyIdeaToLifePanel({ onNext, nextLabel, onPrev, pre
   const { lang } = useApp()
 
   return (
-    <div className="animate-fade ai-healthcare-vision-page">
+    <div className="animate-fade ai-healthcare-vision-page bring-any-idea-landing-page">
       <section className="ai-healthcare-vision-header">
         <div>
           <div className="ai-healthcare-vision-kicker">BRING ANY IDEA TO LIFE</div>

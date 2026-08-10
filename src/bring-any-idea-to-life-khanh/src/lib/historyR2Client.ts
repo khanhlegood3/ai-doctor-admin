@@ -36,3 +36,27 @@ export async function saveCreationToR2(payload: SaveCreationToR2Payload): Promis
     return null;
   }
 }
+
+
+export interface R2CreationRecord {
+  id: string;
+  name: string;
+  html: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  timestamp: string;
+}
+
+export async function loadAllCreationsFromR2(): Promise<R2CreationRecord[]> {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-load-r2' }),
+  });
+  if (!res.ok) {
+    const message = await res.text().catch(() => '');
+    throw new Error(`Load history from R2 failed (HTTP ${res.status})${message ? `: ${message}` : ''}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data?.creations) ? data.creations : [];
+}

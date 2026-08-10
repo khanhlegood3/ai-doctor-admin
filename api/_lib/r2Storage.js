@@ -161,6 +161,53 @@ export async function createR2PresignedUploadUrl({ key, contentType, expiresInSe
   return { uploadUrl: signed.url, publicUrl: getR2PublicUrl(key, { envSource }), key }
 }
 
+/**
+ * Liệt kê object keys trong bucket R2 theo prefix bằng S3 ListObjectsV2.
+ * Dùng cho các màn hình cần khôi phục thư viện toàn cục từ R2.
+ * @param {object} params
+ * @param {string} params.prefix
+ * @param {number} [params.maxKeys]
+ * @param {Record<string,string>} [params.envSource]
+ * @returns {Promise<string[]>}
+ */
+export async function listR2Keys({ prefix = '', maxKeys = 1000, envSource = process.env } = {}) {
+  const cfg = readEnv(envSource)
+  const client = getClient(cfg)
+  const keys = []
+  let continuationToken = ''
+
+  do {
+    const url = new URL(objectUrl(cfg, ''))
+    url.searchParams.set('list-type', '2')
+    url.searchParams.set('prefix', prefix)
+    url.searchParams.set('max-keys', String(maxKeys))
+    if (continuationToken) url.searchParams.set('continuation-token', continuationToken)
+
+    let res
+    try {
+      res = await client.fetch(url.toString(), { method: 'GET' })
+    } catch (err) {
+      console.error('[r2Storage] list network error:', err?.message || err)
+      throw new R2StorageError('Không kết nối được tới R2 để liệt kê lịch sử.', 502)
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error('[r2Storage] list failed:', res.status, text.slice(0, 500))
+      throw new R2StorageError(`Liệt kê R2 thất bại (HTTP ${res.status}).`, 502)
+    }
+
+    const xml = await res.text()
+    for (const match of xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)) {
+      keys.push(match[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'))
+    }
+    const truncated = /<IsTruncated>true<\/IsTruncated>/i.test(xml)
+    const tokenMatch = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)
+    continuationToken = truncated && tokenMatch ? tokenMatch[1].replace(/&amp;/g, '&') : ''
+  } while (continuationToken)
+
+  return keys
+}
+
 /** Xoá 1 object khỏi R2 (vd khi user xoá video khỏi thư viện). Best-effort. */
 export async function deleteFromR2(key, { envSource = process.env } = {}) {
   const cfg = readEnv(envSource)
