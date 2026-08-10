@@ -25,7 +25,8 @@ export interface StoredCreation {
   videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: string; // ISO string (IndexedDB struct clone được Date, nhưng dùng string cho nhất quán khi merge với dữ liệu cũ từ localStorage)
   r2JsonUrl?: string | null; // URL public của bản JSON đầy đủ trên R2 (điền sau khi saveCreationToR2 thành công)
-  r2ImageUrl?: string | null; // URL public của ảnh gốc trên R2
+  r2ImageUrl?: string | null; // URL public của ảnh/video/PDF gốc trên R2
+  mimeType?: string | null; // MIME của file gốc để preview URL R2 đúng loại
 }
 
 function openDB(): Promise<IDBDatabase> {

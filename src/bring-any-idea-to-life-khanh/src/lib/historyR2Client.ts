@@ -9,6 +9,7 @@ export interface SaveCreationToR2Payload {
   name: string;
   html: string;
   imageBase64?: string; // kèm hoặc không kèm tiền tố data:...;base64, (ảnh/PDF, hoặc video upload trực tiếp)
+  sourceUrl?: string; // URL R2 public của file gốc upload trực tiếp từ client
   mimeType?: string;
   videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
   timestamp: string; // ISO string
@@ -44,6 +45,7 @@ export interface R2CreationRecord {
   html: string;
   imageUrl?: string | null;
   videoUrl?: string | null;
+  mimeType?: string | null;
   timestamp: string;
 }
 
@@ -59,4 +61,34 @@ export async function loadAllCreationsFromR2(): Promise<R2CreationRecord[]> {
   }
   const data = await res.json();
   return Array.isArray(data?.creations) ? data.creations : [];
+}
+
+
+export interface SourceUploadUrlResult {
+  uploadUrl: string;
+  publicUrl: string;
+  key: string;
+}
+
+export async function uploadSourceFileToR2(id: string, file: File): Promise<SourceUploadUrlResult> {
+  const contentType = file.type || 'application/octet-stream';
+  const presignRes = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-source-upload-url', id, contentType }),
+  });
+  if (!presignRes.ok) {
+    const message = await presignRes.text().catch(() => '');
+    throw new Error(`Không tạo được URL upload R2 (HTTP ${presignRes.status})${message ? `: ${message}` : ''}`);
+  }
+  const payload = await presignRes.json() as SourceUploadUrlResult;
+  const uploadRes = await fetch(payload.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Upload file gốc lên R2 thất bại (HTTP ${uploadRes.status}).`);
+  }
+  return payload;
 }

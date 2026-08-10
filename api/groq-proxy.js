@@ -29,7 +29,7 @@ import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
-import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
+import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
@@ -205,6 +205,7 @@ export default async function handler(req, res) {
     try {
       const payload = await runImageToCodeGenerate({
         imageBase64: body.imageBase64,
+        sourceUrl: body.sourceUrl,
         mimeType: body.mimeType,
         userInput: body.userInput,
       })
@@ -229,6 +230,7 @@ export default async function handler(req, res) {
         name: body.name,
         html: body.html,
         imageBase64: body.imageBase64,
+        sourceUrl: body.sourceUrl,
         mimeType: body.mimeType,
         videoUrl: body.videoUrl,
         timestamp: body.timestamp,
@@ -238,6 +240,19 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (bring-any-idea-to-life-save-r2) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life R2 save error' })
+    }
+  }
+
+
+  if (body.provider === 'bring-any-idea-to-life-source-upload-url') {
+    console.log('[groq-proxy] (bring-any-idea-to-life-source-upload-url) id:', body.id, '| contentType:', body.contentType)
+    try {
+      const payload = await createBringAnyIdeaToLifeSourceUploadUrl({ id: body.id, mimeType: body.contentType })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-source-upload-url) error:', err?.message || err)
+      const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life source upload URL error' })
     }
   }
 

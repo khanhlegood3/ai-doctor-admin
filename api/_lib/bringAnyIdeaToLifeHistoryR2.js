@@ -13,10 +13,11 @@
 // phẳng theo id của creation (id do client sinh bằng crypto.randomUUID()).
 //
 // Object layout trong bucket (dùng chung bucket R2 hiện có, xem r2Storage.js):
-//   bring-any-idea-to-life/images/<id>.<ext>   - ảnh gốc user upload (nếu có)
+//   bring-any-idea-to-life/source-files/<id>.<ext> - ảnh/video/PDF gốc user upload
+//   bring-any-idea-to-life/images/<id>.<ext>        - legacy ảnh gốc user upload (nếu có)
 //   bring-any-idea-to-life/creations/<id>.json - { id, name, html, imageUrl, timestamp }
 
-import { uploadBufferToR2, getR2PublicUrl, listR2Keys } from './r2Storage.js'
+import { uploadBufferToR2, getR2PublicUrl, listR2Keys, createR2PresignedUploadUrl, genR2Key } from './r2Storage.js'
 
 export class BringAnyIdeaToLifeHistoryR2Error extends Error {
   constructor(message, status = 400) {
@@ -37,6 +38,7 @@ function extFromMimeType(mimeType) {
  * @param {string} params.name
  * @param {string} params.html - HTML đầy đủ đã sinh ra
  * @param {string} [params.imageBase64] - ảnh/video gốc (không kèm tiền tố data:...;base64,)
+ * @param {string} [params.sourceUrl] - URL R2 public của file gốc đã upload trực tiếp từ client
  * @param {string} [params.mimeType]
  * @param {string} [params.videoUrl] - link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
  * @param {string} [params.timestamp] - ISO string, mặc định là lúc gọi hàm
@@ -48,6 +50,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
   name,
   html,
   imageBase64,
+  sourceUrl,
   mimeType,
   videoUrl,
   timestamp,
@@ -56,12 +59,12 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
   if (!id) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu id của creation.', 400)
   if (!html) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu html của creation.', 400)
 
-  let imageUrl = null
-  if (imageBase64) {
+  let imageUrl = sourceUrl || null
+  if (!imageUrl && imageBase64) {
     const cleanBase64 = String(imageBase64).replace(/^data:[^;]+;base64,/, '')
     const buffer = Buffer.from(cleanBase64, 'base64')
     if (buffer.length) {
-      const imageKey = `bring-any-idea-to-life/images/${id}.${extFromMimeType(mimeType)}`
+      const imageKey = `bring-any-idea-to-life/source-files/${id}.${extFromMimeType(mimeType)}`
       const uploadedImage = await uploadBufferToR2({
         buffer,
         key: imageKey,
@@ -78,6 +81,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
     html,
     imageUrl,
     videoUrl: videoUrl || null,
+    mimeType: mimeType || null,
     timestamp: timestamp || new Date().toISOString(),
   }
   const jsonBuffer = Buffer.from(JSON.stringify(creationRecord), 'utf-8')
@@ -113,4 +117,17 @@ export async function loadAllBringAnyIdeaToLifeCreationsFromR2({ envSource = pro
 
   creations.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
   return { creations, count: creations.length }
+}
+
+
+/** Tạo presigned URL để client upload trực tiếp file gốc (ảnh/video/PDF) lên R2. */
+export async function createBringAnyIdeaToLifeSourceUploadUrl({ id, mimeType, envSource = process.env }) {
+  if (!id) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu id của creation/source file.', 400)
+  if (!mimeType) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu mimeType của file upload.', 400)
+  const key = genR2Key(`bring-any-idea-to-life/source-files/${id}`, extFromMimeType(mimeType))
+  try {
+    return await createR2PresignedUploadUrl({ key, contentType: mimeType, envSource })
+  } catch (err) {
+    throw new BringAnyIdeaToLifeHistoryR2Error(err?.message || 'Không tạo được URL upload R2 cho file gốc.', err?.status || 502)
+  }
 }
