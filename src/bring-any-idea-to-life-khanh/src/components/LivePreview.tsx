@@ -154,12 +154,14 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
 
     // Default to Split View when a new creation with an image or video source is loaded
     useEffect(() => {
-        if (creation?.originalImage || creation?.videoUrl) {
+        // Luôn mở khung Original Input khi artifact có source, hoặc khi artifact cũ
+        // bị thiếu source nhưng có thể bổ sung file gốc lên R2 ngay trong khung đó.
+        if (creation && (creation.originalImage || creation.videoUrl || onUploadMissingSource)) {
             setShowSplitView(true);
         } else {
             setShowSplitView(false);
         }
-    }, [creation]);
+    }, [creation, onUploadMissingSource]);
 
 
     const handleMissingSourceChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,6 +185,9 @@ ${message}`);
     const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
     const isOriginalVideo = Boolean(creation?.originalImage) && (/^video\//i.test(originalMimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation?.originalImage || ''));
     const isOriginalPdf = Boolean(creation?.originalImage) && (originalMimeType === 'application/pdf' || /\.pdf(\?|$)/i.test(creation?.originalImage || ''));
+    const hasOriginalSource = Boolean(creation?.originalImage || creation?.videoUrl);
+    const canUploadMissingSource = Boolean(creation && !hasOriginalSource && onUploadMissingSource);
+    const shouldShowOriginalPanel = showSplitView && Boolean(hasOriginalSource || canUploadMissingSource);
 
     const handleExport = () => {
         if (!creation) return;
@@ -239,7 +244,7 @@ ${message}`);
         <div className="flex items-center justify-end space-x-1 w-32">
             {!isLoading && creation && (
                 <>
-                    {(creation.originalImage || creation.videoUrl) && (
+                    {(hasOriginalSource || canUploadMissingSource) && (
                          <button 
                             onClick={() => setShowSplitView(!showSplitView)}
                             title={showSplitView ? "Show App Only" : "Compare with Original"}
@@ -314,7 +319,7 @@ ${message}`);
         ) : creation?.html ? (
           <>
             {/* Split View: Left Panel (Original Image / Video) */}
-            {showSplitView && (creation.originalImage || creation.videoUrl) && (
+            {shouldShowOriginalPanel && (
                 <div className="w-full md:w-1/2 h-1/2 md:h-full border-b md:border-b-0 md:border-r border-zinc-800 bg-[#0c0c0e] relative flex flex-col shrink-0">
                     <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur text-zinc-400 text-[10px] font-mono uppercase px-2 py-1 rounded border border-zinc-800">
                         Input Source
@@ -351,13 +356,32 @@ ${message}`);
                                 alt="Original Input" 
                                 className="max-w-full max-h-full object-contain shadow-xl border border-zinc-800/50 rounded"
                             />
-                        ) : null}
+                        ) : (
+                            <div className="flex max-w-sm flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 p-6 text-center shadow-xl">
+                                <ArrowUpTrayIcon className="mb-3 h-10 w-10 text-zinc-500" />
+                                <h3 className="text-sm font-semibold text-zinc-200">Thiếu file Original Input</h3>
+                                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                                    Artifact cũ chưa có ảnh/video/PDF gốc. Chọn file từ máy tính hoặc điện thoại để upload lên R2 và gắn lại vào khung này.
+                                </p>
+                                {onUploadMissingSource && (
+                                    <button
+                                        type="button"
+                                        onClick={() => missingSourceInputRef.current?.click()}
+                                        disabled={isUploadingSource}
+                                        className="mt-4 inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-blue-200 transition-colors hover:border-blue-400 hover:bg-blue-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        <ArrowUpTrayIcon className="h-4 w-4" />
+                                        {isUploadingSource ? 'Uploading to R2...' : 'Upload file lên R2'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
             {/* App Preview Panel */}
-            <div className={`relative h-full bg-white transition-all duration-500 ${showSplitView && (creation.originalImage || creation.videoUrl) ? 'w-full md:w-1/2 h-1/2 md:h-full' : 'w-full'}`}>
+            <div className={`relative h-full bg-white transition-all duration-500 ${shouldShowOriginalPanel ? 'w-full md:w-1/2 h-1/2 md:h-full' : 'w-full'}`}>
                  <iframe
                     title="Gemini Live Preview"
                     srcDoc={buildSafeSrcDoc(creation.html)}
