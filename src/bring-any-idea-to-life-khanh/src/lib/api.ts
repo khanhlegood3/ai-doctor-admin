@@ -70,7 +70,22 @@ export async function bringToLife(
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const realError = data?.error || `HTTP ${res.status} ${res.statusText}`;
+    let realError = data?.error;
+    if (!realError) {
+      if (res.status === 504 || res.status === 502 || res.status === 503) {
+        // Không phải lỗi có JSON body từ code của mình — đây là Vercel Gateway
+        // TỰ CẮT NGANG function trước khi nó kịp trả response (function chạy
+        // quá thời gian nền tảng cho phép), nên data.error rỗng. KHÔNG liên
+        // quan gì tới việc upload R2 (R2 chỉ chạy nền, sau khi tạo app thành
+        // công — xem persistCreation() trong App.tsx).
+        realError =
+          `Server xử lý quá lâu và bị nền tảng Vercel cắt ngang (Gateway Timeout ${res.status}). ` +
+          `Thường do model AI (Groq/Gemini) phản hồi chậm, hoặc file/video đầu vào quá lớn/dài. ` +
+          `Hãy thử lại, dùng ảnh/video ngắn gọn hơn, hoặc đợi ít phút rồi thử lại.`;
+      } else {
+        realError = `HTTP ${res.status} ${res.statusText}`;
+      }
+    }
     console.error(`[bringToLife] ${ENDPOINT} (provider: "${PROVIDER}") returned error [status ${res.status}]:`, realError);
     throw new Error(`[${PROVIDER}] ${realError}`);
   }
