@@ -255,6 +255,7 @@ const ECONOMY_STEPS = [
  */
 export default function HealthRemixWeb3Ecosystem() {
   const { score, color } = useSimilarityScore()
+  const [showCameraSection, setShowCameraSection] = useState(false)
 
   return (
     <div className="hr-ecosystem hero-gradient-hr min-h-screen font-sans text-[#2d3436]">
@@ -354,12 +355,32 @@ export default function HealthRemixWeb3Ecosystem() {
       </section>
 
       {/* Tính năng Remix Sức Khỏe KOL bằng camera AI có pose — đặt NGAY
-          DƯỚI khối "2 khung xương pose" (User vs KOL) phía trên. Camera
-          mặc định KHÔNG mở sẵn, người dùng tự bấm nút bật/tắt (giữ
-          nguyên cơ chế toggle cũ của AIPoseCompareLivePanel.jsx). */}
+          DƯỚI khối "2 khung xương pose" (User vs KOL) phía trên. Trên
+          landing page KHÔNG mount component camera ngay từ đầu để trình
+          duyệt không có bất kỳ cơ hội nào xin quyền camera/model AI trước
+          khi người dùng chủ động bấm mở trải nghiệm. */}
       <section id="hr-camera-pose-compare" className="py-4">
         <div className="max-w-7xl mx-auto px-4">
-          <RemixSucKhoeKOLCameraSection variant="light" />
+          {showCameraSection ? (
+            <RemixSucKhoeKOLCameraSection variant="light" />
+          ) : (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 card-shadow-hr border border-gray-50 text-center">
+              <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full mb-3">
+                REMIX SỨC KHOẺ TỪ KOL
+              </span>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900">🎯 So Sánh Tư Thế (Camera AI)</h3>
+              <p className="text-sm text-gray-500 mt-2 max-w-2xl mx-auto leading-relaxed">
+                Camera mặc định đang tắt trên landing page. Bấm nút bên dưới khi bạn muốn tải khung Camera AI và tự bật camera trong trải nghiệm.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowCameraSection(true)}
+                className="mt-5 inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+              >
+                Mở trải nghiệm Camera AI
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
