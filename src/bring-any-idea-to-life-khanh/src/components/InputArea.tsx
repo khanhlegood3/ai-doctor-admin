@@ -78,9 +78,9 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     }
   };
 
-  // Ô nhập link chỉ nhận URL ảnh. Video cần upload trực tiếp từ máy
-  // tính/điện thoại để app xử lý video trước rồi mới lưu file gốc lên R2.
-  // Server vẫn tải ảnh thật qua imageUrlFetch.js để tránh CORS ở trình duyệt.
+  // Link YouTube/Facebook và URL ảnh vẫn giữ nguyên luồng logic cũ: link video
+  // được gửi vào nhánh videoUrl để AI xem trực tiếp, URL ảnh được server tải qua
+  // imageUrlFetch.js. Chỉ video upload từ máy/điện thoại mới cần xử lý trước R2.
   const handleLinkSubmit = (rawValue?: string) => {
     if (disabled || isGenerating) return;
     const raw = (rawValue ?? linkValue).trim();
@@ -206,8 +206,8 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
         </label>
       </div>
 
-      {/* Link input chỉ dành cho link ảnh. Video phải upload trực tiếp từ máy
-          tính/điện thoại để AI xử lý trước rồi mới lưu file gốc lên R2. */}
+      {/* Link input giữ nguyên luồng cũ cho YouTube/Facebook và URL ảnh. Chỉ video
+          upload từ máy/điện thoại mới được xử lý trước rồi sau đó mới lưu R2. */}
       <div className="mt-4 flex items-center gap-3 text-zinc-600">
         <div className="h-px flex-1 bg-zinc-800" />
         <span className="text-xs font-mono uppercase tracking-wider">or paste an image link</span>
