@@ -260,7 +260,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
           onClick={handleTryDemoImage}
           disabled={isGenerating || disabled}
           className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
-          title={DEMO_IMAGE_URL}
+          title={DEMO_VIDEO_URL}
         >
           <PhotoIcon className="w-3.5 h-3.5" />
           Try a demo image URL
