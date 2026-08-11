@@ -751,6 +751,14 @@ export default function LandingPageZeroToForever({
   // Hùng Hiến Tặng" (DonationHeroPanel.jsx: showCaptainKhanhPreview, iframe
   // captain-khanh-game.vercel.app).
   const [showCaptainKhanhGamePopup, setShowCaptainKhanhGamePopup] = useState(false)
+  // Khung game "Captain Khánh" ở ngay Hero section (trên đầu landing page) —
+  // trước đây mount iframe game này NGAY khi vừa load trang (không cần bấm
+  // gì), khiến game (webcam + audio + MediaPipe hand/face landmarker riêng
+  // của nó) tự chạy ngay lập tức và làm trang bị đơ ("Trang không phản hồi")
+  // với máy yếu/mạng chậm. Giờ chỉ hiện ảnh/nút "Chơi ngay" trước, mount
+  // iframe thật khi user bấm — cùng kiểu facade với showVibeTrackingSection/
+  // showDinoJumpSection ở trên và showCaptainKhanhGamePopup ở dưới.
+  const [heroCaptainKhanhGameStarted, setHeroCaptainKhanhGameStarted] = useState(false)
   // Domain hiện tại quyết định 1 lần khi mount — không đổi trong lúc dùng app.
   const [zofoQRCode] = useState(resolveZofoQRCodeByDomain)
 
@@ -897,17 +905,41 @@ export default function LandingPageZeroToForever({
                 </div>
               </div>
 
-              {/* Hero Right: Captain Khánh Game — thay vào vị trí NASA/Framer cũ. */}
+              {/* Hero Right: Captain Khánh Game — thay vào vị trí NASA/Framer cũ.
+                  Chỉ mount iframe game thật SAU KHI user bấm "Chơi ngay" (xem
+                  heroCaptainKhanhGameStarted ở trên) — trước đó chỉ hiện 1
+                  khung chờ tĩnh, không tự tải webcam/audio/MediaPipe của
+                  game ngay khi vừa mở landing page. */}
               <div className="relative w-full h-[340px] sm:h-[420px] lg:h-full lg:min-h-[500px]">
                 <div className="relative w-full h-full rounded-3xl overflow-hidden border border-white/10 zofo-shadow-neon-purple bg-white/5 backdrop-blur-sm">
-                  <iframe
-                    src="https://captain-khanh-game.vercel.app/"
-                    title="Captain Khánh Game"
-                    className="absolute inset-0 w-full h-full"
-                    style={{ border: 'none' }}
-                    loading="lazy"
-                    allow="clipboard-write; encrypted-media; picture-in-picture; gamepad"
-                  />
+                  {heroCaptainKhanhGameStarted ? (
+                    <iframe
+                      src="https://captain-khanh-game.vercel.app/"
+                      title="Captain Khánh Game"
+                      className="absolute inset-0 w-full h-full"
+                      style={{ border: 'none' }}
+                      loading="lazy"
+                      allow="clipboard-write; encrypted-media; picture-in-picture; gamepad"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setHeroCaptainKhanhGameStarted(true)}
+                      className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-4 text-white bg-gradient-to-br from-[#1a1030] via-[#0B132B] to-black cursor-pointer group"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/20 transition">
+                        <Play className="w-6 h-6 ml-0.5" />
+                      </div>
+                      <div className="text-center px-6">
+                        <div className="font-bold text-sm">
+                          {language === 'en' ? 'Captain Khánh Game' : 'Game Captain Khánh'}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {language === 'en' ? 'Tap to play' : 'Bấm để chơi ngay'}
+                        </div>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
