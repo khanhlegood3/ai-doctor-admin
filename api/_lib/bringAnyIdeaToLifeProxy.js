@@ -36,6 +36,7 @@
 import { GoogleGenAI } from '@google/genai'
 import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
+import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
   constructor(message, status = 500) {
@@ -64,7 +65,7 @@ const withTimeout = (promise, ms) => {
 
 // Giữ nguyên y hệt system instruction gốc trong services/gemini.ts.
 const SYSTEM_INSTRUCTION = `You are an expert AI Engineer and Product Designer specializing in "bringing artifacts to life".
-Your goal is to take a user uploaded file or video—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, a picture of a real-world object (like a messy desk), or a video (uploaded directly, or a YouTube/Facebook video link) showing a process, demo, tutorial, or scene—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
+Your goal is to take a user uploaded file or video—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, a picture of a real-world object (like a messy desk), or a video (uploaded directly, or a YouTube/Facebook video link) showing a process, demo, tutorial, or scene, or a webpage/homepage/channel URL whose text content describes a product, creator, community, or workflow—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
 
 CORE DIRECTIVES:
 1. **Analyze & Abstract**: Look at the image or watch the video.
@@ -74,6 +75,7 @@ CORE DIRECTIVES:
       - *Fruit Bowl* -> A nutrition tracker or a still-life painting app.
     - **Documents/Forms**: specific interactive wizards or dashboards.
     - **Videos**: Identify the key subject, action, process, or steps shown across the video (not just a single frame). If it's a tutorial or demo, turn it into an interactive step-by-step walkthrough or simulator of that process. If it's a real-world scene or activity, gamify it or build a utility inspired by what happens in it, same spirit as the real-world photo case above.
+    - **Webpages / Channels / Homepages**: Use the extracted page title, URL, headings, and text to infer the core brand, navigation, audience, products, and calls-to-action. Turn that into an interactive landing page, dashboard, guide, funnel, or mini-app inspired by the source.
 
 2. **NO EXTERNAL IMAGES**:
     - **CRITICAL**: Do NOT use <img src="..."> with external URLs (like imgur, placeholder.com, or generic internet URLs). They will fail.
@@ -203,7 +205,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource })
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, envSource }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
@@ -217,6 +219,20 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     } catch (err) {
       if (err instanceof ImageUrlFetchError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
       throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không tải được ảnh từ URL.', 502)
+    }
+  }
+
+
+  // "Đọc website/kênh/trang chủ từ URL": trích text server-side rồi ghép vào
+  // prompt text-only. Nhánh này cho phép áp dụng mọi link web http/https,
+  // không còn ép các link không phải video thành ảnh trực tiếp.
+  if (webUrl && !fileBase64 && !videoUrl && !imageUrl) {
+    try {
+      const page = await fetchWebpageText(webUrl)
+      prompt = `${prompt}\n\nSOURCE WEBPAGE URL: ${page.url}\nSOURCE WEBPAGE TITLE: ${page.title || 'Untitled'}\nSOURCE WEBPAGE TEXT:\n${page.text}`
+    } catch (err) {
+      if (err instanceof WebpageTextError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
+      throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không đọc được nội dung trang web.', 502)
     }
   }
 
