@@ -77,6 +77,7 @@ const AvatarCreatorPanel = lazy(() => import('./components/AvatarCreatorPanel.js
 const AIChatbotControlPanel = lazy(() => import('./components/AIChatbotControlPanel.jsx'))
 const ComicHeroGamePanel = lazy(() => import('./components/comicHero/ComicHeroGamePanel.jsx'))
 const ComicIssueLibraryPanel = lazy(() => import('./components/comicHero/ComicIssueLibraryPanel.jsx'))
+const PrismHairPanel = lazy(() => import('./components/PrismHairPanel.jsx'))
 const PetPassportAdventurePanel = lazy(() => import('./components/petPassport/PetPassportAdventurePanel.jsx'))
 const ChessChatPanel = lazy(() => import('./components/ChessChatPanel.jsx'))
 const Make3DModelPanel = lazy(() => import('./components/Make3DModelPanel.jsx'))
@@ -318,6 +319,7 @@ export default function App() {
     avatarCreator: 'Tạo Avatar',
     comicHeroGame: 'Tạo Game bằng Avatar của Tôi',
     comicIssueLibrary: 'Thư Viện Truyện Của Tôi',
+    prismHair: 'Prism Hair - Đổi Màu Tóc',
     chessChat: 'Chess Chat',
     petPassportAdventure: 'Pet Passport Adventure',
     make3DModel: 'Make 3D Model',
@@ -809,6 +811,7 @@ export default function App() {
             {active === 'avatarCreator' && <AvatarCreatorPanel />}
             {active === 'comicHeroGame' && <ComicHeroGamePanel />}
             {active === 'comicIssueLibrary' && <ComicIssueLibraryPanel onCreateNew={() => setActive('comicHeroGame')} />}
+            {active === 'prismHair' && <PrismHairPanel />}
             {active === 'chessChat' && <ChessChatPanel />}
             {active === 'petPassportAdventure' && <PetPassportAdventurePanel />}
             {active === 'make3DModel' && user?.isAdmin && <Make3DModelPanel />}

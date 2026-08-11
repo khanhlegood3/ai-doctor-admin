@@ -385,6 +385,7 @@ export default defineConfig(({ mode }) => {
           videoToLearningKhanh: resolve(__dirname, 'src/video-to-learning-khanh/index.html'),
           videoToLearningKhanhAdmin: resolve(__dirname, 'src/video-to-learning-khanh/admin.html'),
           dinoJumpKhanh: resolve(__dirname, 'src/dino-jump-khanh/index.html'),
+          prismHairKhanh: resolve(__dirname, 'src/prism-hair-khanh/index.html'),
           dinoPalKhanh: resolve(__dirname, 'src/dino-pal-khanh/index.html'),
           vibeTrackingKhanh: resolve(__dirname, 'src/vibe-tracking-khanh/index.html'),
           vibeCheckKhanh: resolve(__dirname, 'src/vibe-check-khanh/index.html'),
