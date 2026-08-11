@@ -4,7 +4,7 @@
 */
 import React, { useCallback, useState, useEffect } from 'react';
 import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon, PhotoIcon } from '@heroicons/react/24/outline';
-import { classifyVideoUrl } from '../lib/videoLink';
+import { classifyVideoUrl, isKnownVideoHost } from '../lib/videoLink';
 
 // Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try demo
 // image" sẽ tự điền link này vào ô nhập, không tự động gọi AI.
@@ -79,10 +79,9 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     }
   };
 
-  // 1 ô nhập chung cho cả link video (YouTube/Facebook) lẫn link ảnh: thử phân
-  // loại video trước (classifyVideoUrl), nếu không khớp thì coi cả chuỗi còn
-  // lại là link ẢNH (miễn là 1 URL http/https hợp lệ) — xem imageUrlFetch.js
-  // ở server cho bước tải ảnh thật.
+  // Link YouTube/Facebook và URL ảnh vẫn giữ nguyên luồng logic cũ: link video
+  // được gửi vào nhánh videoUrl để AI xem trực tiếp, URL ảnh được server tải qua
+  // imageUrlFetch.js. Chỉ video upload từ máy/điện thoại mới cần xử lý trước R2.
   const handleLinkSubmit = (rawValue?: string) => {
     if (disabled || isGenerating) return;
     const raw = (rawValue ?? linkValue).trim();
@@ -92,6 +91,16 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     if (classifiedVideo) {
       setLinkError(null);
       onGenerate("", undefined, classifiedVideo.url);
+      return;
+    }
+
+    // Một số link YouTube/Facebook hợp lệ (ví dụ live/share/reel URL mới) có
+    // thể chưa lấy được video id bằng parser rút gọn. Vẫn giữ đúng luồng cũ:
+    // gửi link vào videoUrl để backend/Gemini xử lý, tuyệt đối không coi chúng
+    // là URL ảnh rồi gọi imageUrlFetch (sẽ báo content-type text/html).
+    if (isKnownVideoHost(raw)) {
+      setLinkError(null);
+      onGenerate("", undefined, normalizeUrl(raw));
       return;
     }
 
@@ -200,7 +209,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
                     </h3>
                     <p className="text-zinc-500 text-xs sm:text-base md:text-lg font-light tracking-wide">
                         <span className="hidden md:inline">Drag & Drop</span>
-                        <span className="md:hidden">Tap</span> to upload an image, PDF, or video
+                        <span className="md:hidden">Tap</span> to upload an image, PDF, or video — uploaded videos are processed before R2 storage
                     </p>
                 </div>
             </div>
@@ -215,9 +224,8 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
         </label>
       </div>
 
-      {/* Link input chung (video YouTube/Facebook HOẶC ảnh) — mang từ "Video to
-          Learning" sang cho video, và thêm mới "đọc hình từ URL" cho ảnh: server
-          tự phân loại/tải nội dung, người dùng chỉ cần dán 1 link duy nhất. */}
+      {/* Link input giữ nguyên luồng cũ cho YouTube/Facebook và URL ảnh. Chỉ video
+          upload từ máy/điện thoại mới được xử lý trước rồi sau đó mới lưu R2. */}
       <div className="mt-4 flex items-center gap-3 text-zinc-600">
         <div className="h-px flex-1 bg-zinc-800" />
         <span className="text-xs font-mono uppercase tracking-wider">or paste a video/image link</span>
