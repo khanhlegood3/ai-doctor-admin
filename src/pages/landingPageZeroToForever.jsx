@@ -548,6 +548,26 @@ function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage
 }
 
 /* ── Shared: Hero nhỏ dùng ở đầu mỗi trang con (khác trang chủ) ── */
+// Khung chờ tĩnh dùng chung cho MỌI nơi nhúng iframe camera/AI nặng
+// (MediaPipe/Tone.js/webcam) trên landing page — CHỈ mount iframe thật sau
+// khi user bấm, tránh lặp lại đúng lỗi "đơ trang / Trang không phản hồi" đã
+// gặp với khung Captain Khánh Game ở Hero (xem heroCaptainKhanhGameStarted).
+function TapToLoadHeavyEmbed({ started, onStart, label, height = 'h-[420px] sm:h-[480px]', className = '' }) {
+  if (started) return null
+  return (
+    <button
+      type="button"
+      onClick={onStart}
+      className={`w-full ${height} rounded-2xl border border-white/10 bg-gradient-to-br from-[#1a1030] via-[#0B132B] to-black flex flex-col items-center justify-center gap-4 text-white cursor-pointer group ${className}`}
+    >
+      <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/20 transition">
+        <Play className="w-6 h-6 ml-0.5" />
+      </div>
+      <div className="text-sm font-bold text-center px-6">{label}</div>
+    </button>
+  )
+}
+
 function PageHero({ eyebrow, title, subtitle, icon: Icon }) {
   return (
     <header className="zofo-hero-section min-h-[54vh] flex items-end pt-32 pb-16 px-6 lg:px-12 relative overflow-hidden">
@@ -759,6 +779,15 @@ export default function LandingPageZeroToForever({
   // iframe thật khi user bấm — cùng kiểu facade với showVibeTrackingSection/
   // showDinoJumpSection ở trên và showCaptainKhanhGamePopup ở dưới.
   const [heroCaptainKhanhGameStarted, setHeroCaptainKhanhGameStarted] = useState(false)
+  // Cùng pattern "chỉ mount iframe sau khi user bấm" với heroCaptainKhanhGameStarted
+  // ở trên — áp dụng thêm cho khung Vision Sync trong trang "Sản phẩm" và 3 khung
+  // Vibe Tracking / Dino Jump / Bring Any Idea trong trang "Game sức khỏe", vì các
+  // trang đó trước đây mount iframe camera/AI ngay khi vừa CHUYỂN TRANG (chưa cần
+  // bấm gì thêm), có thể gây đơ trang y hệt lỗi Captain Khánh Game ở Hero.
+  const [productsVisionSyncStarted, setProductsVisionSyncStarted] = useState(false)
+  const [gameSucKhoeVibeTrackingStarted, setGameSucKhoeVibeTrackingStarted] = useState(false)
+  const [gameSucKhoeDinoJumpStarted, setGameSucKhoeDinoJumpStarted] = useState(false)
+  const [gameSucKhoeBringIdeaStarted, setGameSucKhoeBringIdeaStarted] = useState(false)
   // Domain hiện tại quyết định 1 lần khi mount — không đổi trong lúc dùng app.
   const [zofoQRCode] = useState(resolveZofoQRCodeByDomain)
 
@@ -1881,28 +1910,57 @@ export default function LandingPageZeroToForever({
           />
 
           {/* Vibe Tracking — đặt lên đầu trang sub-menu "Game sức khỏe"
-              trước game khủng long để đồng bộ với đầu trang landing. */}
+              trước game khủng long để đồng bộ với đầu trang landing. Chỉ
+              mount iframe thật SAU KHI user bấm (cùng pattern với Hero) —
+              trước đây mount ngay khi vừa CHUYỂN sang trang này, đủ nặng để
+              gây "Trang không phản hồi" y hệt lỗi Captain Khánh Game. */}
           <section className="w-full max-w-none mx-auto px-3 sm:px-4 lg:px-6 -mt-10 pb-6 overflow-hidden">
             <div className="rounded-3xl bg-[#0B132B] p-1 sm:p-2 overflow-hidden">
-              <VibeTrackingEmbedSection lang={language} />
+              {gameSucKhoeVibeTrackingStarted ? (
+                <VibeTrackingEmbedSection lang={language} />
+              ) : (
+                <TapToLoadHeavyEmbed
+                  started={false}
+                  onStart={() => setGameSucKhoeVibeTrackingStarted(true)}
+                  label={language === 'vi' ? 'Bấm để mở Vibe Tracking' : 'Tap to open Vibe Tracking'}
+                />
+              )}
             </div>
           </section>
 
           {/* Tính năng khủng long nhảy bằng camera AI có pose — nằm ngay sau
-              Vibe Tracking trong sub-menu "Game sức khỏe". */}
+              Vibe Tracking trong sub-menu "Game sức khỏe". Cũng chỉ mount
+              iframe thật sau khi user bấm, lý do như trên. */}
           <section className="container mx-auto max-w-5xl px-4 lg:px-8 pb-16">
             <div className="rounded-3xl bg-[#0B132B] p-2">
-              <PoseCameraDinoJumpSection lang={language} variant="hero" />
+              {gameSucKhoeDinoJumpStarted ? (
+                <PoseCameraDinoJumpSection lang={language} variant="hero" />
+              ) : (
+                <TapToLoadHeavyEmbed
+                  started={false}
+                  onStart={() => setGameSucKhoeDinoJumpStarted(true)}
+                  label={language === 'vi' ? '🦖 Bấm để chơi Khủng Long Nhảy' : '🦖 Tap to play Dino Jump'}
+                />
+              )}
             </div>
           </section>
 
           {/* "Bring Any Idea to Life" — mang từ trong app (chỉ dành cho user
               đã đăng nhập) ra menu game công khai trên landing page, đặt sau
               Dino Jump trong sub-menu "Game sức khỏe" để ai cũng thử được
-              ngay mà không cần đăng nhập. */}
+              ngay mà không cần đăng nhập. Cũng chỉ mount iframe thật sau khi
+              user bấm, lý do như trên. */}
           <section className="w-full max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-6 pb-16 overflow-hidden">
             <div className="rounded-3xl bg-[#0B132B] p-1 sm:p-2 overflow-hidden">
-              <BringAnyIdeaToLifeEmbedSection lang={language} variant="hero" />
+              {gameSucKhoeBringIdeaStarted ? (
+                <BringAnyIdeaToLifeEmbedSection lang={language} variant="hero" />
+              ) : (
+                <TapToLoadHeavyEmbed
+                  started={false}
+                  onStart={() => setGameSucKhoeBringIdeaStarted(true)}
+                  label={language === 'vi' ? 'Bấm để mở Bring Any Idea to Life' : 'Tap to open Bring Any Idea to Life'}
+                />
+              )}
             </div>
           </section>
 
@@ -1989,13 +2047,21 @@ export default function LandingPageZeroToForever({
                 </div>
               </div>
               <div className="ai-healthcare-vision-frame-card">
-                <iframe
-                  title="AI Pose Camera + Vibe Music"
-                  src={VISION_SYNC_APP_URL}
-                  className="ai-healthcare-vision-frame"
-                  allow="camera; microphone; fullscreen; clipboard-read; clipboard-write"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
+                {productsVisionSyncStarted ? (
+                  <iframe
+                    title="AI Pose Camera + Vibe Music"
+                    src={VISION_SYNC_APP_URL}
+                    className="ai-healthcare-vision-frame"
+                    allow="camera; microphone; fullscreen; clipboard-read; clipboard-write"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                ) : (
+                  <TapToLoadHeavyEmbed
+                    started={false}
+                    onStart={() => setProductsVisionSyncStarted(true)}
+                    label={language === 'vi' ? 'Bấm để mở camera AI Pose + Nhạc theo Vibe' : 'Tap to open the AI Pose Camera + Vibe Music'}
+                  />
+                )}
               </div>
             </div>
 
