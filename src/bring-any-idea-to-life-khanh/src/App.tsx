@@ -248,6 +248,19 @@ const App: React.FC = () => {
     }
   };
 
+
+  const handleCreateFromLink = async (link: string) => {
+    const trimmed = link.trim();
+    if (!trimmed) return;
+    // Reuse the same classifier path as the landing input so image URLs,
+    // YouTube links, Facebook video links, and generic webpages create a fresh
+    // version instead of mutating the existing app result.
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const lower = normalized.toLowerCase();
+    const isVideoLink = lower.includes('youtube.com/') || lower.includes('youtu.be/') || lower.includes('facebook.com/') || lower.includes('fb.watch/');
+    await handleGenerate('', undefined, isVideoLink ? normalized : undefined, isVideoLink ? undefined : normalized);
+  };
+
   const handleReset = () => {
     setActiveCreation(null);
     setIsGenerating(false);
@@ -517,6 +530,7 @@ ${message}`);
         onUploadMissingSource={handleUploadMissingSource}
         onDeleteUploadedSource={handleDeleteUploadedSource}
         onRegenerateFromUploadedSource={handleRegenerateFromUploadedSource}
+        onCreateFromLink={handleCreateFromLink}
       />
 
       {/* Subtle Import Button (Bottom Right) */}
