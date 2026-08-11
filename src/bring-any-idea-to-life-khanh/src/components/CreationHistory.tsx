@@ -25,6 +25,41 @@ interface CreationHistoryProps {
 
 const ITEMS_PER_PAGE = 5;
 
+function getCreationSourceKey(item: Creation): string {
+  if (item.videoUrl) return `video:${item.videoUrl}`;
+  if (item.originalImage && !item.originalImage.startsWith('data:')) return `source:${item.originalImage}`;
+  return `single:${item.id}`;
+}
+
+function getCreationSourceLabel(item: Creation): string {
+  if (item.videoUrl) return item.videoUrl;
+  if (item.originalImage && !item.originalImage.startsWith('data:')) return item.originalImage;
+  return item.name;
+}
+
+interface CreationGroup {
+  key: string;
+  label: string;
+  items: Creation[];
+  latest: Creation;
+}
+
+function groupCreationsBySource(history: Creation[]): CreationGroup[] {
+  const groups = new Map<string, CreationGroup>();
+  history.forEach((item) => {
+    const key = getCreationSourceKey(item);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.items.push(item);
+      existing.items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      existing.latest = existing.items[0];
+    } else {
+      groups.set(key, { key, label: getCreationSourceLabel(item), items: [item], latest: item });
+    }
+  });
+  return Array.from(groups.values()).sort((a, b) => b.latest.timestamp.getTime() - a.latest.timestamp.getTime());
+}
+
 export function buildSafePreviewSrcDoc(html: string): string {
   const baseStyle = '<style>html,body{background:#ffffff;color:#111111;color-scheme:light;}</style>';
 
@@ -69,9 +104,10 @@ const SourceThumbnail: React.FC<{ item: Creation; isPdf: boolean; isVideo: boole
 
 export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onLoadR2, isLoadingR2 }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(history.length / ITEMS_PER_PAGE));
+  const groupedHistory = useMemo(() => groupCreationsBySource(history), [history]);
+  const pageCount = Math.max(1, Math.ceil(groupedHistory.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const visibleHistory = useMemo(() => history.slice(startIndex, startIndex + ITEMS_PER_PAGE), [history, startIndex]);
+  const visibleGroups = useMemo(() => groupedHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE), [groupedHistory, startIndex]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, pageCount));
@@ -82,7 +118,7 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
   const paginationControls = history.length > 0 ? (
     <div className="flex flex-col gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-2 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-500">
-        Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, history.length)} of {history.length} creations · 5 per page
+        Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, groupedHistory.length)} of {groupedHistory.length} source groups · {history.length} versions
       </span>
       <div className="flex items-center gap-2">
         <button
@@ -130,12 +166,13 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
         <div className="px-2 pb-2 text-xs text-zinc-600">No local history yet. Load previous searches from R2 to restore saved creations.</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 px-2 pb-2 lg:grid-cols-5">
-          {visibleHistory.map((item) => {
+          {visibleGroups.map((group) => {
+            const item = group.latest;
             const isPdf = item.originalImage?.startsWith('data:application/pdf') ?? false;
             const isVideo = Boolean(item.videoUrl) || (item.originalImage?.startsWith('data:video') ?? false);
             return (
               <button
-                key={item.id}
+                key={group.key}
                 onClick={() => onSelect(item)}
                 className="group relative flex min-h-[21rem] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/50 text-left transition-all duration-200 hover:-translate-y-1 hover:border-blue-500/60 hover:bg-zinc-900 hover:shadow-2xl hover:shadow-blue-950/20"
               >
@@ -160,15 +197,32 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
                 <div className="flex flex-1 flex-col p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <span className="rounded-full border border-zinc-700 bg-zinc-800/80 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                      {isVideo ? 'Video' : isPdf ? 'PDF' : item.originalImage ? 'Image' : 'HTML'}
+                      {group.items.length > 1 ? `${group.items.length} versions` : isVideo ? 'Video' : isPdf ? 'PDF' : item.originalImage ? 'Image' : 'HTML'}
                     </span>
                     <span className="shrink-0 text-[10px] font-mono text-zinc-600 group-hover:text-zinc-400">
                       {item.timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' })} · {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <h3 className="line-clamp-2 text-sm font-semibold text-zinc-200 group-hover:text-white">{item.name}</h3>
+                  <p className="mt-2 line-clamp-2 break-all text-[10px] leading-4 text-zinc-500">{group.label}</p>
+                  {group.items.length > 1 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5" onClick={(event) => event.stopPropagation()}>
+                      {group.items.slice(0, 6).map((version, index) => (
+                        <button
+                          key={version.id}
+                          type="button"
+                          onClick={() => onSelect(version)}
+                          className="rounded-full border border-zinc-700 bg-zinc-950/80 px-2 py-1 text-[10px] font-bold text-zinc-300 transition-colors hover:border-blue-400 hover:text-blue-200"
+                          title={`${version.name} · ${version.timestamp.toLocaleString()}`}
+                        >
+                          v{group.items.length - index}
+                        </button>
+                      ))}
+                      {group.items.length > 6 && <span className="px-1 py-1 text-[10px] text-zinc-500">+{group.items.length - 6}</span>}
+                    </div>
+                  )}
                   <div className="mt-auto flex items-center space-x-1 pt-4 opacity-80 transition-opacity group-hover:opacity-100">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">Restore preview</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">Restore latest preview</span>
                     <ArrowRightIcon className="w-3 h-3 text-blue-400" />
                   </div>
                 </div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon, TrashIcon, ArrowPathIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
@@ -15,6 +15,7 @@ interface LivePreviewProps {
   onUploadMissingSource?: (creation: Creation, file: File) => Promise<void>;
   onDeleteUploadedSource?: (creation: Creation) => Promise<void>;
   onRegenerateFromUploadedSource?: (creation: Creation) => Promise<void>;
+  onCreateFromLink?: (link: string) => Promise<void>;
 }
 
 // Add type definition for the global pdfjsLib
@@ -135,11 +136,14 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
     const [isUploadingSource, setIsUploadingSource] = useState(false);
     const [isDeletingSource, setIsDeletingSource] = useState(false);
+    const [isEditingLink, setIsEditingLink] = useState(false);
+    const [editableLink, setEditableLink] = useState('');
+    const [isCreatingFromLink, setIsCreatingFromLink] = useState(false);
     const missingSourceInputRef = useRef<HTMLInputElement>(null);
 
     // Handle loading animation steps
@@ -166,6 +170,34 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
         }
     }, [creation, onUploadMissingSource]);
 
+
+
+    useEffect(() => {
+        const currentLink = creation?.videoUrl || (creation?.originalImage && !creation.originalImage.startsWith('data:') ? creation.originalImage : '');
+        setEditableLink(currentLink || '');
+        setIsEditingLink(false);
+    }, [creation]);
+
+    const handleCreateFromEditedLink = async () => {
+        if (!onCreateFromLink || !editableLink.trim()) return;
+        setIsCreatingFromLink(true);
+        try {
+            await onCreateFromLink(editableLink.trim());
+            setIsEditingLink(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            alert(`Không tạo được app mới từ link:
+
+${message}`);
+        } finally {
+            setIsCreatingFromLink(false);
+        }
+    };
+
+    const setLinkTemplate = (value: string) => {
+        setEditableLink(value);
+        setIsEditingLink(true);
+    };
 
     const handleMissingSourceChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -280,6 +312,16 @@ ${message}`);
                             className={`p-1.5 rounded-md transition-all ${showSplitView ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
                         >
                             <ViewColumnsIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {onCreateFromLink && (
+                        <button
+                            onClick={() => setIsEditingLink((value) => !value)}
+                            title="Sửa hoặc thêm link ảnh/YouTube/Facebook để tạo app mới"
+                            className={`text-zinc-500 hover:text-blue-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800 ${isEditingLink ? 'bg-zinc-800 text-blue-300' : ''}`}
+                        >
+                            <LinkIcon className="w-4 h-4" />
                         </button>
                     )}
 
@@ -405,6 +447,33 @@ ${message}`);
                             </button>
                         )}
                     </div>
+                    {isEditingLink && onCreateFromLink && (
+                        <div className="absolute left-4 right-4 top-16 z-20 rounded-2xl border border-blue-500/30 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <button type="button" onClick={() => setLinkTemplate('https://kimi-img.moonshot.cn/pub/websites/template/full-images/10-calm-space-fullstack-en-long.png')} className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-300 hover:border-blue-400 hover:text-blue-200">Ảnh URL</button>
+                                <button type="button" onClick={() => setLinkTemplate('https://youtube.com/shorts/hgla1njz9aw?si=DmH8ED7Vqld7tXGu')} className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-300 hover:border-blue-400 hover:text-blue-200">YouTube</button>
+                                <button type="button" onClick={() => setLinkTemplate('https://www.facebook.com/watch/?v=')} className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-300 hover:border-blue-400 hover:text-blue-200">Facebook video</button>
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                    type="text"
+                                    value={editableLink}
+                                    onChange={(event) => setEditableLink(event.target.value)}
+                                    placeholder="Dán link ảnh, YouTube Shorts/video, Facebook video hoặc website"
+                                    className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-blue-500"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleCreateFromEditedLink}
+                                    disabled={isCreatingFromLink || !editableLink.trim()}
+                                    className="rounded-lg bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-black transition-colors hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isCreatingFromLink ? 'Đang tạo...' : 'Tạo app mới'}
+                                </button>
+                            </div>
+                            <p className="mt-2 text-[10px] leading-4 text-zinc-500">Mỗi lần tạo từ link mới sẽ lưu thành một version mới và được gom nhóm trong Archive theo cùng nguồn/thumbnail.</p>
+                        </div>
+                    )}
                     <div className="w-full h-full p-6 flex items-center justify-center overflow-hidden">
                         {creation.videoUrl ? (
                             (() => {
