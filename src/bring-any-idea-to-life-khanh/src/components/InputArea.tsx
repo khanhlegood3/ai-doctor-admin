@@ -4,7 +4,6 @@
 */
 import React, { useCallback, useState, useEffect } from 'react';
 import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon, PhotoIcon } from '@heroicons/react/24/outline';
-import { classifyVideoUrl } from '../lib/videoLink';
 
 // Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try demo
 // image" sẽ tự điền link này vào ô nhập, không tự động gọi AI.
@@ -87,20 +86,13 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     const raw = (rawValue ?? linkValue).trim();
     if (!raw) return;
 
-    const classifiedVideo = classifyVideoUrl(raw);
-    if (classifiedVideo) {
-      setLinkError(null);
-      onGenerate("", undefined, classifiedVideo.url);
-      return;
-    }
-
     if (isHttpUrl(raw)) {
       setLinkError(null);
       onGenerate("", undefined, undefined, normalizeUrl(raw));
       return;
     }
 
-    setLinkError('Vui lòng dán một link video YouTube/Facebook, hoặc link ảnh hợp lệ.');
+    setLinkError('Vui lòng dán một link ảnh hợp lệ, hoặc tải video trực tiếp từ máy tính/điện thoại.');
   };
 
   const handleLinkKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -218,7 +210,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
           upload từ máy/điện thoại mới được xử lý trước rồi sau đó mới lưu R2. */}
       <div className="mt-4 flex items-center gap-3 text-zinc-600">
         <div className="h-px flex-1 bg-zinc-800" />
-        <span className="text-xs font-mono uppercase tracking-wider">or paste a video/image link</span>
+        <span className="text-xs font-mono uppercase tracking-wider">or paste an image link</span>
         <div className="h-px flex-1 bg-zinc-800" />
       </div>
 
@@ -234,7 +226,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
             }}
             onKeyDown={handleLinkKeyDown}
             disabled={isGenerating || disabled}
-            placeholder="YouTube/Facebook video link, or a direct image URL (.png, .jpg...)"
+            placeholder="Direct image URL (.png, .jpg...)"
             className={`w-full rounded-lg bg-zinc-900/50 border px-3 py-2.5 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50 ${
               linkError ? 'border-red-500/60 focus:border-red-500' : 'border-zinc-700 focus:border-blue-500'
             }`}
