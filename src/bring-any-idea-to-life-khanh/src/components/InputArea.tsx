@@ -4,6 +4,7 @@
 */
 import React, { useCallback, useState, useEffect } from 'react';
 import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { classifyVideoUrl, isKnownVideoHost } from '../lib/videoLink';
 
 // Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try demo
 // image" sẽ tự điền link này vào ô nhập, không tự động gọi AI.
@@ -85,6 +86,23 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
     if (disabled || isGenerating) return;
     const raw = (rawValue ?? linkValue).trim();
     if (!raw) return;
+
+    const classifiedVideo = classifyVideoUrl(raw);
+    if (classifiedVideo) {
+      setLinkError(null);
+      onGenerate("", undefined, classifiedVideo.url);
+      return;
+    }
+
+    // Một số link YouTube/Facebook hợp lệ (ví dụ live/share/reel URL mới) có
+    // thể chưa lấy được video id bằng parser rút gọn. Vẫn giữ đúng luồng cũ:
+    // gửi link vào videoUrl để backend/Gemini xử lý, tuyệt đối không coi chúng
+    // là URL ảnh rồi gọi imageUrlFetch (sẽ báo content-type text/html).
+    if (isKnownVideoHost(raw)) {
+      setLinkError(null);
+      onGenerate("", undefined, normalizeUrl(raw));
+      return;
+    }
 
     if (isHttpUrl(raw)) {
       setLinkError(null);

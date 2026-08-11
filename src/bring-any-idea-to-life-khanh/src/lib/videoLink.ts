@@ -35,6 +35,10 @@ export function getYouTubeVideoId(url: string): string | null {
         const id = parsedUrl.pathname.substring(7);
         if (id && id.length === 11) return id;
       }
+      if (parsedUrl.pathname.startsWith('/live/')) {
+        const id = parsedUrl.pathname.split('/')[2];
+        if (id && id.length === 11) return id;
+      }
     }
     if (parsedUrl.hostname === 'youtu.be') {
       const videoId = parsedUrl.pathname.substring(1);
@@ -43,7 +47,7 @@ export function getYouTubeVideoId(url: string): string | null {
   } catch {
     // fallthrough to regex below
   }
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|&v=)([^#&?]*).*/;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|live\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   if (match && match[2]?.length === 11) return match[2];
   return null;
@@ -53,18 +57,28 @@ function isFacebookVideoPath(pathname: string): boolean {
   return /\/(videos|watch|reel|share\/v|share\/r)\b/i.test(pathname) || pathname === '/watch';
 }
 
-/** Trả về null nếu KHÔNG phải link video YouTube/Facebook hợp lệ (vd trang chủ, kênh, link web bất kỳ). */
-export function classifyVideoUrl(rawInput: string): ClassifiedVideoLink | null {
+function parseHttpUrl(rawInput: string): URL | null {
   const raw = rawInput.trim();
   if (!raw) return null;
-
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  let parsed: URL;
   try {
-    parsed = new URL(withScheme);
+    return new URL(withScheme);
   } catch {
     return null;
   }
+}
+
+export function isKnownVideoHost(rawInput: string): boolean {
+  const parsed = parseHttpUrl(rawInput);
+  if (!parsed) return false;
+  const hostname = parsed.hostname.toLowerCase();
+  return YOUTUBE_HOSTS.has(hostname) || FACEBOOK_HOSTS.has(hostname);
+}
+
+/** Trả về null nếu KHÔNG phải link video YouTube/Facebook hợp lệ (vd trang chủ, kênh, link web bất kỳ). */
+export function classifyVideoUrl(rawInput: string): ClassifiedVideoLink | null {
+  const parsed = parseHttpUrl(rawInput);
+  if (!parsed) return null;
 
   const hostname = parsed.hostname.toLowerCase();
 
