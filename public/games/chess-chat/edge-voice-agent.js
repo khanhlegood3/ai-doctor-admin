@@ -241,11 +241,15 @@
     if (!state.hasRunCommand) setStatus(strings.readyStatus);
     updateActivePieceUI();
   };
+  const LANG_CHANGE_EVENT = 'chesschat:lang-changed';
   const setLang = (lang) => {
     state.lang = lang;
     localStorage.setItem(LANG_STORAGE_KEY, lang);
     applyLanguageTexts();
     applyOpenState();
+    // Báo cho React app (src/App.tsx) đồng bộ ngôn ngữ UI + ngôn ngữ AI
+    // (system prompt, STT, TTS) — xem src/lib/i18n.ts / SettingsContext.tsx.
+    window.dispatchEvent(new CustomEvent(LANG_CHANGE_EVENT, { detail: { lang } }));
   };
 
   // --- Upload / Reset ảnh quân cờ (qua window.ChessChatBridge do React app cung cấp) ---
@@ -346,6 +350,17 @@
     window.addEventListener('chesschat:active-piece-changed', (e) => {
       state.activePiece = e.detail || null;
       updateActivePieceUI();
+    });
+    // Nếu ngôn ngữ bị đổi từ phía React (ví dụ sau này có toggle trong app),
+    // đồng bộ lại UI của widget này theo.
+    window.addEventListener(LANG_CHANGE_EVENT, (e) => {
+      const newLang = e.detail?.lang;
+      if ((newLang === 'vi' || newLang === 'en') && newLang !== state.lang) {
+        state.lang = newLang;
+        localStorage.setItem(LANG_STORAGE_KEY, newLang);
+        applyLanguageTexts();
+        applyOpenState();
+      }
     });
 
     applyOpenState();
