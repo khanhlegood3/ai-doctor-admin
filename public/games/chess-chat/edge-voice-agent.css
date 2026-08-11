@@ -17,6 +17,7 @@
   box-shadow: 0 18px 55px rgba(0, 0, 0, .38), 0 0 40px rgba(59, 130, 246, .16);
   overflow: hidden;
   backdrop-filter: blur(16px);
+  transition: opacity .18s ease, transform .18s ease;
 }
 .edge-voice-agent__header {
   display: flex;
@@ -25,6 +26,7 @@
   padding: 12px 14px;
   border-bottom: 1px solid rgba(148, 163, 184, .22);
 }
+.edge-voice-agent__header-text { flex: 1 1 auto; min-width: 0; }
 .edge-voice-agent__orb {
   width: 38px;
   height: 38px;
@@ -37,7 +39,7 @@
 .edge-voice-agent__title { font-size: 13px; font-weight: 700; letter-spacing: .02em; }
 .edge-voice-agent__subtitle { color: #bfdbfe; font-size: 11px; line-height: 1.35; }
 .edge-voice-agent__body { padding: 12px 14px 14px; }
-.edge-voice-agent__controls { display: flex; gap: 8px; margin-bottom: 10px; }
+.edge-voice-agent__controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .edge-voice-agent__button {
   border: 1px solid rgba(125, 211, 252, .45);
   border-radius: 999px;
@@ -47,12 +49,22 @@
   cursor: pointer;
   font: inherit;
   font-size: 12px;
-  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .edge-voice-agent__button:hover { transform: translateY(-1px); background: rgba(14, 165, 233, .24); }
 .edge-voice-agent__button--primary { background: rgba(37, 99, 235, .72); border-color: rgba(147, 197, 253, .78); }
 .edge-voice-agent__button--danger { background: rgba(239, 68, 68, .18); border-color: rgba(248, 113, 113, .42); }
-.edge-voice-agent__status, .edge-voice-agent__transcript, .edge-voice-agent__hint {
+.edge-voice-agent__button[disabled],
+.edge-voice-agent__upload.is-disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+}
+.edge-voice-agent__status, .edge-voice-agent__transcript, .edge-voice-agent__hint, .edge-voice-agent__piece-label {
   border-radius: 12px;
   padding: 9px 10px;
   background: rgba(15, 23, 42, .6);
@@ -64,6 +76,74 @@
 .edge-voice-agent__transcript { color: #fef3c7; min-height: 36px; }
 .edge-voice-agent__hint { color: #cbd5e1; }
 .edge-voice-agent__hint code { color: #93c5fd; }
+.edge-voice-agent__piece-label { color: #a7f3d0; }
+.edge-voice-agent__divider {
+  height: 1px;
+  margin: 12px 0 4px;
+  background: rgba(148, 163, 184, .22);
+}
+.edge-voice-agent__image-title {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+/* --- Toggle mở/đóng widget --- */
+.edge-voice-agent__collapse {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, .35);
+  background: rgba(15, 23, 42, .5);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.edge-voice-agent__collapse:hover { background: rgba(59, 130, 246, .28); }
+.edge-voice-agent__reopen {
+  display: none;
+  pointer-events: auto;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, .55);
+  background: linear-gradient(145deg, rgba(37, 99, 235, .92), rgba(15, 23, 42, .92));
+  color: #f8fafc;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .4), 0 0 24px rgba(59, 130, 246, .35);
+}
+.edge-voice-agent.is-collapsed .edge-voice-agent__card { display: none; }
+.edge-voice-agent.is-collapsed .edge-voice-agent__reopen { display: block; }
+
+/* --- Toggle ngôn ngữ VI/EN --- */
+.edge-voice-agent__lang-toggle {
+  flex: 0 0 auto;
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 197, 253, .55);
+  background: rgba(37, 99, 235, .22);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+.edge-voice-agent__lang-toggle:hover { background: rgba(37, 99, 235, .38); }
+
 @keyframes edge-voice-pulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 18px rgba(96, 165, 250, .75); }
   50% { transform: scale(1.08); box-shadow: 0 0 34px rgba(96, 165, 250, 1); }
