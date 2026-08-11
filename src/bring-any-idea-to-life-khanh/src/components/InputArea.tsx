@@ -6,9 +6,9 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { ArrowUpTrayIcon, SparklesIcon, CpuChipIcon, LinkIcon, PhotoIcon, FilmIcon } from '@heroicons/react/24/outline';
 import { classifyVideoUrl } from '../lib/videoLink';
 
-// Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try demo
-// image" sẽ tự điền link này vào ô nhập, không tự động gọi AI.
-const DEMO_IMAGE_URL = 'https://kimi-img.moonshot.cn/pub/websites/template/full-images/10-calm-space-fullstack-en-long.png';
+// Link demo dùng để minh hoạ tính năng "đọc video từ URL" — bấm nút demo
+// sẽ tự điền link này vào ô nhập, không tự động gọi AI.
+const DEMO_VIDEO_URL = 'https://youtube.com/shorts/hgla1njz9aw?si=DmH8ED7Vqld7tXGu';
 
 // Link video demo mới để người dùng có thể thử nhanh luồng YouTube Shorts.
 const DEMO_YOUTUBE_URL = 'https://youtube.com/shorts/hgla1njz9aw?si=DmH8ED7Vqld7tXGu';
@@ -114,7 +114,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
   };
 
   const handleTryDemoImage = () => {
-    setLinkValue(DEMO_IMAGE_URL);
+    setLinkValue(DEMO_VIDEO_URL);
     setLinkError(null);
   };
 
