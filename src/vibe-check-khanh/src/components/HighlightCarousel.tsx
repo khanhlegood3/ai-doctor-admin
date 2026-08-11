@@ -34,29 +34,37 @@ export function FeaturedCollections() {
   const runOnceRef = useRef(false)
   useEffect(() => {
     async function fetchData() {
-      const res = await fetch(
-        'https://storage.googleapis.com/experiments-uploads/vibecheck/active.json'
-      )
-      const collectionIds = await res.json()
-
-      // fetch each collection from google storage
-      const collectionsData: Collection[] = []
-      for (const collectionId of collectionIds) {
-        const colRes = await fetch(
-          `https://storage.googleapis.com/experiments-uploads/vibecheck/${collectionId}.json`
+      try {
+        const res = await fetch(
+          'https://storage.googleapis.com/experiments-uploads/vibecheck/active.json'
         )
-        const colData = (await colRes.json()) as CloudCollectionData
-        colData.collection.rounds = colData.rounds
-        collectionsData.push(colData.collection)
-        const roundData: Round = colData.rounds[0]!
-        const firstOutputKey = Object.keys(roundData.outputs || {})[0]
-        setPreviewItems(prev => ({
-          ...prev,
-          // @ts-expect-error
-          [colData.collection.slug]: colData.rounds[0].outputs[firstOutputKey]
-        }))
+        if (!res.ok) return
+        const collectionIds = await res.json()
+
+        // fetch each collection from google storage
+        const collectionsData: Collection[] = []
+        for (const collectionId of collectionIds) {
+          const colRes = await fetch(
+            `https://storage.googleapis.com/experiments-uploads/vibecheck/${collectionId}.json`
+          )
+          if (!colRes.ok) continue
+          const colData = (await colRes.json()) as CloudCollectionData
+          colData.collection.rounds = colData.rounds
+          collectionsData.push(colData.collection)
+          const roundData: Round = colData.rounds[0]!
+          const firstOutputKey = Object.keys(roundData.outputs || {})[0]
+          setPreviewItems(prev => ({
+            ...prev,
+            // @ts-expect-error
+            [colData.collection.slug]: colData.rounds[0].outputs[firstOutputKey]
+          }))
+        }
+        setCollections(collectionsData)
+      } catch (err) {
+        // Bucket google storage bên ngoài có thể chặn CORS tùy origin — không
+        // để lỗi mạng này làm crash/uncaught-rejection cả app con vibe-check.
+        console.warn('[vibe-check] Không tải được danh sách collection (bỏ qua):', err)
       }
-      setCollections(collectionsData)
     }
     if (runOnceRef.current) return
     runOnceRef.current = true

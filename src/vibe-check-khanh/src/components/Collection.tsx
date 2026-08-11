@@ -37,12 +37,17 @@ export function Collection({id}: {id: string}) {
   // Main fetch
   useEffect(() => {
     async function loadCollection() {
-      const colRes = await fetch(
-        `https://storage.googleapis.com/experiments-uploads/vibecheck/${id}.json`
-      )
-      const colData = (await colRes.json()) as CloudCollectionData
-      setRounds(colData.rounds)
-      setCollectionData(colData.collection)
+      try {
+        const colRes = await fetch(
+          `https://storage.googleapis.com/experiments-uploads/vibecheck/${id}.json`
+        )
+        if (!colRes.ok) return
+        const colData = (await colRes.json()) as CloudCollectionData
+        setRounds(colData.rounds)
+        setCollectionData(colData.collection)
+      } catch (err) {
+        console.warn('[vibe-check] Không tải được collection (bỏ qua):', err)
+      }
     }
     loadCollection()
   }, [id])
@@ -50,21 +55,29 @@ export function Collection({id}: {id: string}) {
   // All collections - hopefully cached
   useEffect(() => {
     async function fetchData() {
-      const res = await fetch(
-        'https://storage.googleapis.com/experiments-uploads/vibecheck/active.json'
-      )
-      const collectionIds = await res.json()
-
-      // fetch each collection from google storage
-      const collectionsData: Collection[] = []
-      for (const collectionId of collectionIds) {
-        const colRes = await fetch(
-          `https://storage.googleapis.com/experiments-uploads/vibecheck/${collectionId}.json`
+      try {
+        const res = await fetch(
+          'https://storage.googleapis.com/experiments-uploads/vibecheck/active.json'
         )
-        const colData = (await colRes.json()) as CloudCollectionData
-        collectionsData.push(colData.collection)
+        if (!res.ok) return
+        const collectionIds = await res.json()
+
+        // fetch each collection from google storage
+        const collectionsData: Collection[] = []
+        for (const collectionId of collectionIds) {
+          const colRes = await fetch(
+            `https://storage.googleapis.com/experiments-uploads/vibecheck/${collectionId}.json`
+          )
+          if (!colRes.ok) continue
+          const colData = (await colRes.json()) as CloudCollectionData
+          collectionsData.push(colData.collection)
+        }
+        setCollections(collectionsData)
+      } catch (err) {
+        // Bucket google storage bên ngoài có thể chặn CORS tùy origin — không
+        // để lỗi mạng này làm crash/uncaught-rejection cả app con vibe-check.
+        console.warn('[vibe-check] Không tải được danh sách collection (bỏ qua):', err)
       }
-      setCollections(collectionsData)
     }
     fetchData()
   }, [])
