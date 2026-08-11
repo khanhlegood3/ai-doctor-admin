@@ -395,6 +395,23 @@ export default defineConfig(({ mode }) => {
           coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
           bodyProtectionHtmlReact: resolve(__dirname, 'src/games/body-protection-html.html'),
         },
+        output: {
+          // Cô lập code nguồn của từng app con "-khanh" (Dino Jump, Vision
+          // Sync, Prism Hair, Bring Any Idea to Life, ...) vào chunk riêng
+          // của chính nó, KHÔNG cho Rollup gộp/tách xen kẽ giữa các entry
+          // khi build cùng lúc >15 trang trong 1 lần `vite build`. Thêm sau
+          // khi phát hiện lỗi "DEMO_IMAGE_URL is not defined" trên Production
+          // (bringAnyIdeaToLifeKhanh) ngay sau khi thêm entry prism-hair-khanh
+          // — không tái hiện được ổn định ở local, nghi do Rollup tree-shake/
+          // chunk-splitting tự động bị nhầm khi số lượng entry tăng lên. Việc
+          // cô lập từng app con theo tên thư mục giúp loại bỏ hẳn rủi ro này
+          // mà không ảnh hưởng tới vendor chunk chung (node_modules vẫn được
+          // Rollup tự gộp bình thường vì không khớp pattern bên dưới).
+          manualChunks(id) {
+            const match = id.match(/[\\/]src[\\/]([a-z0-9-]+-khanh)[\\/]/)
+            if (match) return match[1]
+          },
+        },
       },
     },
     worker: {
