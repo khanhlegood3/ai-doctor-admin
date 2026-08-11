@@ -24,16 +24,40 @@ const App: React.FC = () => {
   const [isLoadingR2History, setIsLoadingR2History] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // Load history from IndexedDB on mount (di trú 1 lần từ localStorage cũ
-  // nếu có, xem lib/historyStorage.ts). Đã bỏ localStorage làm nơi lưu
-  // chính vì quota ~5MB rất dễ đầy khi mỗi creation kèm 1 ảnh gốc base64
-  // (xem cảnh báo "Local storage full or error saving history" trước đây).
-  //
-  // ĐÃ BỎ: bản gốc còn tải thêm 3 "creation mẫu" từ bucket demo của Google
-  // (storage.googleapis.com/sideprojects-asronline/...) khi chưa có lịch sử.
-  // Bucket đó chỉ cho phép CORS từ origin gốc của app AI Studio nên khi chạy
-  // trên domain dự án này request luôn bị chặn (lỗi CORS, không phải lỗi
-  // thật) — bỏ hẳn bước này, người dùng mới sẽ bắt đầu với lịch sử trống.
+  const importR2Creations = async () => {
+    const rows = await loadAllCreationsFromR2();
+    const loaded = rows.map((row) => ({
+      id: row.id,
+      name: row.name || 'New Creation',
+      html: row.html,
+      originalImage: row.imageUrl || undefined,
+      mimeType: row.mimeType || null,
+      videoUrl: row.videoUrl || undefined,
+      timestamp: new Date(row.timestamp || Date.now()),
+    }));
+
+    for (const item of loaded) {
+      await putCreation({
+        id: item.id,
+        name: item.name,
+        html: item.html,
+        originalImage: item.originalImage,
+        mimeType: item.mimeType || null,
+        videoUrl: item.videoUrl,
+        timestamp: item.timestamp.toISOString(),
+      });
+    }
+
+    setHistory((prev) => {
+      const byId = new Map<string, Creation>();
+      [...loaded, ...prev].forEach((item) => byId.set(item.id, item));
+      return Array.from(byId.values()).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    });
+  };
+
+  // Load history from IndexedDB on mount, then automatically hydrate any old
+  // creation JSONs that were already backed up in R2 so the landing-page embed
+  // shows previous work without requiring a manual click.
   useEffect(() => {
     const initHistory = async () => {
       try {
@@ -44,6 +68,15 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error('Failed to load history from IndexedDB', e);
+      }
+
+      setIsLoadingR2History(true);
+      try {
+        await importR2Creations();
+      } catch (e) {
+        console.warn('Failed to auto-load history from R2', e);
+      } finally {
+        setIsLoadingR2History(false);
       }
     };
 
@@ -256,34 +289,7 @@ const App: React.FC = () => {
   const handleLoadR2History = async () => {
     setIsLoadingR2History(true);
     try {
-      const rows = await loadAllCreationsFromR2();
-      const loaded = rows.map((row) => ({
-        id: row.id,
-        name: row.name || 'New Creation',
-        html: row.html,
-        originalImage: row.imageUrl || undefined,
-        mimeType: row.mimeType || null,
-        videoUrl: row.videoUrl || undefined,
-        timestamp: new Date(row.timestamp || Date.now()),
-      }));
-
-      for (const item of loaded) {
-        await putCreation({
-          id: item.id,
-          name: item.name,
-          html: item.html,
-          originalImage: item.originalImage,
-          mimeType: item.mimeType || null,
-          videoUrl: item.videoUrl,
-          timestamp: item.timestamp.toISOString(),
-        });
-      }
-
-      setHistory((prev) => {
-        const byId = new Map<string, Creation>();
-        [...loaded, ...prev].forEach((item) => byId.set(item.id, item));
-        return Array.from(byId.values()).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-      });
+      await importR2Creations();
     } catch (err) {
       console.error('Failed to load history from R2', err);
       const message = err instanceof Error ? err.message : String(err);
