@@ -124,16 +124,22 @@ const App: React.FC = () => {
 
       if (file) {
         const rawMimeType = (file.type || 'application/octet-stream').toLowerCase();
+        const isUploadedVideo = rawMimeType.startsWith('video/');
 
-        // Lưu file gốc user chọn từ máy tính/điện thoại lên R2 trước (ảnh/video/PDF),
-        // độc lập với bản base64/nén dùng để gửi AI. Nhánh dán YouTube/Facebook không đi qua đây.
-        try {
-          const uploadedSource = await uploadSourceFileToR2(creationId, file);
-          r2SourceUrl = uploadedSource.publicUrl;
-        } catch (uploadErr) {
-          console.error('[bring-any-idea-to-life] Source file R2 upload failed:', uploadErr);
-          const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-          throw new Error(`Không upload được file gốc lên R2 nên chưa tạo app. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
+        // Ảnh/PDF vẫn được sao lưu file gốc lên R2 trước khi gọi AI để tránh
+        // mất dữ liệu nguồn nếu người dùng rời trang. RIÊNG video upload từ
+        // máy tính/điện thoại phải được AI xử lý TRƯỚC, rồi mới upload file
+        // gốc lên R2 sau khi có HTML thành công (xem nhánh sau bringToLife()).
+        // Nhánh dán YouTube/Facebook không đi qua đây.
+        if (!isUploadedVideo) {
+          try {
+            const uploadedSource = await uploadSourceFileToR2(creationId, file);
+            r2SourceUrl = uploadedSource.publicUrl;
+          } catch (uploadErr) {
+            console.error('[bring-any-idea-to-life] Source file R2 upload failed:', uploadErr);
+            const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+            throw new Error(`Không upload được file gốc lên R2 nên chưa tạo app. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
+          }
         }
 
         if (rawMimeType.startsWith('image/')) {
@@ -153,8 +159,8 @@ const App: React.FC = () => {
             throw new Error(
               `File "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)}MB) vượt quá giới hạn ` +
                 `${(MAX_UNCOMPRESSED_FILE_BYTES / 1024 / 1024).toFixed(1)}MB cho PDF/video (giới hạn request ` +
-                `body của Vercel serverless function). Hãy dùng file nhỏ hơn, hoặc với video hãy dán link ` +
-                `YouTube/Facebook thay vì upload trực tiếp.`
+                `body của Vercel serverless function). Hãy dùng file nhỏ hơn để AI xử lý trước, ` +
+                `sau đó hệ thống mới upload file gốc lên R2.`
             );
           }
           imageBase64 = await fileToBase64(file);
@@ -163,6 +169,20 @@ const App: React.FC = () => {
       }
 
       const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl);
+
+      if (html && file && mimeType?.toLowerCase().startsWith('video/')) {
+        // Video upload từ máy tính/điện thoại: chỉ upload file gốc lên R2 SAU
+        // khi AI đã xử lý xong và trả HTML. Điều này tránh trạng thái R2 có
+        // video nhưng không có creation nếu bước xử lý video thất bại.
+        try {
+          const uploadedSource = await uploadSourceFileToR2(creationId, file);
+          r2SourceUrl = uploadedSource.publicUrl;
+        } catch (uploadErr) {
+          console.error('[bring-any-idea-to-life] Source video R2 upload failed after processing:', uploadErr);
+          const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+          throw new Error(`AI đã xử lý video xong nhưng chưa upload được file gốc lên R2. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
+        }
+      }
       
       if (html) {
         const newCreation: Creation = {
