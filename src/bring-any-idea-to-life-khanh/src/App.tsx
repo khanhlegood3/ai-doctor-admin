@@ -108,10 +108,9 @@ const App: React.FC = () => {
   // `videoUrl` được truyền khi người dùng dán link YouTube/Facebook thay vì upload
   // file (xem InputArea.tsx) — Gemini "xem" trực tiếp video qua link, không cần
   // tải base64 lên (tính năng mang từ "Video to Learning" sang).
-  // `imageUrl` được truyền khi người dùng dán link ẢNH — server (không phải trình
-  // duyệt) sẽ tải ảnh về, đổi sang base64 rồi đi tiếp qua đúng pipeline ảnh sẵn có
-  // (xem imageUrlFetch.js), nên ở client không cần fetch/convert gì thêm.
-  const handleGenerate = async (promptText: string, file?: File, videoUrl?: string, imageUrl?: string) => {
+  // `imageUrl` dành cho ảnh trực tiếp; `webUrl` dành cho trang chủ, kênh,
+  // bài viết hoặc bất kỳ link web http/https nào để server trích nội dung.
+  const handleGenerate = async (promptText: string, file?: File, videoUrl?: string, imageUrl?: string, webUrl?: string) => {
     setIsGenerating(true);
     // Clear active creation to show loading state
     setActiveCreation(null);
@@ -168,7 +167,7 @@ const App: React.FC = () => {
         }
       }
 
-      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl);
+      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl);
 
       if (html && file && mimeType?.toLowerCase().startsWith('video/')) {
         // Video upload từ máy tính/điện thoại: chỉ upload file gốc lên R2 SAU
@@ -187,7 +186,7 @@ const App: React.FC = () => {
       if (html) {
         const newCreation: Creation = {
           id: creationId,
-          name: file ? file.name : videoUrl ? videoUrl : imageUrl ? imageUrl : 'New Creation',
+          name: file ? file.name : videoUrl ? videoUrl : imageUrl ? imageUrl : webUrl ? webUrl : 'New Creation',
           html: html,
           // Store the full data URL for easy display (ảnh/PDF/video upload trực tiếp),
           // hoặc thẳng link ảnh gốc nếu đến từ URL (không cần base64 lại ở client,
