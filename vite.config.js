@@ -377,6 +377,44 @@ export default defineConfig(({ mode }) => {
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
     build: {
+      // FIX: trang chủ (entry "main") đang bị Rollup/Vite tự chèn
+      // <link rel="modulepreload"> cho chunk của các app con KHÔNG liên
+      // quan (mediapipe-khanh, vision-sync-khanh, vibe-tracking-khanh,
+      // dino-jump-khanh, inbody-khanh, vibe-check-khanh, ...) ngay trong
+      // <head> — khiến trình duyệt tự tải + chạy MediaPipe/camera/audio
+      // NGAY khi vừa mở trang chủ (chưa bấm gì), gây "Trang không phản
+      // hồi" ~50s. Nguyên nhân: build gộp >15 entry HTML trong 1 lần
+      // `vite build` (xem comment "Cô lập code nguồn của từng app con"
+      // bên dưới — vốn chỉ mới xử lý phần chunk-splitting, chưa xử lý
+      // phần modulepreload). resolveDependencies dưới đây lọc lại: mỗi
+      // trang HTML CHỈ được preload chunk của chính nó + chunk dùng
+      // chung thật sự (không khớp pattern "<Tên>Khanh-<hash>.js" của bất
+      // kỳ entry app con nào khác).
+      modulePreload: {
+        resolveDependencies: (filename, deps, { hostId }) => {
+          const subAppEntryNames = [
+            'mediapipeKhanh', 'visionSyncKhanh', 'videoToLearningKhanh',
+            'videoToLearningKhanhAdmin', 'dinoJumpKhanh', 'prismHairKhanh',
+            'dinoPalKhanh', 'vibeTrackingKhanh', 'vibeCheckKhanh',
+            'videoAnalyzerKhanh', 'bringAnyIdeaToLifeKhanh',
+            'humanTankCameraKeyReact', 'coTheTankCameraKeyReact',
+            'bodyProtectionHtmlReact', 'inbodyKhanh',
+          ]
+          const hostBelongsToSubApp = subAppEntryNames.some((name) => hostId.includes(name))
+          return deps.filter((dep) => {
+            const depBelongsToOtherSubApp = subAppEntryNames.some(
+              (name) => dep.includes(name) && !hostId.includes(name),
+            )
+            if (depBelongsToOtherSubApp) return false
+            // Trang chủ ("main", không thuộc app con nào) không cần
+            // preload bất kỳ chunk "-khanh"/game nào của app con khác.
+            if (!hostBelongsToSubApp && subAppEntryNames.some((name) => dep.includes(name))) {
+              return false
+            }
+            return true
+          })
+        },
+      },
       rollupOptions: {
         input: {
           main: resolve(__dirname, 'index.html'),
