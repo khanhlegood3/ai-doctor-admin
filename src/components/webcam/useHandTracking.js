@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath'
 import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath'
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../lib/mediapipeGpuDelegateGate'
 
 // Hand Landmarker riêng cho tính năng Touchless Control (Medical Visual
 // Playground) — TÁCH RIÊNG khỏi useMediaPipeVision.js (Face/Pose/Object) vì
@@ -56,8 +57,19 @@ export function useHandTracking() {
         )
       }
 
-      const createWithDelegateFallback = (modelAssetPath) =>
-        withTimeout(
+      const createWithDelegateFallback = (modelAssetPath) => {
+        const createCpu = () =>
+          withTimeout(
+            HandLandmarker.createFromOptions(v.fileset, {
+              baseOptions: { modelAssetPath, delegate: 'CPU' },
+              runningMode: 'VIDEO',
+              numHands: 1,
+            }),
+            CREATE_LANDMARKER_TIMEOUT_MS,
+            'HandLandmarker CPU delegate init',
+          )
+        if (hasGpuDelegateFailedBefore('hand')) return createCpu()
+        return withTimeout(
           HandLandmarker.createFromOptions(v.fileset, {
             baseOptions: { modelAssetPath, delegate: 'GPU' },
             runningMode: 'VIDEO',
@@ -67,16 +79,10 @@ export function useHandTracking() {
           'HandLandmarker GPU delegate init',
         ).catch((gpuError) => {
           console.warn('HandLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError)
-          return withTimeout(
-            HandLandmarker.createFromOptions(v.fileset, {
-              baseOptions: { modelAssetPath, delegate: 'CPU' },
-              runningMode: 'VIDEO',
-              numHands: 1,
-            }),
-            CREATE_LANDMARKER_TIMEOUT_MS,
-            'HandLandmarker CPU delegate init',
-          )
+          markGpuDelegateFailed('hand')
+          return createCpu()
         })
+      }
 
       try {
         v.landmarker = await createWithDelegateFallback(HAND_MODEL_URLS.local)

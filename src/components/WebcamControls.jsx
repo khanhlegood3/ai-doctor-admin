@@ -8,6 +8,7 @@ import { FaceLandmarker, FilesetResolver, DrawingUtils, ObjectDetector } from '@
 import { useApp } from '../context/AppContext'
 import { MEDIAPIPE_VISION_WASM_URL } from '../lib/mediapipeWasmPath'
 import { MEDIAPIPE_MODEL_URLS } from '../lib/mediapipeModelPath'
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../lib/mediapipeGpuDelegateGate'
 
 // WASM files served directly from node_modules via Vite ?url import — no CDN, no public/wasm copy needed.
 const MEDIAPIPE_WASM_URL = MEDIAPIPE_VISION_WASM_URL
@@ -35,21 +36,29 @@ function withTimeout(promise, ms, label) {
 }
 
 /** Thử model local trước, GPU trước rồi CPU nếu GPU treo/lỗi; nếu cả local
- * lẫn GPU/CPU đều lỗi thì rơi về model CDN gốc (cũng thử GPU rồi CPU). */
-async function createLandmarkerRobust(Klass, fileset, modelUrls, extraOptions, label) {
-  const tryDelegates = (modelAssetPath) =>
-    withTimeout(
+ * lẫn GPU/CPU đều lỗi thì rơi về model CDN gốc (cũng thử GPU rồi CPU).
+ * gateKey: 'face' | 'object' — dùng để nhớ (mediapipeGpuDelegateGate,
+ * localStorage) là GPU delegate đã fail trên trình duyệt này chưa, để các
+ * lần sau bỏ qua thẳng GPU thay vì tốn thêm 15s chờ vô ích mỗi lần. */
+async function createLandmarkerRobust(Klass, fileset, modelUrls, extraOptions, label, gateKey) {
+  const tryDelegates = (modelAssetPath) => {
+    const tryCpu = () =>
+      withTimeout(
+        Klass.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
+        INIT_TIMEOUT_MS,
+        `${label} CPU delegate init`,
+      )
+    if (gateKey && hasGpuDelegateFailedBefore(gateKey)) return tryCpu()
+    return withTimeout(
       Klass.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: 'GPU' }, ...extraOptions }),
       INIT_TIMEOUT_MS,
       `${label} GPU delegate init`,
     ).catch((gpuError) => {
       console.warn(`${label} GPU delegate failed/timed out, retrying on CPU:`, gpuError)
-      return withTimeout(
-        Klass.createFromOptions(fileset, { baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
-        INIT_TIMEOUT_MS,
-        `${label} CPU delegate init`,
-      )
+      if (gateKey) markGpuDelegateFailed(gateKey)
+      return tryCpu()
     })
+  }
 
   try {
     return await tryDelegates(modelUrls.local)
@@ -210,7 +219,7 @@ export default function WebcamControls({
         const landmarker = await createLandmarkerRobust(
           FaceLandmarker, vision, FACE_LANDMARKER_MODEL_URLS,
           { runningMode: 'VIDEO', numFaces: 1 },
-          'FaceLandmarker',
+          'FaceLandmarker', 'face',
         )
         if (cancelled) {
           landmarker.close?.()
@@ -239,7 +248,7 @@ export default function WebcamControls({
         const detector = await createLandmarkerRobust(
           ObjectDetector, vision, OBJECT_DETECTOR_MODEL_URLS,
           { runningMode: 'VIDEO', scoreThreshold: 0.5, maxResults: 5 },
-          'ObjectDetector',
+          'ObjectDetector', 'object',
         )
         if (cancelled) {
           detector.close?.()
@@ -275,7 +284,7 @@ export default function WebcamControls({
     const landmarker = await createLandmarkerRobust(
       FaceLandmarker, vision, FACE_LANDMARKER_MODEL_URLS,
       { runningMode: 'IMAGE', numFaces: 1 },
-      'FaceLandmarker (image)',
+      'FaceLandmarker (image)', 'face',
     )
     imageLandmarkerRef.current = landmarker
     return landmarker
@@ -291,7 +300,7 @@ export default function WebcamControls({
     const detector = await createLandmarkerRobust(
       ObjectDetector, vision, OBJECT_DETECTOR_MODEL_URLS,
       { runningMode: 'IMAGE', scoreThreshold: 0.5, maxResults: 5 },
-      'ObjectDetector (image)',
+      'ObjectDetector (image)', 'object',
     )
     imageObjectDetectorRef.current = detector
     return detector

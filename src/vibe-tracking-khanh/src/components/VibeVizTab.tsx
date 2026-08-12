@@ -4,6 +4,7 @@ import { Activity, AudioLines, Camera, RefreshCw, AlertCircle, ChevronDown, Chev
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../../lib/mediapipeGpuDelegateGate';
 import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
@@ -113,8 +114,20 @@ export default function VibeVizTab() {
           INIT_TIMEOUT_MS,
           'MediaPipe WASM fileset load',
         );
-        const createWithDelegateFallback = (modelAssetPath: string) =>
-          withTimeout(
+        const createWithDelegateFallback = (modelAssetPath: string) => {
+          const createCpu = () =>
+            withTimeout(
+              FaceLandmarker.createFromOptions(filesetResolver, {
+                baseOptions: { modelAssetPath, delegate: 'CPU' },
+                outputFaceBlendshapes: true,
+                runningMode: 'VIDEO',
+                numFaces: 4,
+              }),
+              INIT_TIMEOUT_MS,
+              'FaceLandmarker CPU delegate init',
+            );
+          if (hasGpuDelegateFailedBefore('face')) return createCpu();
+          return withTimeout(
             FaceLandmarker.createFromOptions(filesetResolver, {
               baseOptions: { modelAssetPath, delegate: 'GPU' },
               outputFaceBlendshapes: true,
@@ -125,17 +138,10 @@ export default function VibeVizTab() {
             'FaceLandmarker GPU delegate init',
           ).catch((gpuError) => {
             console.warn('FaceLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError);
-            return withTimeout(
-              FaceLandmarker.createFromOptions(filesetResolver, {
-                baseOptions: { modelAssetPath, delegate: 'CPU' },
-                outputFaceBlendshapes: true,
-                runningMode: 'VIDEO',
-                numFaces: 4,
-              }),
-              INIT_TIMEOUT_MS,
-              'FaceLandmarker CPU delegate init',
-            );
+            markGpuDelegateFailed('face');
+            return createCpu();
           });
+        };
 
         let landmarker;
         try {

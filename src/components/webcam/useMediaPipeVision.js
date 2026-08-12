@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath'
 import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath'
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../lib/mediapipeGpuDelegateGate'
 
 // WASM files served directly from node_modules via Vite ?url import — no CDN, no public/wasm copy needed.
 // Model .task/.tflite files: tự host trong public/models/ (xem
@@ -61,8 +62,14 @@ export function useMediaPipeVision() {
     loadingPromise: null,
     // Nhớ "GPU delegate đã treo/lỗi" theo từng loại landmarker, để lần tải
     // sau (Retry, hoặc bật lại camera) bỏ qua thẳng CPU thay vì tốn thêm
-    // 15s chờ GPU treo lại lần nữa trên cùng thiết bị.
-    gpuFailed: { face: false, pose: false, object: false },
+    // 15s chờ GPU treo lại lần nữa trên cùng thiết bị. Seed từ
+    // mediapipeGpuDelegateGate (localStorage) để không chỉ nhớ trong phiên
+    // này mà nhớ cả các lần fail ở WIDGET KHÁC hoặc LẦN LOAD TRANG trước.
+    gpuFailed: {
+      face: hasGpuDelegateFailedBefore('face'),
+      pose: hasGpuDelegateFailedBefore('pose'),
+      object: hasGpuDelegateFailedBefore('object'),
+    },
     // Nhớ "model local đã lỗi/thiếu" theo từng loại, để không tốn thêm
     // timeout thử lại local mỗi lần — đi thẳng CDN cho các lần sau.
     localModelFailed: { face: false, pose: false, object: false },
@@ -83,6 +90,7 @@ export function useMediaPipeVision() {
       } catch (gpuError) {
         console.warn('MediaPipe GPU delegate failed/timed out, falling back to CPU:', gpuError)
         v.gpuFailed[gpuFailedKey] = true
+        markGpuDelegateFailed(gpuFailedKey)
       }
     }
     return withTimeout(

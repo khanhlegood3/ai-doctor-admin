@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../../lib/mediapipeGpuDelegateGate';
 // Đồng bộ màu + level của Dino với Dino Pal (tab "nuôi thú ảo" cặp đôi, xem
 // DinoJumpPanel.jsx / DinoPalSection.jsx). Dino Pal và Dino Jump là 2 app
 // Vite multi-page riêng nhưng build ra CÙNG origin (nhúng iframe cùng-origin,
@@ -1273,22 +1274,36 @@ const DinoGame: React.FC = () => {
                         `Pose model init (${delegate}, ${modelAssetPath})`,
                     );
 
+                // Nếu GPU delegate đã fail/timeout trên trình duyệt này rồi (bất
+                // kỳ widget nào, kể cả lần load trang trước), bỏ qua thẳng GPU —
+                // đỡ tốn 15s chờ vô ích mỗi model (xem mediapipeGpuDelegateGate.js).
+                const poseGpuDead = hasGpuDelegateFailedBefore('pose');
                 let poseLandmarker;
                 try {
                     // Thử model tự host trước, GPU trước rồi CPU nếu GPU treo/lỗi.
-                    try {
-                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'GPU');
-                    } catch (gpuErr) {
-                        console.warn('MediaPipe GPU delegate failed/timed out (local model), falling back to CPU:', gpuErr);
+                    if (poseGpuDead) {
                         poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'CPU');
+                    } else {
+                        try {
+                            poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'GPU');
+                        } catch (gpuErr) {
+                            console.warn('MediaPipe GPU delegate failed/timed out (local model), falling back to CPU:', gpuErr);
+                            markGpuDelegateFailed('pose');
+                            poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.local, 'CPU');
+                        }
                     }
                 } catch (localErr) {
                     console.warn('MediaPipe local pose model failed, falling back to CDN:', localErr);
-                    try {
-                        poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'GPU');
-                    } catch (gpuErr) {
-                        console.warn('MediaPipe GPU delegate failed/timed out (CDN model), falling back to CPU:', gpuErr);
+                    if (poseGpuDead || hasGpuDelegateFailedBefore('pose')) {
                         poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'CPU');
+                    } else {
+                        try {
+                            poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'GPU');
+                        } catch (gpuErr) {
+                            console.warn('MediaPipe GPU delegate failed/timed out (CDN model), falling back to CPU:', gpuErr);
+                            markGpuDelegateFailed('pose');
+                            poseLandmarker = await createPoseLandmarker(MEDIAPIPE_MODEL_URLS.pose.cdn, 'CPU');
+                        }
                     }
                 }
 

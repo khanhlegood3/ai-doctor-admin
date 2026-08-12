@@ -4,6 +4,7 @@ import { Activity, Camera, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Hand,
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../../lib/mediapipeModelPath';
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../../lib/mediapipeGpuDelegateGate';
 import { saveVibeHistory, startVideoRecorder } from '../lib/vibeHistoryStorage';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
@@ -27,20 +28,26 @@ async function createLandmarkerRobust<T>(
   modelUrls: { local: string; cdn: string },
   extraOptions: Record<string, unknown>,
   label: string,
+  gateKey?: string,
 ): Promise<T> {
-  const tryDelegates = (modelAssetPath: string) =>
-    withTimeout(
+  const tryDelegates = (modelAssetPath: string) => {
+    const tryCpu = () =>
+      withTimeout(
+        createFromOptions({ baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
+        INIT_TIMEOUT_MS,
+        `${label} CPU delegate init`,
+      );
+    if (gateKey && hasGpuDelegateFailedBefore(gateKey)) return tryCpu();
+    return withTimeout(
       createFromOptions({ baseOptions: { modelAssetPath, delegate: 'GPU' }, ...extraOptions }),
       INIT_TIMEOUT_MS,
       `${label} GPU delegate init`,
     ).catch((gpuError: unknown) => {
       console.warn(`${label} GPU delegate failed/timed out, retrying on CPU:`, gpuError);
-      return withTimeout(
-        createFromOptions({ baseOptions: { modelAssetPath, delegate: 'CPU' }, ...extraOptions }),
-        INIT_TIMEOUT_MS,
-        `${label} CPU delegate init`,
-      );
+      if (gateKey) markGpuDelegateFailed(gateKey);
+      return tryCpu();
     });
+  };
 
   try {
     return await tryDelegates(modelUrls.local);
@@ -256,13 +263,13 @@ export default function SignLanguageAnalyticsTab() {
           (opts) => HandLandmarker.createFromOptions(filesetResolver, opts),
           MEDIAPIPE_MODEL_URLS.hand,
           { runningMode: 'VIDEO', numHands: 2 },
-          'HandLandmarker',
+          'HandLandmarker', 'hand',
         );
         const fLandmarker = await createLandmarkerRobust(
           (opts) => FaceLandmarker.createFromOptions(filesetResolver, opts),
           MEDIAPIPE_MODEL_URLS.face,
           { runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true },
-          'FaceLandmarker',
+          'FaceLandmarker', 'face',
         );
         if (active) {
           setHandLandmarker(hLandmarker);

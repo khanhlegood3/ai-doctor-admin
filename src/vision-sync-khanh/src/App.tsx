@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import * as Tone from 'tone';
 import { MEDIAPIPE_VISION_WASM_URL } from '../../lib/mediapipeWasmPath';
 import { MEDIAPIPE_MODEL_URLS } from '../../lib/mediapipeModelPath';
+import { hasGpuDelegateFailedBefore, markGpuDelegateFailed } from '../../lib/mediapipeGpuDelegateGate';
 
 // BUG tương tự đã sửa ở ai-doctor-admin (useMediaPipeVision.js): WASM/model
 // tải từ CDN ngoài, không timeout, không fallback CPU nếu GPU treo. Giờ dùng
@@ -493,8 +494,24 @@ export default function App() {
         );
 
         await yieldToBrowser();
-        const createWithDelegateFallback = (modelAssetPath: string) =>
-          withTimeout(
+        const createWithDelegateFallback = (modelAssetPath: string) => {
+          const createCpu = () =>
+            withTimeout(
+              FaceLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath, delegate: 'CPU' },
+                outputFaceBlendshapes: true,
+                runningMode: "VIDEO",
+                numFaces: 1,
+              }),
+              INIT_TIMEOUT_MS,
+              'FaceLandmarker CPU delegate init',
+            );
+          // Nếu GPU delegate đã từng fail/timeout trên trình duyệt này rồi
+          // (xem mediapipeGpuDelegateGate.js), bỏ qua thẳng bước GPU — tránh
+          // tốn thêm 15s vô ích, cũng là 15s chặn main thread của TRANG CHA
+          // (iframe cùng-origin) mỗi lần mở widget này.
+          if (hasGpuDelegateFailedBefore('face')) return createCpu();
+          return withTimeout(
             FaceLandmarker.createFromOptions(vision, {
               baseOptions: { modelAssetPath, delegate: 'GPU' },
               outputFaceBlendshapes: true,
@@ -505,17 +522,10 @@ export default function App() {
             'FaceLandmarker GPU delegate init',
           ).catch((gpuError) => {
             console.warn('FaceLandmarker GPU delegate failed/timed out, retrying on CPU:', gpuError);
-            return withTimeout(
-              FaceLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath, delegate: 'CPU' },
-                outputFaceBlendshapes: true,
-                runningMode: "VIDEO",
-                numFaces: 1,
-              }),
-              INIT_TIMEOUT_MS,
-              'FaceLandmarker CPU delegate init',
-            );
+            markGpuDelegateFailed('face');
+            return createCpu();
           });
+        };
 
         let faceLandmarker;
         try {
