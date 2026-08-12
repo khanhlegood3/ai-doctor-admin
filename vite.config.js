@@ -392,13 +392,18 @@ export default defineConfig(({ mode }) => {
       // kỳ entry app con nào khác).
       modulePreload: {
         resolveDependencies: (filename, deps, { hostId }) => {
+          // Liệt kê cả 2 dạng tên (camelCase dùng làm key entry trong
+          // rollupOptions.input bên dưới, VÀ kebab-case nếu chunk output
+          // thực tế lại dùng dạng đó, ví dụ "inbody-khanh-<hash>.js") — chỉ
+          // liệt kê 1 dạng từng khiến filter im lặng bỏ sót do không khớp
+          // chuỗi, làm mất tác dụng cô lập.
           const subAppEntryNames = [
             'mediapipeKhanh', 'visionSyncKhanh', 'videoToLearningKhanh',
             'videoToLearningKhanhAdmin', 'dinoJumpKhanh', 'prismHairKhanh',
             'dinoPalKhanh', 'vibeTrackingKhanh', 'vibeCheckKhanh',
             'videoAnalyzerKhanh', 'bringAnyIdeaToLifeKhanh',
             'humanTankCameraKeyReact', 'coTheTankCameraKeyReact',
-            'bodyProtectionHtmlReact', 'inbodyKhanh',
+            'bodyProtectionHtmlReact', 'inbodyKhanh', 'inbody-khanh',
           ]
           const hostBelongsToSubApp = subAppEntryNames.some((name) => hostId.includes(name))
           return deps.filter((dep) => {
