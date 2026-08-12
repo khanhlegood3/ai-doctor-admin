@@ -372,8 +372,61 @@ export default defineConfig(({ mode }) => {
   // client, chỉ dùng nội bộ trong middleware Node ở trên.
   const env = loadEnv(mode, process.cwd(), '')
 
+  // Liệt kê cả 2 dạng tên (camelCase dùng làm key entry trong
+  // rollupOptions.input bên dưới, VÀ kebab-case nếu chunk output thực tế
+  // lại dùng dạng đó, ví dụ "inbody-khanh-<hash>.js") — chỉ liệt kê 1 dạng
+  // từng khiến filter im lặng bỏ sót do không khớp chuỗi, làm mất tác dụng
+  // cô lập. Đưa ra ngoài dùng chung cho cả 2 chỗ lọc bên dưới (JS
+  // modulepreload VÀ CSS <link rel="stylesheet">) để tránh lệch danh sách.
+  const subAppEntryNames = [
+    'mediapipeKhanh', 'visionSyncKhanh', 'videoToLearningKhanh',
+    'videoToLearningKhanhAdmin', 'dinoJumpKhanh', 'prismHairKhanh',
+    'dinoPalKhanh', 'vibeTrackingKhanh', 'vibeCheckKhanh',
+    'videoAnalyzerKhanh', 'bringAnyIdeaToLifeKhanh',
+    'humanTankCameraKeyReact', 'coTheTankCameraKeyReact',
+    'bodyProtectionHtmlReact', 'inbodyKhanh', 'inbody-khanh',
+  ]
+
+  // FIX: ngoài <link rel="modulepreload"> (đã lọc ở modulePreload.resolveDependencies
+  // bên dưới), Vite/Rollup còn tự chèn <link rel="stylesheet"> của CSS thuộc
+  // các app con "-khanh" KHÔNG liên quan vào <head> của trang chủ (và của
+  // các app con khác) — resolveDependencies KHÔNG áp dụng cho CSS, chỉ cho
+  // JS modulepreload. Hậu quả nghiêm trọng hơn cả phần JS: CSS của
+  // mediapipe-khanh có rule toàn cục "body{height:100vh;overflow:hidden}"
+  // (không scope), nên khi <link> này bị chèn vào trang chủ, nó GHI ĐÈ
+  // luôn overflow của <body> trang chủ → chặn cuộn trang NGAY khi vừa
+  // load xong, dù khoá overflow không hề nằm trong code trang chủ. Đây là
+  // nguyên nhân gốc của lỗi "scroll không được khi vừa vào loading trang"
+  // (xác nhận bằng repro build: xem <link rel="stylesheet" href="mediapipeKhanh-*.css">
+  // và "dinoJumpKhanh-*.css" xuất hiện trong index.html của entry "main").
+  // Plugin dưới đây dùng transformIndexHtml (order: 'post', chạy sau khi
+  // Vite đã tự chèn asset tags) để gỡ bỏ các <link rel="stylesheet"> không
+  // thuộc về entry hiện tại, cùng logic với resolveDependencies bên dưới.
+  function stripForeignSubAppCssPlugin() {
+    return {
+      name: 'strip-foreign-subapp-css',
+      transformIndexHtml: {
+        order: 'post',
+        handler(html, ctx) {
+          const hostName = ctx.chunk?.name || ''
+          const hostBelongsToSubApp = subAppEntryNames.some((name) => hostName.includes(name))
+          return html.replace(/<link rel="stylesheet"[^>]*href="([^"]+)"[^>]*>\s*/g, (tag, href) => {
+            const depBelongsToOtherSubApp = subAppEntryNames.some(
+              (name) => href.includes(name) && !hostName.includes(name),
+            )
+            if (depBelongsToOtherSubApp) return ''
+            if (!hostBelongsToSubApp && subAppEntryNames.some((name) => href.includes(name))) {
+              return ''
+            }
+            return tag
+          })
+        },
+      },
+    }
+  }
+
   return {
-    plugins: [react(), inbodyOcrDevMiddleware(env), geminiComicDevMiddleware(env)],
+    plugins: [react(), inbodyOcrDevMiddleware(env), geminiComicDevMiddleware(env), stripForeignSubAppCssPlugin()],
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
     build: {
@@ -392,19 +445,6 @@ export default defineConfig(({ mode }) => {
       // kỳ entry app con nào khác).
       modulePreload: {
         resolveDependencies: (filename, deps, { hostId }) => {
-          // Liệt kê cả 2 dạng tên (camelCase dùng làm key entry trong
-          // rollupOptions.input bên dưới, VÀ kebab-case nếu chunk output
-          // thực tế lại dùng dạng đó, ví dụ "inbody-khanh-<hash>.js") — chỉ
-          // liệt kê 1 dạng từng khiến filter im lặng bỏ sót do không khớp
-          // chuỗi, làm mất tác dụng cô lập.
-          const subAppEntryNames = [
-            'mediapipeKhanh', 'visionSyncKhanh', 'videoToLearningKhanh',
-            'videoToLearningKhanhAdmin', 'dinoJumpKhanh', 'prismHairKhanh',
-            'dinoPalKhanh', 'vibeTrackingKhanh', 'vibeCheckKhanh',
-            'videoAnalyzerKhanh', 'bringAnyIdeaToLifeKhanh',
-            'humanTankCameraKeyReact', 'coTheTankCameraKeyReact',
-            'bodyProtectionHtmlReact', 'inbodyKhanh', 'inbody-khanh',
-          ]
           const hostBelongsToSubApp = subAppEntryNames.some((name) => hostId.includes(name))
           return deps.filter((dep) => {
             const depBelongsToOtherSubApp = subAppEntryNames.some(
