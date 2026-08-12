@@ -451,6 +451,30 @@ export default defineConfig(({ mode }) => {
           // mà không ảnh hưởng tới vendor chunk chung (node_modules vẫn được
           // Rollup tự gộp bình thường vì không khớp pattern bên dưới).
           manualChunks(id) {
+            // Ép các thư viện dùng chung phổ biến nhất (react, react-dom,
+            // jsx-runtime) luôn về 1 vendor chunk cố định, kiểm tra TRƯỚC
+            // rule "-khanh" bên dưới. Nếu không, khi build gộp >15 entry
+            // trong 1 lần `vite build`, Rollup có thể "nhét" bản build
+            // react/react-dom dùng chung vào bên trong đúng 1 app con cụ
+            // thể (vd visionSyncKhanh, ~2.7MB) — và vì đó là nơi DUY NHẤT
+            // chứa react trong toàn bộ build, main.js (trang chủ) buộc phải
+            // import react TỪ chunk app con đó, kéo theo toàn bộ code +
+            // side-effect top-level của app con (Tone.js banner, MediaPipe
+            // GPU init, ...) chạy ngay trên trang chủ dù không hề dùng tới.
+            // Phát hiện qua Network > Initiator chain: main.js → chính là
+            // initiator trực tiếp của visionSyncKhanh-*.js.
+            // Mở rộng: KHÔNG chỉ react/react-dom mà TOÀN BỘ node_modules đều
+            // ép về 1 (hoặc vài) vendor chunk cố định trước rule "-khanh".
+            // Lý do: sau khi cô lập riêng react/react-dom vẫn còn thấy
+            // main.js phải import chéo từ vibeTrackingKhanh/dinoJumpKhanh/
+            // vibeCheckKhanh/inbody-khanh/visionSyncKhanh — tức còn nhiều
+            // package npm dùng chung khác (icon, state, utils, ...) bị lọt
+            // tương tự react lúc trước. Gộp hẳn node_modules về vendor
+            // chung là cách chuẩn, chặn dứt điểm cả lớp lỗi này thay vì vá
+            // từng package một.
+            if (/[\\/]node_modules[\\/]/.test(id)) {
+              return 'vendor'
+            }
             const match = id.match(/[\\/]src[\\/]([a-z0-9-]+-khanh)[\\/]/)
             if (match) return match[1]
           },

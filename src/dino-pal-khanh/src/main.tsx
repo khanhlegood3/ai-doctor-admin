@@ -12,8 +12,13 @@ import '../../index.css';
 // Tailwind v4, không tương thích Tailwind v3 mà dự án đang dùng).
 import './dino-pal.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const rootEl = document.getElementById('dino-pal-khanh-root');
+if (!rootEl) {
+  console.warn('[dino-pal-khanh] Không tìm thấy phần tử #dino-pal-khanh-root trong DOM — bỏ qua khởi tạo thay vì crash.');
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}

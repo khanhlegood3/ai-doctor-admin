@@ -10,8 +10,16 @@ import App from './App.tsx';
 // bình thường.
 import '../../index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// PHÒNG VỆ (giống mediapipe-khanh/vision-sync-khanh): id riêng thay vì
+// "root" dùng chung để không tự vẽ đè lên app chính nếu chunk này lỡ bị
+// nạp trên trang đó.
+const rootEl = document.getElementById('vibe-tracking-khanh-root');
+if (!rootEl) {
+  console.warn('[vibe-tracking-khanh] Không tìm thấy phần tử #vibe-tracking-khanh-root trong DOM — bỏ qua khởi tạo thay vì crash.');
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}

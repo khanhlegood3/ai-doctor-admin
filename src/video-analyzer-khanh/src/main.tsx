@@ -11,8 +11,13 @@ import { createRoot } from 'react-dom/client'
 import App from './components/App.tsx'
 import './index.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const rootEl = document.getElementById('video-analyzer-khanh-root')
+if (!rootEl) {
+  console.warn('[video-analyzer-khanh] Không tìm thấy phần tử #video-analyzer-khanh-root trong DOM — bỏ qua khởi tạo thay vì crash.')
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}

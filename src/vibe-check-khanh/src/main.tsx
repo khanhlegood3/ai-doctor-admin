@@ -13,8 +13,16 @@ import App from './components/App.tsx';
 // Tailwind thuần dùng xen kẽ trong component, ví dụ "flex", "py-2"...).
 import './main.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// PHÒNG VỆ (giống mediapipe-khanh/vision-sync-khanh): id riêng thay vì
+// "root" dùng chung để không tự vẽ đè lên app chính nếu chunk này lỡ bị
+// nạp trên trang đó.
+const rootEl = document.getElementById('vibe-check-khanh-root');
+if (!rootEl) {
+  console.warn('[vibe-check-khanh] Không tìm thấy phần tử #vibe-check-khanh-root trong DOM — bỏ qua khởi tạo thay vì crash.');
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}

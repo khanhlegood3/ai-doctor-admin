@@ -12,8 +12,13 @@ import '../../../index.css';
 // hệ thống). Được nhúng qua <iframe> cùng-origin từ
 // src/components/admin/VideoToLearningAdminPanel.jsx, đúng mô hình sub-app
 // đã dùng cho trang chính.
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AdminHistoryPanel />
-  </StrictMode>,
-);
+const rootEl = document.getElementById('video-to-learning-khanh-admin-root');
+if (!rootEl) {
+  console.warn('[video-to-learning-khanh-admin] Không tìm thấy phần tử #video-to-learning-khanh-admin-root trong DOM — bỏ qua khởi tạo thay vì crash.');
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <AdminHistoryPanel />
+    </StrictMode>,
+  );
+}

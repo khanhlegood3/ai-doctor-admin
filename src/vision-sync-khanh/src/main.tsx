@@ -8,8 +8,20 @@ import App from './App.tsx';
 // class Tailwind dùng trong App.tsx bên dưới vẫn được compile bình thường.
 import '../../index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// PHÒNG VỆ (giống mediapipe-khanh): dùng id riêng "vision-sync-khanh-root"
+// thay vì "root" dùng chung — trước đây trùng đúng id div#root của app
+// React chính (ai-doctor-admin), nên nếu chunk này lỡ bị nạp trên trang đó
+// vì bất kỳ lý do build/chunk-splitting nào, nó sẽ tự vẽ đè lên app chính
+// và chạy toàn bộ camera/GPU/audio ngay lập tức — đây chính là nguyên nhân
+// gây "trang đơ ngay khi vừa mở, chưa bấm gì". Nếu không tìm thấy phần tử
+// của chính mình thì chỉ log rồi bỏ qua, không throw/crash.
+const rootEl = document.getElementById('vision-sync-khanh-root');
+if (!rootEl) {
+  console.warn('[vision-sync-khanh] Không tìm thấy phần tử #vision-sync-khanh-root trong DOM — bỏ qua khởi tạo thay vì crash.');
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
