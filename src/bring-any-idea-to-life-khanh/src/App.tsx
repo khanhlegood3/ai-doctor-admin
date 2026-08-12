@@ -83,6 +83,36 @@ const App: React.FC = () => {
     initHistory();
   }, []);
 
+  // Upload file gốc (ảnh/PDF/video) người dùng chọn lên R2 CHẠY NỀN, SAU KHI
+  // app đã tạo xong — KHÔNG await trước bringToLife() và KHÔNG throw khi lỗi.
+  //
+  // Trước đây (do 1 PR khác merge vào) bước này chạy ĐỒNG BỘ + CHẶN ngay đầu
+  // handleGenerate, TRƯỚC bringToLife(): nếu upload R2 lỗi (sai cấu hình R2/
+  // CORS, mất mạng, "Load failed"...) thì toàn bộ quá trình tạo app bị huỷ
+  // ngang với lỗi "Không upload được file gốc lên R2 nên chưa tạo app" — dù
+  // AI chưa hề được gọi. Sửa lại: R2 chỉ là bản sao lưu bền, không phải điều
+  // kiện để tạo app — giống hệt persistCreation() bên dưới, vốn đã đúng kiểu
+  // fire-and-forget từ đầu.
+  const uploadSourceInBackground = (creationId: string, file: File) => {
+    uploadSourceFileToR2(creationId, file)
+      .then((uploaded) => {
+        // Ảnh/PDF/video gốc đã có sẵn cục bộ (data URL) để hiển thị ngay từ
+        // lúc tạo app — khi R2 upload xong, thay bằng URL R2 (nhẹ hơn nhiều
+        // cho IndexedDB) nhưng không chặn hay ảnh hưởng gì tới creation đã hiển thị.
+        patchCreation(creationId, { originalImage: uploaded.publicUrl }).catch((e) =>
+          console.warn('[bring-any-idea-to-life] Failed to patch IndexedDB with R2 source url', e)
+        );
+        setHistory((prev) => prev.map((c) => (c.id === creationId ? { ...c, originalImage: uploaded.publicUrl } : c)));
+        setActiveCreation((prev) => (prev && prev.id === creationId ? { ...prev, originalImage: uploaded.publicUrl } : prev));
+      })
+      .catch((uploadErr) => {
+        // Chỉ log — app đã tạo xong và hiển thị rồi, mất bản sao lưu R2 của
+        // file gốc không ảnh hưởng UX chính (ảnh/PDF/video gốc vẫn còn ở
+        // dạng data URL cục bộ trong IndexedDB).
+        console.warn('[bring-any-idea-to-life] Source file R2 upload failed (non-blocking):', uploadErr);
+      });
+  };
+
   // Lưu 1 creation vào CẢ HAI nơi: IndexedDB (đọc lại tức thì, không cần
   // mạng) và R2 (sao lưu bền, không phụ thuộc trình duyệt/thiết bị) — R2
   // chạy fire-and-forget, lỗi không chặn UX chính vì IndexedDB đã lưu xong.
@@ -151,28 +181,10 @@ const App: React.FC = () => {
     try {
       let imageBase64: string | undefined;
       let mimeType: string | undefined;
-      let r2SourceUrl: string | undefined;
       const creationId = crypto.randomUUID();
 
       if (file) {
         const rawMimeType = (file.type || 'application/octet-stream').toLowerCase();
-        const isUploadedVideo = rawMimeType.startsWith('video/');
-
-        // Ảnh/PDF vẫn được sao lưu file gốc lên R2 trước khi gọi AI để tránh
-        // mất dữ liệu nguồn nếu người dùng rời trang. RIÊNG video upload từ
-        // máy tính/điện thoại phải được AI xử lý TRƯỚC, rồi mới upload file
-        // gốc lên R2 sau khi có HTML thành công (xem nhánh sau bringToLife()).
-        // Nhánh dán YouTube/Facebook không đi qua đây.
-        if (!isUploadedVideo) {
-          try {
-            const uploadedSource = await uploadSourceFileToR2(creationId, file);
-            r2SourceUrl = uploadedSource.publicUrl;
-          } catch (uploadErr) {
-            console.error('[bring-any-idea-to-life] Source file R2 upload failed:', uploadErr);
-            const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-            throw new Error(`Không upload được file gốc lên R2 nên chưa tạo app. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
-          }
-        }
 
         if (rawMimeType.startsWith('image/')) {
           // Luôn nén ảnh qua canvas trước khi gửi — ảnh chụp thẳng từ camera
@@ -202,36 +214,27 @@ const App: React.FC = () => {
 
       const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl);
 
-      if (html && file && mimeType?.toLowerCase().startsWith('video/')) {
-        // Video upload từ máy tính/điện thoại: chỉ upload file gốc lên R2 SAU
-        // khi AI đã xử lý xong và trả HTML. Điều này tránh trạng thái R2 có
-        // video nhưng không có creation nếu bước xử lý video thất bại.
-        try {
-          const uploadedSource = await uploadSourceFileToR2(creationId, file);
-          r2SourceUrl = uploadedSource.publicUrl;
-        } catch (uploadErr) {
-          console.error('[bring-any-idea-to-life] Source video R2 upload failed after processing:', uploadErr);
-          const message = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-          throw new Error(`AI đã xử lý video xong nhưng chưa upload được file gốc lên R2. Vui lòng kiểm tra cấu hình R2/CORS hoặc thử lại. Chi tiết: ${message}`);
-        }
-      }
-      
       if (html) {
         const newCreation: Creation = {
           id: creationId,
           name: file ? file.name : videoUrl ? videoUrl : imageUrl ? imageUrl : webUrl ? webUrl : 'New Creation',
           html: html,
-          // Store the full data URL for easy display (ảnh/PDF/video upload trực tiếp),
-          // hoặc thẳng link ảnh gốc nếu đến từ URL (không cần base64 lại ở client,
-          // trình duyệt tự tải ảnh để hiển thị Split View).
-          originalImage: r2SourceUrl || (imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : imageUrl),
+          // Dùng data URL cục bộ để hiện ngay lập tức — R2 upload (nếu có
+          // file) chạy NỀN SAU KHI app đã tạo xong, xem uploadSourceInBackground().
+          originalImage: imageBase64 && mimeType ? `data:${mimeType};base64,${imageBase64}` : imageUrl,
           mimeType: mimeType || null,
           videoUrl,
           timestamp: new Date(),
         };
         setActiveCreation(newCreation);
         setHistory(prev => [newCreation, ...prev]);
-        persistCreation(newCreation, r2SourceUrl ? undefined : imageBase64, mimeType, r2SourceUrl);
+        persistCreation(newCreation, imageBase64, mimeType);
+
+        // App đã tạo xong và hiển thị rồi — GIỜ MỚI upload file gốc lên R2,
+        // chạy nền, không chặn và không throw khi lỗi.
+        if (file) {
+          uploadSourceInBackground(creationId, file);
+        }
       }
 
     } catch (error) {
