@@ -33,11 +33,28 @@
 //     "AllowedHeaders": ["*"]
 //   }]
 //
-// CHỈ DÙNG 1 BỘ CREDENTIAL DUY NHẤT (không áp dụng cơ chế pool/rotation của
-// api/_lib/apiKeyPool.js) — khác với API key text (Groq/Gemini) vốn có thể
-// dùng key thay thế bất kỳ, 1 bộ credential R2 gắn liền với 1 bucket cụ thể;
-// muốn nhiều bucket/tài khoản thì tạo prefix biến môi trường khác (vd
-// R2_2_ACCESS_KEY_ID...) và gọi hàm dưới với prefix đó, không phải rotate.
+// CƠ CHẾ DỰ PHÒNG BUCKET THỨ 2 (thêm 13/08/2026, khi bucket chính gần đầy
+// dung lượng/quota): CÙNG 1 tài khoản Cloudflare + CÙNG 1 bộ credential
+// (R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_ENDPOINT) — chỉ khác TÊN BUCKET
+// và URL public để đọc lại. Set thêm 2 biến môi trường không bắt buộc:
+//   R2_BUCKET_NAME1   - tên bucket dự phòng (Vercel → Environment Variables)
+//   R2_ACCESS_URL1    - base URL public để ĐỌC LẠI file trong bucket dự
+//                       phòng (bucket khác -> URL public khác, không dùng
+//                       chung R2_ACCESS_URL của bucket chính)
+// Nếu không set 2 biến trên, mọi hàm dưới đây vẫn chạy bình thường với 1
+// bucket duy nhất (R2_BUCKET_NAME) như trước — cơ chế dự phòng là OPT-IN.
+//
+// QUAN TRỌNG — CORS: vì hàm dưới có thể chọn HOẶC bucket chính HOẶC bucket
+// dự phòng tại runtime (xem `bucketSlot`), CẢ 2 bucket phải được bật CORS Y
+// HỆT NHAU (cùng AllowedOrigins/Methods/Headers) trên Cloudflare Dashboard,
+// không chỉ bucket chính — nếu chỉ 1 trong 2 bucket có CORS, upload sẽ ngẫu
+// nhiên lỗi CORS tuỳ vào lần đó rơi vào bucket nào (đúng lỗi thực tế đã gặp
+// ngày 13/08/2026: CORS chỉ set nhầm 1 bucket không phải bucket app đang
+// dùng — xem ghi chú readEnv() bên dưới về cách xác định đúng bucket).
+//
+// KHÔNG áp dụng cơ chế pool/rotation kiểu "đua song song nhiều key" của
+// api/_lib/apiKeyPool.js (dùng cho Groq/Gemini) — ở đây chỉ đơn giản 2 lựa
+// chọn CỐ ĐỊNH (chính/dự phòng), không rotate qua nhiều bucket.
 
 import { AwsClient } from 'aws4fetch'
 
@@ -49,16 +66,30 @@ export class R2StorageError extends Error {
   }
 }
 
-function readEnv(envSource) {
+// bucketSlot: 0 = bucket chính (R2_BUCKET_NAME/R2_ACCESS_URL, mặc định, luôn
+// bắt buộc phải có), 1 = bucket dự phòng (R2_BUCKET_NAME1/R2_ACCESS_URL1,
+// opt-in — throw lỗi cấu hình rõ ràng nếu gọi bucketSlot: 1 mà chưa set,
+// KHÔNG âm thầm rơi về bucket chính, để tránh gây nhầm lẫn "tưởng đã chuyển
+// bucket dự phòng nhưng thật ra vẫn ghi vào bucket chính đang đầy").
+function readEnv(envSource, bucketSlot = 0) {
+  const suffix = bucketSlot === 1 ? '1' : ''
   const accessKeyId = envSource.R2_ACCESS_KEY_ID
   const secretAccessKey = envSource.R2_SECRET_ACCESS_KEY
   const endpoint = envSource.R2_ENDPOINT
-  const bucket = envSource.R2_BUCKET_NAME
-  const publicBaseUrl = envSource.R2_ACCESS_URL
+  const bucket = envSource[`R2_BUCKET_NAME${suffix}`]
+  const publicBaseUrl = envSource[`R2_ACCESS_URL${suffix}`]
 
-  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+  if (!accessKeyId || !secretAccessKey || !endpoint) {
     throw new R2StorageError(
-      'Thiếu cấu hình R2 (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT / R2_BUCKET_NAME) trên server.',
+      'Thiếu cấu hình R2 (R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT) trên server.',
+      500,
+    )
+  }
+  if (!bucket) {
+    throw new R2StorageError(
+      bucketSlot === 1
+        ? 'Thiếu cấu hình bucket R2 dự phòng (R2_BUCKET_NAME1) trên server — chưa bật được cơ chế fallback.'
+        : 'Thiếu cấu hình R2_BUCKET_NAME trên server.',
       500,
     )
   }
@@ -67,8 +98,14 @@ function readEnv(envSource) {
     secretAccessKey,
     endpoint: endpoint.replace(/\/+$/, ''),
     bucket,
+    bucketSlot,
     publicBaseUrl: (publicBaseUrl || '').replace(/\/+$/, ''),
   }
+}
+
+/** true nếu bucket dự phòng (slot 1) đã được cấu hình đủ để dùng được. */
+export function hasFallbackR2Bucket(envSource = process.env) {
+  return !!(envSource.R2_BUCKET_NAME1 && envSource.R2_ACCESS_URL1)
 }
 
 function getClient({ accessKeyId, secretAccessKey }) {
@@ -85,10 +122,15 @@ function objectUrl({ endpoint, bucket }, key) {
 }
 
 /** URL public để phát lại/tải file đã upload (dùng lưu trong DB/IndexedDB). */
-export function getR2PublicUrl(key, { envSource = process.env } = {}) {
-  const cfg = readEnv(envSource)
+export function getR2PublicUrl(key, { envSource = process.env, bucketSlot = 0 } = {}) {
+  const cfg = readEnv(envSource, bucketSlot)
   if (!cfg.publicBaseUrl) {
-    throw new R2StorageError('Thiếu R2_ACCESS_URL (base URL public để đọc lại file) trên server.', 500)
+    throw new R2StorageError(
+      bucketSlot === 1
+        ? 'Thiếu R2_ACCESS_URL1 (base URL public để đọc lại file trong bucket dự phòng) trên server.'
+        : 'Thiếu R2_ACCESS_URL (base URL public để đọc lại file) trên server.',
+      500,
+    )
   }
   return `${cfg.publicBaseUrl}/${key.replace(/^\/+/, '')}`
 }
@@ -101,31 +143,58 @@ export function getR2PublicUrl(key, { envSource = process.env } = {}) {
  * @param {string} params.key - object key, vd 'kol-videos/youtube/2026/08/abc123.mp4'
  * @param {string} [params.contentType]
  * @param {Record<string,string>} [params.envSource]
- * @returns {Promise<{ key: string, url: string, size: number }>}
+ * @param {number} [params.bucketSlot] - 0 = bucket chính (mặc định), 1 = bucket dự phòng
+ * @returns {Promise<{ key: string, url: string, size: number, bucketSlot: number }>}
  */
-export async function uploadBufferToR2({ buffer, key, contentType, envSource = process.env }) {
-  const cfg = readEnv(envSource)
+async function putBufferOnce({ buffer, key, contentType, envSource, bucketSlot }) {
+  const cfg = readEnv(envSource, bucketSlot)
   const client = getClient(cfg)
   const url = objectUrl(cfg, key)
+  const res = await client.fetch(url, {
+    method: 'PUT',
+    body: buffer,
+    headers: contentType ? { 'Content-Type': contentType } : undefined,
+  })
+  return res
+}
 
+export async function uploadBufferToR2({ buffer, key, contentType, envSource = process.env, bucketSlot = 0 }) {
   let res
   try {
-    res = await client.fetch(url, {
-      method: 'PUT',
-      body: buffer,
-      headers: contentType ? { 'Content-Type': contentType } : undefined,
-    })
+    res = await putBufferOnce({ buffer, key, contentType, envSource, bucketSlot })
   } catch (err) {
     console.error('[r2Storage] upload network error:', err?.message || err)
     throw new R2StorageError('Không kết nối được tới R2 để upload file.', 502)
   }
+
+  // Bucket chính lỗi + có bucket dự phòng đã cấu hình + đây chưa phải chính
+  // lần thử ở bucket dự phòng -> tự động thử lại 1 lần trên bucket dự phòng
+  // trước khi báo lỗi hẳn (server tự làm được vì đây là upload phía server,
+  // khác với createR2PresignedUploadUrl bên dưới — client mới là bên PUT nên
+  // server không tự retry được, phải để client chủ động xin lại URL).
+  if (!res.ok && bucketSlot === 0 && hasFallbackR2Bucket(envSource)) {
+    console.warn('[r2Storage] upload bucket chính thất bại (HTTP', res.status, ') — thử lại trên bucket dự phòng R2_BUCKET_NAME1')
+    try {
+      res = await putBufferOnce({ buffer, key, contentType, envSource, bucketSlot: 1 })
+      bucketSlot = 1
+    } catch (err) {
+      console.error('[r2Storage] upload network error (bucket dự phòng):', err?.message || err)
+      throw new R2StorageError('Không kết nối được tới R2 (cả bucket chính lẫn dự phòng) để upload file.', 502)
+    }
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     console.error('[r2Storage] upload failed:', res.status, text.slice(0, 500))
     throw new R2StorageError(`Upload lên R2 thất bại (HTTP ${res.status}).`, 502)
   }
 
-  return { key, url: getR2PublicUrl(key, { envSource }), size: buffer.length ?? buffer.byteLength ?? 0 }
+  return {
+    key,
+    url: getR2PublicUrl(key, { envSource, bucketSlot }),
+    size: buffer.length ?? buffer.byteLength ?? 0,
+    bucketSlot,
+  }
 }
 
 /**
@@ -138,10 +207,15 @@ export async function uploadBufferToR2({ buffer, key, contentType, envSource = p
  * @param {string} [params.contentType]
  * @param {number} [params.expiresInSeconds] - mặc định 10 phút
  * @param {Record<string,string>} [params.envSource]
- * @returns {Promise<{ uploadUrl: string, publicUrl: string, key: string }>}
+ * @param {number} [params.bucketSlot] - 0 = bucket chính (mặc định), 1 = bucket
+ *   dự phòng. CLIENT là bên thực hiện PUT (không phải server) nên server
+ *   KHÔNG tự phát hiện được "bucket chính đầy" để tự chuyển — phải để CLIENT
+ *   gọi lại hàm tạo URL này với bucketSlot: 1 SAU KHI lần PUT đầu tiên thất
+ *   bại (xem uploadSourceFileToR2 ở historyR2Client.ts).
+ * @returns {Promise<{ uploadUrl: string, publicUrl: string, key: string, bucketSlot: number }>}
  */
-export async function createR2PresignedUploadUrl({ key, contentType, expiresInSeconds = 600, envSource = process.env }) {
-  const cfg = readEnv(envSource)
+export async function createR2PresignedUploadUrl({ key, contentType, expiresInSeconds = 600, envSource = process.env, bucketSlot = 0 }) {
+  const cfg = readEnv(envSource, bucketSlot)
   const client = getClient(cfg)
   const url = new URL(objectUrl(cfg, key))
   if (contentType) url.searchParams.set('Content-Type', contentType)
@@ -158,7 +232,7 @@ export async function createR2PresignedUploadUrl({ key, contentType, expiresInSe
     throw new R2StorageError('Không tạo được URL upload R2.', 500)
   }
 
-  return { uploadUrl: signed.url, publicUrl: getR2PublicUrl(key, { envSource }), key }
+  return { uploadUrl: signed.url, publicUrl: getR2PublicUrl(key, { envSource, bucketSlot }), key, bucketSlot }
 }
 
 /**

@@ -280,7 +280,7 @@ export default async function handler(req, res) {
   if (body.provider === 'bring-any-idea-to-life-source-upload-url') {
     console.log('[groq-proxy] (bring-any-idea-to-life-source-upload-url) id:', body.id, '| contentType:', body.contentType)
     try {
-      const payload = await createBringAnyIdeaToLifeSourceUploadUrl({ id: body.id, mimeType: body.contentType })
+      const payload = await createBringAnyIdeaToLifeSourceUploadUrl({ id: body.id, mimeType: body.contentType, fallback: !!body.fallback })
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (bring-any-idea-to-life-source-upload-url) error:', err?.message || err)

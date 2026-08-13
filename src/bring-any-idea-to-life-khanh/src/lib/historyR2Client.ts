@@ -70,25 +70,53 @@ export interface SourceUploadUrlResult {
   key: string;
 }
 
-export async function uploadSourceFileToR2(id: string, file: File): Promise<SourceUploadUrlResult> {
-  const contentType = file.type || 'application/octet-stream';
+async function presignSourceUpload(id: string, contentType: string, fallback: boolean): Promise<SourceUploadUrlResult> {
   const presignRes = await fetch('/api/groq-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider: 'bring-any-idea-to-life-source-upload-url', id, contentType }),
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-source-upload-url', id, contentType, fallback }),
   });
   if (!presignRes.ok) {
     const message = await presignRes.text().catch(() => '');
     throw new Error(`Không tạo được URL upload R2 (HTTP ${presignRes.status})${message ? `: ${message}` : ''}`);
   }
-  const payload = await presignRes.json() as SourceUploadUrlResult;
-  const uploadRes = await fetch(payload.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  });
-  if (!uploadRes.ok) {
-    throw new Error(`Upload file gốc lên R2 thất bại (HTTP ${uploadRes.status}).`);
+  return presignRes.json() as Promise<SourceUploadUrlResult>;
+}
+
+// CƠ CHẾ DỰ PHÒNG BUCKET THỨ 2 (13/08/2026): server ký presigned URL nên
+// KHÔNG tự biết PUT có thành công hay không — CLIENT (nơi thực sự chạy PUT)
+// mới là bên phát hiện lỗi và phải chủ động xin lại URL trỏ sang bucket dự
+// phòng (fallback: true, xem createBringAnyIdeaToLifeSourceUploadUrl ở
+// bringAnyIdeaToLifeHistoryR2.js). Chỉ retry ĐÚNG 1 LẦN — nếu bucket dự
+// phòng cũng lỗi (vd chưa cấu hình R2_BUCKET_NAME1, hoặc CORS chưa bật trên
+// bucket dự phòng — xem ghi chú CORS trong r2Storage.js) thì để lỗi bay lên,
+// KHÔNG lặp vô hạn.
+export async function uploadSourceFileToR2(id: string, file: File): Promise<SourceUploadUrlResult> {
+  const contentType = file.type || 'application/octet-stream';
+
+  const attemptUpload = async (fallback: boolean): Promise<SourceUploadUrlResult> => {
+    const payload = await presignSourceUpload(id, contentType, fallback);
+    const uploadRes = await fetch(payload.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: file,
+    });
+    if (!uploadRes.ok) {
+      throw new Error(`Upload file gốc lên R2 thất bại (HTTP ${uploadRes.status}).`);
+    }
+    return payload;
+  };
+
+  try {
+    return await attemptUpload(false);
+  } catch (err) {
+    console.warn('[bring-any-idea-to-life] Upload bucket chính thất bại, thử bucket dự phòng:', err);
+    try {
+      return await attemptUpload(true);
+    } catch (fallbackErr) {
+      throw new Error(
+        `Upload file gốc lên R2 thất bại ở cả bucket chính lẫn bucket dự phòng. Lỗi cuối: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`,
+      );
+    }
   }
-  return payload;
 }

@@ -120,13 +120,21 @@ export async function loadAllBringAnyIdeaToLifeCreationsFromR2({ envSource = pro
 }
 
 
-/** Tạo presigned URL để client upload trực tiếp file gốc (ảnh/video/PDF) lên R2. */
-export async function createBringAnyIdeaToLifeSourceUploadUrl({ id, mimeType, envSource = process.env }) {
+/**
+ * Tạo presigned URL để client upload trực tiếp file gốc (ảnh/video/PDF) lên R2.
+ * @param {object} params
+ * @param {boolean} [params.fallback] - true nếu CLIENT đã thử PUT lên bucket
+ *   chính và thất bại (vd bucket đầy dung lượng/quota) — server sẽ ký lại URL
+ *   trỏ sang bucket dự phòng (R2_BUCKET_NAME1) thay vì bucket chính. Xem ghi
+ *   chú bucketSlot trong r2Storage.js — client là bên PUT thật sự nên phải
+ *   chủ động gọi lại API này với fallback: true, server không tự dò được.
+ */
+export async function createBringAnyIdeaToLifeSourceUploadUrl({ id, mimeType, envSource = process.env, fallback = false }) {
   if (!id) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu id của creation/source file.', 400)
   if (!mimeType) throw new BringAnyIdeaToLifeHistoryR2Error('Thiếu mimeType của file upload.', 400)
   const key = genR2Key(`bring-any-idea-to-life/source-files/${id}`, extFromMimeType(mimeType))
   try {
-    return await createR2PresignedUploadUrl({ key, contentType: mimeType, envSource })
+    return await createR2PresignedUploadUrl({ key, contentType: mimeType, envSource, bucketSlot: fallback ? 1 : 0 })
   } catch (err) {
     throw new BringAnyIdeaToLifeHistoryR2Error(err?.message || 'Không tạo được URL upload R2 cho file gốc.', err?.status || 502)
   }
