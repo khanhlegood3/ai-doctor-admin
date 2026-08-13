@@ -279,7 +279,7 @@ export default function KolPoseMakerPanel({ rawVideo, onSaved, onCancel }) {
             <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700 }}>
               ✅ {t('Đã xử lý xong! Xem lại trước khi lưu:', 'Processing done! Preview before saving:')}
             </div>
-            <video src={resultUrl} controls style={{ width: '100%', maxWidth: 640, margin: '0 auto', borderRadius: 12, background: '#000' }} />
+            <video src={resultUrl} controls playsInline preload="metadata" style={{ width: '100%', maxWidth: 640, margin: '0 auto', borderRadius: 12, background: '#000' }} />
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button type="button" onClick={handleSave} disabled={saving} style={{
                 padding: '10px 18px', borderRadius: 8, fontWeight: 800, fontSize: 13,
