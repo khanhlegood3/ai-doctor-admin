@@ -125,16 +125,51 @@ const PdfRenderer = ({ dataUrl }: { dataUrl: string }) => {
 // đọc được thay vì vô hình.
 function buildSafeSrcDoc(html: string): string {
   const baseStyle = '<style>html,body{background:#ffffff;color:#111111;color-scheme:light;}</style>';
+  // Vá mọi <video> (kể cả video được tạo động bằng JS sau này) để luôn có
+  // playsInline/muted, tránh Safari mobile mở fullscreen native rồi reload
+  // trang khi người dùng tap vào video trong app do AI sinh ra.
+  const videoInlineFixScript = `<script>(function(){
+    function patchVideo(v){
+      if (!v || v.__inlineFixApplied) return;
+      v.__inlineFixApplied = true;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.playsInline = true;
+      if (v.hasAttribute('autoplay') && !v.hasAttribute('muted')) {
+        v.muted = true;
+        v.setAttribute('muted', '');
+      }
+    }
+    function patchAll(root){
+      try {
+        (root.querySelectorAll ? root.querySelectorAll('video') : []).forEach(patchVideo);
+      } catch (e) {}
+    }
+    patchAll(document);
+    document.addEventListener('DOMContentLoaded', function(){ patchAll(document); });
+    try {
+      var observer = new MutationObserver(function(mutations){
+        mutations.forEach(function(m){
+          m.addedNodes && m.addedNodes.forEach(function(node){
+            if (node.nodeType !== 1) return;
+            if (node.tagName === 'VIDEO') patchVideo(node);
+            patchAll(node);
+          });
+        });
+      });
+      observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+    } catch (e) {}
+  })();</script>`;
 
   if (/<head[^>]*>/i.test(html)) {
-    return html.replace(/<head[^>]*>/i, (match) => `${match}${baseStyle}`);
+    return html.replace(/<head[^>]*>/i, (match) => `${match}${baseStyle}${videoInlineFixScript}`);
   }
   if (/<html[^>]*>/i.test(html)) {
-    return html.replace(/<html[^>]*>/i, (match) => `${match}<head>${baseStyle}</head>`);
+    return html.replace(/<html[^>]*>/i, (match) => `${match}<head>${baseStyle}${videoInlineFixScript}</head>`);
   }
   // Không phải một document HTML đầy đủ (ví dụ model trả về text thuần/markdown
   // thay vì HTML) — bọc lại thành document hợp lệ để luôn có nền/chữ tương phản rõ.
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}${videoInlineFixScript}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
 export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink }) => {
