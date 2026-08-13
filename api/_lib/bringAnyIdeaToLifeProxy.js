@@ -37,6 +37,7 @@ import { GoogleGenAI } from '@google/genai'
 import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
+import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
   constructor(message, status = 500) {
@@ -160,8 +161,11 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource })
 
     const parts = [{ text: prompt }]
     if (videoUrl) {
-      // Link YouTube/Facebook: Gemini "xem" trực tiếp qua fileUri, giống hệt
-      // cách videoToLearningProxy.js xử lý video link (không cần tải file về).
+      // videoUrl ở đây LUÔN đã sẵn sàng cho Gemini đọc thẳng: link YouTube
+      // gốc (Gemini hỗ trợ fileUri là URL YouTube), hoặc URL mp4 CDN trực
+      // tiếp đã resolve từ link Facebook (xem runBringAnyIdeaToLifeGenerate
+      // bên dưới) — KHÔNG bao giờ là URL trang facebook.com thô, vì Gemini
+      // không đọc được (cần đăng nhập/JS).
       parts.push({ fileData: { mimeType: 'video/mp4', fileUri: videoUrl } })
     } else if (fileBase64 && mimeType) {
       // Ảnh/PDF hoặc video upload trực tiếp từ máy người dùng đều đi qua nhánh này.
@@ -256,7 +260,22 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
         501,
       )
     }
-    const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource }))
+    // Gemini "xem" thẳng URL YouTube qua fileUri (hoạt động OK), NHƯNG với
+    // Facebook thì KHÔNG — Gemini không tải/đọc được trang facebook.com
+    // (cần đăng nhập/JS để render). Phải resolve link Facebook thành URL
+    // mp4 CDN công khai trước (browser_native_hd_url/sd_url), giống hệt
+    // cách videoToLearningProxy.js xử lý — xem api/_lib/facebookVideo.js.
+    let effectiveVideoUrl = videoUrl
+    if (videoUrl && isFacebookVideoUrl(videoUrl)) {
+      try {
+        const resolved = await resolveFacebookVideo(videoUrl)
+        effectiveVideoUrl = resolved.directUrl
+      } catch (err) {
+        if (err instanceof FacebookVideoError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
+        throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không lấy được video Facebook để phân tích.', 422)
+      }
+    }
+    const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, videoUrl: effectiveVideoUrl, envSource }))
     return { html, source: 'gemini' }
   }
 
