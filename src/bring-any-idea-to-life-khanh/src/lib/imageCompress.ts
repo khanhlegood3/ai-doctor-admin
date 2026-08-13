@@ -20,8 +20,16 @@
 // Safari tự convert sang JPEG khi chọn từ Photo Library, v.v.) — vừa
 // giảm size mạnh, vừa chuẩn hoá về 1 mimeType duy nhất dễ debug.
 
-const MAX_DIMENSION = 1600; // đủ chi tiết cho model vision đọc ảnh, không cần full-res gốc
-const JPEG_QUALITY = 0.82;
+// LƯU Ý (sự cố thực tế 13/08/2026): dimension ảnh gửi lên ảnh hưởng trực
+// tiếp tới số token vision model (Groq) phải "đọc" — free tier Groq giới
+// hạn CỨNG 8000 token/request (input + output cộng lại, xem GROQ_MAX_TOKENS
+// trong api/_lib/bringAnyIdeaToLifeProxy.js). Ảnh 1600px từng khiến 1 ảnh
+// đơn giản đã tốn ~2400 token input, chỉ còn rất ít ngân sách cho phần HTML/
+// CSS/JS sinh ra -> bị cắt cụt giữa chừng (trang trắng). Hạ xuống 1024px:
+// vẫn đủ chi tiết để model đọc sketch/whiteboard/vật thể, nhưng giảm đáng kể
+// token ảnh, chừa nhiều chỗ hơn cho output.
+const MAX_DIMENSION = 1024; // đủ chi tiết cho model vision đọc ảnh, không cần full-res gốc
+const JPEG_QUALITY = 0.8;
 
 export interface CompressedImage {
   base64: string; // KHÔNG kèm prefix "data:...;base64,"

@@ -128,14 +128,24 @@ Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`htm
 // giới hạn TPM (tokens per minute) = 8000 cho model này — và giới hạn đó áp
 // dụng cho TỪNG REQUEST (input + max_tokens dành cho output), KHÔNG PHẢI chỉ
 // tính tổng nhiều request cộng dồn trong 1 phút. Log lỗi thực tế: "Limit
-// 8000, Requested 11204" — nghĩa là 1 request DUY NHẤT (system instruction
-// ~750 token + prompt + 1 ảnh ~2400 token + max_tokens=8000 dành cho output)
-// đã vượt hẳn 8000, nên MỌI request đều lỗi ngay từ đầu, không phải do dùng
-// nhiều/hết quota theo thời gian. Hạ max_tokens xuống 4000 để tổng (input +
-// max_tokens) nằm dưới 8000 với biên độ dự phòng cho ảnh lớn hơn/prompt dài
-// hơn — đổi lại HTML sinh ra có thể ngắn gọn hơn 1 chút so với trước (8000
-// token output là dư thừa cho 1 trang HTML/CSS/JS đơn giản).
-const GROQ_MAX_TOKENS = 4000
+// 8000, Requested 11204" với max_tokens=8000 -> suy ra input (system
+// instruction ~750 token + prompt + 1 ảnh 1080x720) đã chiếm ~3200 token.
+// Lần sửa ĐẦU TIÊN chỉ hạ max_tokens xuống 4000 để né lỗi 429 — nhưng lại
+// gây ra bug MỚI: HTML bị cắt cụt giữa chừng (chạm max_tokens trước khi sinh
+// xong đủ </style>/</body>/</script>) -> trang trắng, xem finish_reason ===
+// 'length' trong callGroqVision() ở trên (nay coi là lỗi thay vì "thành
+// công" âm thầm trả HTML hỏng).
+// FIX ĐÚNG (2 phần, không chỉ chỉnh 1 con số): (a) giảm dimension ảnh gửi
+// lên (xem MAX_DIMENSION trong lib/imageCompress.ts, 1600 -> 1024px) để
+// giảm token ẢNH tốn cho input, chừa nhiều ngân sách hơn cho output; (b)
+// tăng max_tokens lên 5500 (thay vì giữ nguyên 8000 gốc, vốn đã được chứng
+// minh vượt quá 8000 TPM ngay cả khi ảnh nhỏ hơn) — với input đã giảm còn
+// ước tính ~1800-2200 token (750 system + ảnh 1024px nhẹ hơn nhiều), tổng
+// input + max_tokens vẫn nằm dưới 8000 với biên độ an toàn cho prompt dài
+// hơn. Nếu vẫn gặp finish_reason 'length' với ảnh phức tạp/prompt dài, hạ
+// tiếp con số này hoặc dimension ảnh, KHÔNG tăng ngược lại quá 8000 - (input
+// ước tính) vì sẽ lại ăn lỗi 429 TPM như cũ.
+const GROQ_MAX_TOKENS = 5500
 
 function cleanHtml(text) {
   let out = text || ''
@@ -177,8 +187,25 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
     return res.json()
   }, { envSource })
 
-  return data?.choices?.[0]?.message?.content || ''
+  const choice = data?.choices?.[0]
+  // BUG THỰC TẾ (sự cố 13/08/2026): trước đây hàm này coi MỌI content trả về
+  // (kể cả bị cắt cụt giữa chừng vì chạm max_tokens) là THÀNH CÔNG — nên khi
+  // hạ GROQ_MAX_TOKENS để né lỗi 429 "Request too large" (xem ghi chú ở
+  // GROQ_MAX_TOKENS bên dưới), HTML bị cắt cụt (thiếu </style>/</body>/
+  // </script>) vẫn được trả thẳng cho client -> hiện trang TRẮNG, không có
+  // lỗi nào được báo. Groq trả `finish_reason: 'length'` khi bị cắt vì hết
+  // max_tokens (khác 'stop' = sinh xong bình thường) — coi trường hợp này là
+  // THẤT BẠI để runBringAnyIdeaToLifeGenerate() tự động rơi xuống Gemini,
+  // thay vì âm thầm trả về HTML hỏng.
+  if (choice?.finish_reason === 'length') {
+    throw new Error(
+      'Groq trả về HTML bị cắt cụt (chạm giới hạn max_tokens trước khi sinh xong trang) — ảnh/prompt có thể quá phức tạp cho ngân sách token miễn phí.',
+    )
+  }
+
+  return choice?.message?.content || ''
 }
+
 
 // --- Upload video LỚN qua R2 thay vì nhồi base64 vào JSON body ---
 // TẠI SAO: base64 video được gửi thẳng trong JSON body (inlineData) trước
