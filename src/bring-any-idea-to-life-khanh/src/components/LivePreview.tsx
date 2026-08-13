@@ -497,8 +497,11 @@ ${message}`);
                             <PdfRenderer dataUrl={creation.originalImage} />
                         ) : isOriginalVideo ? (
                             <video
+                                key={creation.originalImage}
                                 src={creation.originalImage}
                                 controls
+                                playsInline
+                                preload="metadata"
                                 className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
                             />
                         ) : creation.originalImage ? (
