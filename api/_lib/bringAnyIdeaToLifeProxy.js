@@ -124,7 +124,18 @@ Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`htm
 // bộ ngân sách token cho code thật; (b) đặt max_tokens đủ lớn cho 1 trang
 // HTML/CSS/JS đầy đủ; (c) cleanHtml() vẫn dọn phòng hờ <think> nếu lỡ còn
 // sót (ví dụ nhánh fallback Gemini, hoặc Groq đổi hành vi trong tương lai).
-const GROQ_MAX_TOKENS = 8000
+// LƯU Ý QUAN TRỌNG (sự cố thực tế 13/08/2026): free tier "on_demand" của Groq
+// giới hạn TPM (tokens per minute) = 8000 cho model này — và giới hạn đó áp
+// dụng cho TỪNG REQUEST (input + max_tokens dành cho output), KHÔNG PHẢI chỉ
+// tính tổng nhiều request cộng dồn trong 1 phút. Log lỗi thực tế: "Limit
+// 8000, Requested 11204" — nghĩa là 1 request DUY NHẤT (system instruction
+// ~750 token + prompt + 1 ảnh ~2400 token + max_tokens=8000 dành cho output)
+// đã vượt hẳn 8000, nên MỌI request đều lỗi ngay từ đầu, không phải do dùng
+// nhiều/hết quota theo thời gian. Hạ max_tokens xuống 4000 để tổng (input +
+// max_tokens) nằm dưới 8000 với biên độ dự phòng cho ảnh lớn hơn/prompt dài
+// hơn — đổi lại HTML sinh ra có thể ngắn gọn hơn 1 chút so với trước (8000
+// token output là dư thừa cho 1 trang HTML/CSS/JS đơn giản).
+const GROQ_MAX_TOKENS = 4000
 
 function cleanHtml(text) {
   let out = text || ''
