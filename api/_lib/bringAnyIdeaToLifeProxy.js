@@ -213,7 +213,24 @@ function cleanHtml(text) {
 }
 
 // --- Groq (vision, miễn phí, ưu tiên gọi trước) ---
-async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
+class GroqTruncatedError extends Error {}
+
+// Yêu cầu bổ sung dùng cho lần retry (chỉ gọi khi lần 1 bị cắt cụt vì hết
+// max_tokens) — ép model ưu tiên HOÀN THÀNH file thay vì phong phú tính
+// năng, để tăng khả năng sinh xong 1 HTML hợp lệ trong ngân sách token còn
+// hẹp, thay vì lặp lại y hệt lỗi cũ.
+const GROQ_COMPACT_RETRY_SUFFIX = `
+
+IMPORTANT — RETRY WITH A STRICT LENGTH BUDGET: your previous attempt at this exact same input did not finish within the token budget and got cut off mid-file. This time you MUST produce a noticeably SIMPLER and SHORTER app: fewer visual flourishes, minimal (but complete) CSS, only the 1-2 most essential interactive features. Finishing a complete, valid, well-closed HTML document is more important than richness — never sacrifice completeness for polish.`
+
+// Ngân sách retry: KHÔNG dùng "số lần retry cố định" ăn trọn lại toàn bộ
+// timeoutMs mỗi lần (bài học cũ từ 504 Gateway Timeout ở nhánh Gemini, xem
+// ghi chú retryWithinBudget/MIN_ATTEMPT_BUDGET_MS phía trên) — chỉ retry nếu
+// còn đủ thời gian cho 1 lần thử Groq nữa trong effectiveTimeoutMs tổng của
+// request (ảnh/PDF/text: timeoutMs = 55s).
+const GROQ_RETRY_MIN_BUDGET_MS = 15_000
+
+async function requestGroqCompletion({ systemInstruction, prompt, fileBase64, mimeType, envSource, maxTokens }) {
   const content = [{ type: 'text', text: prompt }]
   if (fileBase64 && mimeType) {
     content.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBase64}` } })
@@ -222,11 +239,11 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
   const body = {
     model: GROQ_VISION_MODEL,
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTION },
+      { role: 'system', content: systemInstruction },
       { role: 'user', content },
     ],
     temperature: 0.5,
-    max_tokens: GROQ_MAX_TOKENS,
+    max_tokens: maxTokens,
     reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho code thật (xem ghi chú trên)
   }
 
@@ -253,16 +270,73 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
   // </script>) vẫn được trả thẳng cho client -> hiện trang TRẮNG, không có
   // lỗi nào được báo. Groq trả `finish_reason: 'length'` khi bị cắt vì hết
   // max_tokens (khác 'stop' = sinh xong bình thường) — coi trường hợp này là
-  // THẤT BẠI để runBringAnyIdeaToLifeGenerate() tự động rơi xuống Gemini,
-  // thay vì âm thầm trả về HTML hỏng.
+  // THẤT BẠI (GroqTruncatedError riêng, không phải Error thường) để
+  // callGroqVision() phân biệt được với lỗi khác và biết khi nào nên retry.
   if (choice?.finish_reason === 'length') {
-    throw new Error(
+    throw new GroqTruncatedError(
       'Groq trả về HTML bị cắt cụt (chạm giới hạn max_tokens trước khi sinh xong trang) — ảnh/prompt có thể quá phức tạp cho ngân sách token miễn phí.',
     )
   }
 
   return choice?.message?.content || ''
 }
+
+// SỰ CỐ LẶP LẠI LẦN 4 (13/08/2026): 4300 -> 4600 token vẫn có thể không đủ
+// với ảnh/prompt phức tạp bất thường — vặn mãi 1 con số GROQ_MAX_TOKENS cố
+// định không bao giờ đảm bảo 100%, vì ngân sách "vừa đủ sinh xong trang" phụ
+// thuộc độ phức tạp của TỪNG ảnh, không phải hằng số. Thay vì tiếp tục đoán
+// mò, thêm 1 lần TỰ ĐỘNG RETRY khi gặp finish_reason 'length': lần 2 vẫn
+// dùng model/ảnh y hệt nhưng yêu cầu model sinh 1 phiên bản ĐƠN GIẢN/NGẮN
+// HƠN hẳn (xem GROQ_COMPACT_RETRY_SUFFIX) để giảm số token output THỰC SỰ
+// CẦN — đây là đòn bẩy chính, KHÔNG tăng max_tokens ở lần retry: suffix yêu
+// cầu ngắn gọn tự nó đã cộng thêm ~115 token vào input, nên nếu vừa tăng
+// max_tokens vừa tăng input thì biên độ an toàn dưới TPM 8000 co lại gần hết
+// (đã tính: input xấu nhất từng đo ~2934 sau khi rút gọn SYSTEM_INSTRUCTION,
+// + suffix ~115 + max_tokens nếu tăng lên 4900 = ~7950, chỉ còn ~50 token
+// đệm — quá mong manh). Giữ GROQ_COMPACT_RETRY_MAX_TOKENS bằng đúng
+// GROQ_MAX_TOKENS (4600): ~2934 + 115 + 4600 ≈ 7650, còn đệm ~350 token, an
+// toàn hơn nhiều trong khi vẫn kỳ vọng đủ vì output cần thiết đã giảm nhờ
+// yêu cầu đơn giản hoá. Chỉ retry 1 lần (không phải vòng lặp vô hạn) và chỉ
+// khi còn đủ ngân sách thời gian, để không kéo dài quá timeoutMs tổng của
+// request và không tốn thêm quota TPM một cách vô ích nếu chắc chắn sẽ lại
+// timeout.
+const GROQ_COMPACT_RETRY_MAX_TOKENS = 4600
+
+async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
+  const startedAt = Date.now()
+  try {
+    return await requestGroqCompletion({
+      systemInstruction: SYSTEM_INSTRUCTION,
+      prompt,
+      fileBase64,
+      mimeType,
+      envSource,
+      maxTokens: GROQ_MAX_TOKENS,
+    })
+  } catch (err) {
+    if (!(err instanceof GroqTruncatedError)) throw err
+    const elapsed = Date.now() - startedAt
+    if (timeoutMs - elapsed < GROQ_RETRY_MIN_BUDGET_MS) {
+      // Không còn đủ thời gian cho 1 lần thử nữa trong ngân sách timeoutMs
+      // tổng của request — retry chắc chắn sẽ timeout hoặc đẩy request sát
+      // giới hạn Vercel, thà nhường ngân sách còn lại cho Gemini fallback.
+      throw err
+    }
+    console.warn('[bring-any-idea-to-life] Groq bị cắt cụt lần 1, tự động retry với yêu cầu ngắn gọn hơn:', err.message)
+    return await requestGroqCompletion({
+      systemInstruction: SYSTEM_INSTRUCTION + GROQ_COMPACT_RETRY_SUFFIX,
+      prompt,
+      fileBase64,
+      mimeType,
+      envSource,
+      maxTokens: GROQ_COMPACT_RETRY_MAX_TOKENS,
+    })
+    // Nếu lần retry NÀY cũng ném GroqTruncatedError (hoặc lỗi khác), để nó
+    // bay thẳng lên runBringAnyIdeaToLifeGenerate() như trước đây — vẫn rơi
+    // xuống Gemini fallback bình thường, không nuốt lỗi.
+  }
+}
+
 
 
 // --- Upload video LỚN qua R2 thay vì nhồi base64 vào JSON body ---
