@@ -8,10 +8,21 @@ import { classifyVideoUrl } from '../lib/videoLink';
 
 // Link demo dùng để minh hoạ tính năng "đọc video từ URL" — bấm nút demo
 // sẽ tự điền link này vào ô nhập, không tự động gọi AI.
-const DEMO_VIDEO_URL = 'https://youtube.com/shorts/hgla1njz9aw?si=DmH8ED7Vqld7tXGu';
-
-// Link video demo mới để người dùng có thể thử nhanh luồng YouTube Shorts.
 const DEMO_YOUTUBE_URL = 'https://youtube.com/shorts/hgla1njz9aw?si=DmH8ED7Vqld7tXGu';
+
+// Ảnh demo dùng để minh hoạ tính năng "đọc hình từ URL" — bấm nút "Try a demo
+// image URL" sẽ tự điền link ẢNH này (không phải video) vào ô nhập, không tự
+// động gọi AI.
+//
+// BUG ĐÃ SỬA: 1 commit trước đây (thêm luồng upload video) đã gộp nhầm biến
+// này thành 'DEMO_VIDEO_URL' và trỏ handleTryDemoImage() sang chính link
+// YouTube demo ở trên — khiến nút "Try a demo image URL" thực chất điền vào
+// ô nhập 1 link YOUTUBE, không phải ảnh (bấm vào sẽ tạo app từ video chứ
+// không phải từ ảnh, dù nút ghi rõ "demo image"). Một bản vá sau đó
+// (ReferenceError DEMO_IMAGE_URL is not defined) chỉ đổi tên biến còn sót lại
+// để hết crash, KHÔNG khôi phục đúng hành vi gốc. Khôi phục lại đúng link ảnh
+// gốc (đã dùng ở nơi khác trong code, xem LivePreview.tsx nút "Ảnh URL").
+const DEMO_IMAGE_URL = 'https://kimi-img.moonshot.cn/pub/websites/template/full-images/10-calm-space-fullstack-en-long.png';
 
 // Nhận diện sơ bộ 1 chuỗi có PHẢI là URL http/https hay không, dùng để quyết
 // định link người dùng dán vào ô là link ẢNH (khi không khớp video ở trên).
@@ -114,7 +125,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
   };
 
   const handleTryDemoImage = () => {
-    setLinkValue(DEMO_VIDEO_URL);
+    setLinkValue(DEMO_IMAGE_URL);
     setLinkError(null);
   };
 
@@ -260,7 +271,7 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
           onClick={handleTryDemoImage}
           disabled={isGenerating || disabled}
           className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
-          title={DEMO_VIDEO_URL}
+          title={DEMO_IMAGE_URL}
         >
           <PhotoIcon className="w-3.5 h-3.5" />
           Try a demo image URL

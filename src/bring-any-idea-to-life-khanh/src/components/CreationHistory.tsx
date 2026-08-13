@@ -37,6 +37,32 @@ function getCreationSourceLabel(item: Creation): string {
   return item.name;
 }
 
+// Nhận diện video/PDF của 1 creation. ƯU TIÊN item.mimeType (đáng tin cậy dù
+// originalImage là data URL cục bộ HAY đã là URL thật trên R2), CHỈ fallback
+// về soi tiền tố 'data:video'/'data:application/pdf' khi thiếu mimeType
+// (creation cũ từ trước khi field này tồn tại).
+//
+// BUG ĐÃ SỬA: trước đây 2 hàm này chỉ soi tiền tố data: của originalImage —
+// đúng lúc file gốc còn ở dạng base64 cục bộ, nhưng SAI ngay khi
+// uploadSourceInBackground() (App.tsx) upload xong lên R2 và thay
+// originalImage bằng 1 URL https:// thật (không còn bắt đầu bằng 'data:'
+// nữa), hoặc khi creation được load lại từ R2 (importR2Creations()) — mọi
+// video/PDF trong trường hợp này bị nhận nhầm thành ẢNH, khiến
+// SourceThumbnail cố hiển thị <img src="....mp4"> (ảnh vỡ) và badge/icon ghi
+// sai "Image" thay vì "Video"/"PDF". LivePreview.tsx không dính lỗi này vì
+// đã dùng creation.mimeType từ đầu — CreationHistory.tsx thì quên dùng field
+// đó dù đã có sẵn trong interface Creation.
+function isVideoSource(item: Creation): boolean {
+  if (item.videoUrl) return true;
+  if (item.mimeType) return /^video\//i.test(item.mimeType);
+  return item.originalImage?.startsWith('data:video') ?? false;
+}
+
+function isPdfSource(item: Creation): boolean {
+  if (item.mimeType) return item.mimeType === 'application/pdf';
+  return item.originalImage?.startsWith('data:application/pdf') ?? false;
+}
+
 interface CreationGroup {
   key: string;
   label: string;
@@ -89,7 +115,7 @@ const SourceThumbnail: React.FC<{ item: Creation; isPdf: boolean; isVideo: boole
     }
   }
 
-  if (item.originalImage && !isPdf && !item.originalImage.startsWith('data:video')) {
+  if (item.originalImage && !isPdf && !isVideo) {
     return <img src={item.originalImage} alt={`${item.name} source thumbnail`} className="h-full w-full object-cover" loading="lazy" />;
   }
 
@@ -168,8 +194,8 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
         <div className="grid grid-cols-1 gap-4 px-2 pb-2 lg:grid-cols-5">
           {visibleGroups.map((group) => {
             const item = group.latest;
-            const isPdf = item.originalImage?.startsWith('data:application/pdf') ?? false;
-            const isVideo = Boolean(item.videoUrl) || (item.originalImage?.startsWith('data:video') ?? false);
+            const isPdf = isPdfSource(item);
+            const isVideo = isVideoSource(item);
             return (
               <button
                 key={group.key}
