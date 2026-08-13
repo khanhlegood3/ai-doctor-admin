@@ -33,6 +33,7 @@ import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsF
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
+import { fetchFacebookClipToR2, FacebookDownloadError } from './_lib/facebookDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './_lib/videoAnalyzerProxy.js'
 import { withApiKeyRotation, toRotatableHttpError, ApiKeyPoolError } from './_lib/apiKeyPool.js'
@@ -335,6 +336,20 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (kol-youtube-fetch) error:', err?.message || err)
       const status = err instanceof KolYoutubeDownloadError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'KOL YouTube fetch error' })
+    }
+  }
+
+  // --- Nhánh AI Pose thật cho video KOL — nguồn Facebook (song song nhánh
+  // 'kol-youtube-fetch' ở trên) — xem api/_lib/facebookDownload.js.
+  if (body.provider === 'kol-facebook-fetch') {
+    console.log('[groq-proxy] (kol-facebook-fetch) facebookUrl:', body.facebookUrl)
+    try {
+      const payload = await fetchFacebookClipToR2(body.facebookUrl)
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (kol-facebook-fetch) error:', err?.message || err)
+      const status = err instanceof FacebookDownloadError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'KOL Facebook fetch error' })
     }
   }
 

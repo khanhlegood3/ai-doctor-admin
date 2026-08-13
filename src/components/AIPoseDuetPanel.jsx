@@ -27,23 +27,59 @@ function extractYouTubeId(url) {
   return null
 }
 
+// Song song extractYouTubeId() ở trên nhưng cho Facebook — không có "ID"
+// dạng ngắn như YouTube, Facebook Video Plugin nhận thẳng URL gốc đầy đủ
+// (đã encode) làm tham số href, không cần trích ID riêng.
+function isFacebookVideoUrl(url) {
+  if (!url) return false
+  return /(^|\.)facebook\.com\//i.test(url) || /(^|\.)fb\.watch\//i.test(url)
+}
+
+function getFacebookEmbedSrc(url, opts = {}) {
+  const params = new URLSearchParams({
+    href: url,
+    show_text: 'false',
+    autoplay: opts.autoplay ? 'true' : 'false',
+    mute: opts.mute ? 'true' : 'false',
+  })
+  return `https://www.facebook.com/plugins/video.php?${params.toString()}`
+}
+
+/**
+ * Nhận 1 link (YouTube hoặc Facebook) đã nhập, trả về thông tin để nhúng:
+ *   { platform: 'youtube', videoId } hoặc { platform: 'facebook', url }
+ * hoặc null nếu không nhận diện được.
+ */
+function resolveVideoEmbed(rawUrl) {
+  const url = (rawUrl || '').trim()
+  if (!url) return null
+  if (isFacebookVideoUrl(url)) {
+    return { platform: 'facebook', url }
+  }
+  const videoId = extractYouTubeId(url)
+  if (videoId) {
+    return { platform: 'youtube', videoId }
+  }
+  return null
+}
+
 export default function AIPoseDuetPanel() {
   const { lang } = useApp()
   const t = (vi, en) => (lang === 'vi' ? vi : en)
 
-  // ----- 1. Nhập link YouTube -----
+  // ----- 1. Nhập link YouTube hoặc Facebook -----
   const [ytLink, setYtLink] = useState('')
-  const [videoId, setVideoId] = useState(null)
+  const [embed, setEmbed] = useState(null) // { platform: 'youtube', videoId } | { platform: 'facebook', url }
   const [linkError, setLinkError] = useState('')
 
   const handleLoadVideo = useCallback(() => {
-    const id = extractYouTubeId(ytLink.trim())
-    if (!id) {
-      setLinkError(t('Vui lòng nhập một link YouTube hợp lệ!', 'Please enter a valid YouTube link!'))
+    const resolved = resolveVideoEmbed(ytLink.trim())
+    if (!resolved) {
+      setLinkError(t('Vui lòng nhập một link YouTube hoặc Facebook hợp lệ!', 'Please enter a valid YouTube or Facebook link!'))
       return
     }
     setLinkError('')
-    setVideoId(id)
+    setEmbed(resolved)
   }, [ytLink, lang])
 
   // ----- 2. Mô phỏng AI Pose vẽ đè lên iframe YouTube (Frame 2) -----
@@ -53,7 +89,7 @@ export default function AIPoseDuetPanel() {
   const mockRafRef = useRef(null)
 
   useEffect(() => {
-    if (!videoId) return
+    if (!embed) return
     const canvas = mockCanvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -125,7 +161,7 @@ export default function AIPoseDuetPanel() {
       if (mockRafRef.current) cancelAnimationFrame(mockRafRef.current)
       window.removeEventListener('resize', onResize)
     }
-  }, [videoId])
+  }, [embed])
 
   // ----- 3. AI Duet Camera thực tế (webcam + MediaPipe Pose Landmarker) -----
   const videoRef = useRef(null)
@@ -237,15 +273,15 @@ export default function AIPoseDuetPanel() {
         </h3>
         <p className="text-slate-400 text-sm mb-4">
           {t(
-            'Dán link YouTube (hoặc Shorts), AI sẽ tạo ra ứng dụng tương tác giúp người học nắm bắt nội dung & chuyển động.',
-            'Paste a YouTube (or Shorts) link and AI will turn it into an interactive app that helps learners follow the content & movement.'
+            'Dán link YouTube (hoặc Shorts) hoặc Facebook, AI sẽ tạo ra ứng dụng tương tác giúp người học nắm bắt nội dung & chuyển động.',
+            'Paste a YouTube (or Shorts) or Facebook link and AI will turn it into an interactive app that helps learners follow the content & movement.'
           )}
         </p>
 
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-slate-300 uppercase">
-              {t('Link video YouTube:', 'YouTube video link:')}
+              {t('Link video YouTube/Facebook:', 'YouTube/Facebook video link:')}
             </label>
             <div className="pd-neon-border rounded-lg bg-slate-900 mt-1 overflow-hidden">
               <input
@@ -253,7 +289,7 @@ export default function AIPoseDuetPanel() {
                 value={ytLink}
                 onChange={(e) => setYtLink(e.target.value)}
                 className="w-full bg-transparent border-none p-3 text-sm text-white focus:outline-none"
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://www.youtube.com/watch?v=... hoặc https://www.facebook.com/watch/?v=..."
               />
             </div>
           </div>
@@ -272,7 +308,7 @@ export default function AIPoseDuetPanel() {
       </div>
 
       {/* Grid: Video gốc / AI Pose Extract / Duet Camera */}
-      {videoId && (
+      {embed && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Frame 1: Video Gốc */}
           <div className="pd-glass p-3 flex flex-col items-center">
@@ -282,7 +318,11 @@ export default function AIPoseDuetPanel() {
             <div className="pd-video-container">
               <iframe
                 title="Original video"
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=0&rel=0`}
+                src={
+                  embed.platform === 'facebook'
+                    ? getFacebookEmbedSrc(embed.url, { autoplay: false, mute: false })
+                    : `https://www.youtube.com/embed/${embed.videoId}?autoplay=0&mute=0&rel=0`
+                }
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
@@ -298,7 +338,11 @@ export default function AIPoseDuetPanel() {
             <div className="pd-video-container relative">
               <iframe
                 title="AI pose extract"
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=1&rel=0&controls=0`}
+                src={
+                  embed.platform === 'facebook'
+                    ? getFacebookEmbedSrc(embed.url, { autoplay: false, mute: true })
+                    : `https://www.youtube.com/embed/${embed.videoId}?autoplay=0&mute=1&rel=0&controls=0`
+                }
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
@@ -310,8 +354,8 @@ export default function AIPoseDuetPanel() {
             </div>
             <p className="text-[10px] text-slate-500 mt-2 text-center">
               {t(
-                '*Do giới hạn bảo mật (CORS), web không thể quét trực tiếp pixel từ iframe YouTube. Đây là mô phỏng lớp phủ AI.',
-                '*Due to browser security (CORS), the page cannot read pixels directly from the YouTube iframe. This is a simulated AI overlay.'
+                '*Do giới hạn bảo mật (CORS), web không thể quét trực tiếp pixel từ iframe YouTube/Facebook. Đây là mô phỏng lớp phủ AI.',
+                '*Due to browser security (CORS), the page cannot read pixels directly from the YouTube/Facebook iframe. This is a simulated AI overlay.'
               )}
             </p>
           </div>

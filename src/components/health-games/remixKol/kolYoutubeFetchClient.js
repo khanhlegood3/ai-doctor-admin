@@ -19,6 +19,24 @@ export async function fetchYoutubeClipViaServer(youtubeUrl) {
   return data
 }
 
+// Song song fetchYoutubeClipViaServer() ở trên, cho nguồn Facebook — xem
+// giới hạn ở api/_lib/facebookDownload.js (chỉ hoạt động với video công
+// khai). Cùng cách fallback: nếu thất bại, cho user chọn file upload thủ
+// công qua uploadKolFileToR2() bên dưới.
+export async function fetchFacebookClipViaServer(facebookUrl) {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'kol-facebook-fetch', facebookUrl }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`)
+  }
+  // { url, mimeType, title, durationSeconds, size }
+  return data
+}
+
 /**
  * Upload 1 File/Blob video THẲNG lên R2 từ trình duyệt (không đi qua Vercel
  * Function, không giới hạn 4.5MB) — dùng cho video user tự chọn file

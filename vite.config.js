@@ -9,6 +9,7 @@ import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTracki
 import { runVibeCheckGenerate, VibeCheckProxyError } from './api/_lib/vibeCheckProxy.js'
 import { runVideoToLearningGenerate, VideoToLearningProxyError } from './api/_lib/videoToLearningProxy.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYoutubeDownload.js'
+import { fetchFacebookClipToR2, FacebookDownloadError } from './api/_lib/facebookDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './api/_lib/bringAnyIdeaToLifeProxy.js'
@@ -323,6 +324,21 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error instanceof KolYoutubeDownloadError ? error.status : 500
               res.end(JSON.stringify({ error: error?.message || 'KOL YouTube fetch error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'kol-facebook-fetch') {
+            try {
+              const payload = await fetchFacebookClipToR2(parsed.facebookUrl, { envSource: env })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[kol-facebook-fetch-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error instanceof FacebookDownloadError ? error.status : 500
+              res.end(JSON.stringify({ error: error?.message || 'KOL Facebook fetch error' }))
             }
             return
           }

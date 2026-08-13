@@ -18,7 +18,7 @@ import {
   findLatestPosedFor,
   KOL_VIDEO_KIND,
 } from './kolVideoStorage.js'
-import { fetchYoutubeClipViaServer } from './kolYoutubeFetchClient.js'
+import { fetchYoutubeClipViaServer, fetchFacebookClipViaServer } from './kolYoutubeFetchClient.js'
 
 const fmtDate = (iso) => {
   if (!iso) return '—'
@@ -35,6 +35,8 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
   const [loading, setLoading] = useState(true)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [fetchingYoutube, setFetchingYoutube] = useState(false)
+  const [facebookUrl, setFacebookUrl] = useState('')
+  const [fetchingFacebook, setFetchingFacebook] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [uploadingFile, setUploadingFile] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -87,6 +89,37 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
     }
   }, [youtubeUrl, user, load, lang])
 
+  const handleFetchFacebook = useCallback(async () => {
+    const url = facebookUrl.trim()
+    if (!url) return
+    setUploadError('')
+    setFetchingFacebook(true)
+    try {
+      const { url: r2Url, mimeType, title, durationSeconds, size } = await fetchFacebookClipViaServer(url)
+      await saveKolRawVideo({
+        r2Url,
+        mimeType,
+        title,
+        sourceType: 'facebook',
+        facebookUrl: url,
+        durationSeconds,
+        size,
+      }, { user })
+      setFacebookUrl('')
+      await load()
+    } catch (err) {
+      setUploadError(
+        `${err?.message || String(err)}\n\n` +
+        t(
+          '→ Bạn vẫn có thể tải video này về máy rồi dùng ô "Chọn file để tải lên" bên dưới.',
+          '→ You can still download this video to your device and use "Choose file to upload" below.'
+        )
+      )
+    } finally {
+      setFetchingFacebook(false)
+    }
+  }, [facebookUrl, user, load, lang])
+
   const handleFileChange = useCallback(async (e) => {
     const file = e.target.files?.[0]
     e.target.value = '' // cho phép chọn lại cùng 1 file lần sau
@@ -127,8 +160,8 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
         </h2>
         <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text3)' }}>
           {t(
-            'Dán link YouTube (server tải) hoặc chọn file video từ máy — sau đó bấm "Make Pose" để AI ghép khung xương thật, hoặc "Remix" để tập cùng video đã có pose.',
-            'Paste a YouTube link (server download) or choose a video file — then tap "Make Pose" for real AI skeleton overlay, or "Remix" to train alongside an already-posed video.'
+            'Dán link YouTube hoặc Facebook (server tải) hoặc chọn file video từ máy — sau đó bấm "Make Pose" để AI ghép khung xương thật, hoặc "Remix" để tập cùng video đã có pose.',
+            'Paste a YouTube or Facebook link (server download) or choose a video file — then tap "Make Pose" for real AI skeleton overlay, or "Remix" to train alongside an already-posed video.'
           )}
         </p>
       </div>
@@ -163,6 +196,30 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
           </button>
         </div>
 
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={facebookUrl}
+            onChange={(e) => setFacebookUrl(e.target.value)}
+            placeholder={t('Dán link Facebook (video/reel công khai, dưới ~90 giây)…', 'Paste a Facebook link (public video/reel, under ~90s)…')}
+            style={{
+              flex: '1 1 260px', padding: '10px 12px', borderRadius: 8, fontSize: 13,
+              background: 'var(--surface2, rgba(255,255,255,0.05))', border: '1px solid var(--border, rgba(255,255,255,0.15))', color: 'var(--text)',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleFetchFacebook}
+            disabled={fetchingFacebook || !facebookUrl.trim()}
+            style={{
+              padding: '10px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: fetchingFacebook ? 'default' : 'pointer',
+              background: '#1877F2', color: '#fff', border: 'none', opacity: fetchingFacebook || !facebookUrl.trim() ? 0.6 : 1,
+            }}
+          >
+            {fetchingFacebook ? t('Đang tải…', 'Downloading…') : t('⬇ Tải qua server', '⬇ Fetch via server')}
+          </button>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 11, color: 'var(--text3)' }}>{t('hoặc', 'or')}</span>
           <label style={{
@@ -193,7 +250,7 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
           padding: 40, textAlign: 'center', color: 'var(--text3)', border: '1.5px dashed var(--border, rgba(255,255,255,0.12))',
           borderRadius: 14, fontSize: 13,
         }}>
-          {t('Chưa có video nào. Dán link YouTube hoặc chọn file ở trên để bắt đầu.', 'No videos yet. Paste a YouTube link or choose a file above to get started.')}
+          {t('Chưa có video nào. Dán link YouTube/Facebook hoặc chọn file ở trên để bắt đầu.', 'No videos yet. Paste a YouTube/Facebook link or choose a file above to get started.')}
         </div>
       )}
 
@@ -227,6 +284,11 @@ export default function KolVideoLibraryPanel({ onMakePose, onRemix }) {
                   {v.sourceType === 'youtube' && (
                     <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,0,0,0.85)', color: '#fff' }}>
                       YouTube
+                    </span>
+                  )}
+                  {v.sourceType === 'facebook' && (
+                    <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: 'rgba(24,119,242,0.9)', color: '#fff' }}>
+                      Facebook
                     </span>
                   )}
                 </div>

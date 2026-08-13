@@ -28,6 +28,8 @@
 
 import { GoogleGenAI, FinishReason } from '@google/genai'
 import { fetchYoutubeTranscript, YoutubeTranscriptError } from './youtubeTranscript.js'
+import { fetchFacebookTranscript, FacebookTranscriptError } from './facebookTranscript.js'
+import { isFacebookVideoUrl, resolveFacebookVideo } from './facebookVideo.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { withApiKeyRotation, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 
@@ -180,18 +182,19 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
     return { text, source: 'gemini-fallback' }
   }
 
-  // Bước 1: sinh spec từ video (có videoUrl). Facebook không có transcript
-  // miễn phí như YouTube, nên đi thẳng sang Gemini fallback nếu được cấu hình.
-  const isFacebookVideo = /(^|\.)facebook\.com$|(^|\.)fb\.watch$/i.test(new URL(videoUrl).hostname)
+  // Bước 1: sinh spec từ video (có videoUrl) — hỗ trợ cả YouTube lẫn
+  // Facebook, phân biệt bằng host của videoUrl (xem isFacebookVideoUrl() ở
+  // facebookVideo.js). Facebook dùng captions_url (WebVTT) trích được từ
+  // trang xem video thay cho captionTracks của YouTube — xem
+  // facebookTranscript.js để biết giới hạn (chỉ video có bật phụ đề).
+  const isFacebook = isFacebookVideoUrl(videoUrl)
 
   let transcriptResult = null
   let transcriptError = null
-  if (!isFacebookVideo) {
-    try {
-      transcriptResult = await fetchYoutubeTranscript(videoUrl)
-    } catch (err) {
-      transcriptError = err
-    }
+  try {
+    transcriptResult = isFacebook ? await fetchFacebookTranscript(videoUrl) : await fetchYoutubeTranscript(videoUrl)
+  } catch (err) {
+    transcriptError = err
   }
 
   const hasEnoughTranscript = Boolean(transcriptResult && transcriptResult.transcript.length >= MIN_TRANSCRIPT_CHARS)
@@ -204,8 +207,6 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
     } catch (err) {
       console.warn('[video-to-learning] Groq (spec step) failed on all keys, falling back to Gemini:', err?.message || err)
     }
-  } else if (isFacebookVideo) {
-    console.warn('[video-to-learning] Facebook video URL detected, using Gemini fallback')
   } else if (transcriptError) {
     console.warn('[video-to-learning] Transcript unavailable, falling back to Gemini:', transcriptError.message)
   } else if (!hasEnoughTranscript) {
@@ -213,10 +214,7 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
   }
 
   if (!hasGemini) {
-    if (isFacebookVideo) {
-      throw new VideoToLearningProxyError('Video Facebook cần GEMINI_API_KEY để AI xem trực tiếp link video. Hãy cấu hình GEMINI_API_KEY hoặc dùng link YouTube có phụ đề.', 501)
-    }
-    if (transcriptError instanceof YoutubeTranscriptError) {
+    if (transcriptError instanceof YoutubeTranscriptError || transcriptError instanceof FacebookTranscriptError) {
       throw new VideoToLearningProxyError(transcriptError.message, transcriptError.status)
     }
     throw new VideoToLearningProxyError(
@@ -225,7 +223,29 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
     )
   }
 
-  const text = await callGemini({ promptText: prompt, videoUrl, envSource })
+  // Gemini xem trực tiếp video: YouTube chấp nhận thẳng URL watch page làm
+  // fileUri. Facebook thì KHÔNG (Gemini không đọc được trang facebook.com
+  // cần đăng nhập/JS) — phải dùng URL mp4 CDN trực tiếp đã trích được ở
+  // transcriptResult.directUrl; nếu chưa resolve (transcript lỗi ngay từ
+  // đầu) thì resolve lại riêng ở đây.
+  let geminiVideoUrl = videoUrl
+  if (isFacebook) {
+    if (transcriptResult?.directUrl) {
+      geminiVideoUrl = transcriptResult.directUrl
+    } else {
+      try {
+        const resolved = await resolveFacebookVideo(videoUrl)
+        geminiVideoUrl = resolved.directUrl
+      } catch (err) {
+        throw new VideoToLearningProxyError(
+          err?.message || 'Không lấy được video Facebook để phân tích trực tiếp.',
+          err?.status || 422,
+        )
+      }
+    }
+  }
+
+  const text = await callGemini({ promptText: prompt, videoUrl: geminiVideoUrl, envSource })
   return { text, source: 'gemini-fallback' }
 }
 

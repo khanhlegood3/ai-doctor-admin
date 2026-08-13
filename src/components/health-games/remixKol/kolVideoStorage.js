@@ -119,14 +119,15 @@ export function resolveKolVideoUrl(record) {
  *   server đã tải + upload hộ — xem kolYoutubeFetchClient.js)
  * @param {string} [params.mimeType]
  * @param {string} [params.title]
- * @param {'upload'|'youtube'} params.sourceType
+ * @param {'upload'|'youtube'|'facebook'} params.sourceType
  * @param {string} [params.youtubeUrl]
+ * @param {string} [params.facebookUrl]
  * @param {number} [params.durationSeconds]
  * @param {number} [params.size]
  * @param {object} ctx - { user }
  */
 export async function saveKolRawVideo(params, ctx = {}) {
-  const { file, mimeType, title, sourceType, youtubeUrl, durationSeconds } = params
+  const { file, mimeType, title, sourceType, youtubeUrl, facebookUrl, durationSeconds } = params
   const { user } = ctx
 
   let r2Url = params.r2Url || ''
@@ -155,6 +156,7 @@ export async function saveKolRawVideo(params, ctx = {}) {
     kind: KOL_VIDEO_KIND.RAW,
     sourceType: sourceType || 'upload',
     youtubeUrl: youtubeUrl || '',
+    facebookUrl: facebookUrl || '',
     durationSeconds: durationSeconds || 0,
     linkedRawId: null,
     sourceModule: KOL_VIDEO_SOURCE_MODULE,
