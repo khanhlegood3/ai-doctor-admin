@@ -160,7 +160,26 @@ Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`htm
 // và GROQ_MAX_TOKENS 5500 -> 4800 (chừa thêm biên độ ~700 token) — mục tiêu
 // input (~2000-2400) + max_tokens (4800) ≈ 6800-7200, có biên độ an toàn rõ
 // rệt dưới mức 8000 thay vì sát nút như trước.
-const GROQ_MAX_TOKENS = 4800
+//
+// SỰ CỐ LẶP LẠI LẦN 3 (13/08/2026, sau khi 768px+4800 đã lên production):
+// log lỗi thực tế "Limit 8000, Requested 8004" — input THẬT SỰ vẫn ~3204
+// token, GẦN NHƯ Y HỆT con số ~3200 đo được TRƯỚC cả 2 lần hạ dimension
+// (1024px lẫn 768px). Kết luận: input tokens cho request này KHÔNG co giãn
+// theo MAX_DIMENSION như ước tính ban đầu (ước tính "tỉ lệ bậc 2 theo cạnh"
+// không đúng với cách vision model của Groq tính token ảnh trong thực tế —
+// có thể model tính theo số "tile" cố định thay vì tỉ lệ mượt theo pixel,
+// nên dimension nhỏ hơn không giảm token tương ứng như kỳ vọng). VÌ VẬY:
+// không tiếp tục đoán mò bằng cách hạ dimension thêm nữa — thay vào đó hạ
+// thẳng GROQ_MAX_TOKENS xuống mức có biên độ an toàn THẬT SỰ RÕ RỆT so với
+// input ~3200 đã đo được nhiều lần (thay vì chỉ chừa vài chục token như
+// 4800 hiện tại, vốn chỉ vừa đủ né lỗi 4 token). Hạ GROQ_MAX_TOKENS
+// 4800 -> 4300: input (~3200) + max_tokens (4300) ≈ 7500, biên độ an toàn
+// ~500 token dưới mức 8000 — đủ chịu được dao động input do prompt dài hơn
+// hoặc ảnh phức tạp hơn bình thường. Không lo tái diễn bug "trang trắng do
+// cắt cụt" (xem ghi chú finish_reason === 'length' trong callGroqVision()
+// bên dưới): trường hợp đó giờ được coi là LỖI để tự động rơi xuống Gemini
+// dự phòng, không còn âm thầm trả HTML hỏng như bug gốc ban đầu.
+const GROQ_MAX_TOKENS = 4300
 
 function cleanHtml(text) {
   let out = text || ''
