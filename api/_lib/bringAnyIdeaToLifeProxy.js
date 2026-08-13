@@ -296,7 +296,24 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
           contents: { parts },
           config: {
             systemInstruction: SYSTEM_INSTRUCTION,
-            temperature: 0.5,
+            // NGUYÊN NHÂN THẬT SỰ của các lần treo/timeout 55s gần đây: Gemini
+            // 3.x (gemini-3.6-flash) mặc định bật "dynamic thinking" — tự ý
+            // suy luận ẩn (không trả về, không tính vào text response) trước
+            // khi sinh nội dung thật, thời lượng tuỳ độ phức tạp CỦA MODEL tự
+            // đánh giá — với 1 tác vụ nặng như "sinh nguyên 1 trang HTML/CSS/
+            // JS tương tác từ ảnh", model có thể tự cho phép suy luận rất lâu,
+            // dễ vượt quá effectiveTimeoutMs mà không hề trả lỗi (vì nó vẫn
+            // đang "nghĩ", không phải bị treo mạng) — khớp với đúng triệu
+            // chứng quan sát được (luôn treo ngay sát mốc 55s).
+            // FIX: tắt hẳn thinking (thinkingBudget: 0 = DISABLED, xem type
+            // ThinkingConfig của @google/genai) cho nhánh dự phòng này — đây
+            // chỉ là fallback khi Groq lỗi, ưu tiên PHẢN HỒI NHANH hơn là suy
+            // luận sâu, và HTML/CSS/JS tự chứa không thực sự cần reasoning
+            // phức tạp kiểu toán/logic để sinh ra.
+            thinkingConfig: { thinkingBudget: 0 },
+            // Bỏ temperature: Gemini 3.x KHÔNG hỗ trợ chỉnh temperature/top_p/
+            // top_k tuỳ ý (giá trị custom bị ÂM THẦM bỏ qua, xem tài liệu
+            // migration Gemini 3.x của Google) — giữ lại chỉ gây hiểu nhầm.
           },
         })
 
