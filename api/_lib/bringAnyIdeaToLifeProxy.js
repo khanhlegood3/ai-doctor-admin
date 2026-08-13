@@ -83,31 +83,35 @@ const withTimeout = (promise, ms) => {
   return Promise.race([promise, timeout])
 }
 
-// Giữ nguyên y hệt system instruction gốc trong services/gemini.ts.
-const SYSTEM_INSTRUCTION = `You are an expert AI Engineer and Product Designer specializing in "bringing artifacts to life".
-Your goal is to take a user uploaded file or video—which might be a polished UI design, a messy napkin sketch, a photo of a whiteboard with jumbled notes, a picture of a real-world object (like a messy desk), or a video (uploaded directly, or a YouTube/Facebook video link) showing a process, demo, tutorial, or scene, or a webpage/homepage/channel URL whose text content describes a product, creator, community, or workflow—and instantly generate a fully functional, interactive, single-page HTML/JS/CSS application.
+// SỰ CỐ THỰC TẾ (13/08/2026, sau khi GROQ_MAX_TOKENS đã hạ xuống 4300 để né
+// lỗi 429 TPM): né được 429 nhưng đổi sang lỗi finish_reason === 'length'
+// (HTML bị cắt cụt) — vì 4300 token output không đủ cho 1 trang HTML/CSS/JS
+// đầy đủ (trước đây 5500 mới đủ, nhưng 5500 + input lại vượt 8000 TPM).
+// Biên độ giữa "đủ token sinh xong trang" (~5500) và "không vượt TPM 8000"
+// (max_tokens ≤ 8000 - input, input ~3200) chỉ rộng ~300 token — quá hẹp để
+// chỉ chỉnh 1 con số max_tokens là xong. FIX: giảm phần INPUT cố định thay
+// vì tiếp tục vặn max_tokens — rút gọn system instruction (đo được ~745
+// token ở bản gốc) xuống còn nội dung cốt lõi, giữ nguyên đầy đủ mọi chỉ
+// thị hành vi (không đổi ý nghĩa, chỉ bớt từ ngữ dư thừa) để dồn ~300 token
+// tiết kiệm được sang cho ngân sách output — đồng thời thêm 1 dòng yêu cầu
+// model viết code gọn (không comment dài dòng, không boilerplate thừa) để
+// giảm tiếp số token OUTPUT thực sự cần dùng cho 1 trang hoàn chỉnh.
+const SYSTEM_INSTRUCTION = `You are an expert AI Engineer and Product Designer who turns an uploaded image, PDF, video, or webpage into a fully functional, interactive single-page HTML/CSS/JS app.
 
 CORE DIRECTIVES:
-1. **Analyze & Abstract**: Look at the image or watch the video.
-    - **Sketches/Wireframes**: Detect buttons, inputs, and layout. Turn them into a modern, clean UI.
-    - **Real-World Photos (Mundane Objects)**: If the user uploads a photo of a desk, a room, or a fruit bowl, DO NOT just try to display it. **Gamify it** or build a **Utility** around it.
-      - *Cluttered Desk* -> Create a "Clean Up" game where clicking items (represented by emojis or SVG shapes) clears them, or a Trello-style board.
-      - *Fruit Bowl* -> A nutrition tracker or a still-life painting app.
-    - **Documents/Forms**: specific interactive wizards or dashboards.
-    - **Videos**: Identify the key subject, action, process, or steps shown across the video (not just a single frame). If it's a tutorial or demo, turn it into an interactive step-by-step walkthrough or simulator of that process. If it's a real-world scene or activity, gamify it or build a utility inspired by what happens in it, same spirit as the real-world photo case above.
-    - **Webpages / Channels / Homepages**: Use the extracted page title, URL, headings, and text to infer the core brand, navigation, audience, products, and calls-to-action. Turn that into an interactive landing page, dashboard, guide, funnel, or mini-app inspired by the source.
+1. Analyze the input and decide what to build:
+   - Sketch/wireframe: detect buttons, inputs, layout; turn into a clean modern UI.
+   - Mundane real-world photo (desk, room, fruit bowl, etc.): do NOT just display it — gamify it (e.g. a "clean up" clicking game) or build a utility inspired by it (e.g. a nutrition tracker for a fruit bowl).
+   - Document/form: build a specific interactive wizard or dashboard.
+   - Video: identify the key subject/process/steps across the WHOLE video, not one frame. Tutorials/demos become an interactive step-by-step walkthrough or simulator; real-world scenes get gamified or turned into a utility, same spirit as the photo case.
+   - Webpage/channel/homepage: use its title, headings, and text to infer brand, audience, product, and CTAs; build an interactive landing page, dashboard, guide, funnel, or mini-app inspired by it.
+2. NO external image URLs: <img src="..."> to imgur/placeholder/etc will fail. Represent visuals with CSS shapes, inline SVGs, emojis, or CSS gradients instead (e.g. a coffee cup → ☕ or a CSS-drawn cup).
+3. Make it interactive — buttons, sliders, drag-and-drop, or dynamic visualizations. Never static.
+4. Self-contained: one HTML file, embedded <style> and <script>, no external deps unless essential (Tailwind via CDN allowed).
+5. If the input is messy or ambiguous, make a confident creative "best guess" — never return an error, always build something fun and functional.
+6. Keep the code lean and token-efficient: no long comments, no unnecessary boilerplate, so the full page fits comfortably within the response budget.
 
-2. **NO EXTERNAL IMAGES**:
-    - **CRITICAL**: Do NOT use <img src="..."> with external URLs (like imgur, placeholder.com, or generic internet URLs). They will fail.
-    - **INSTEAD**: Use **CSS shapes**, **inline SVGs**, **Emojis**, or **CSS gradients** to visually represent the elements you see in the input.
-    - If you see a "coffee cup" in the input, render a ☕ emoji or draw a cup with CSS. Do not try to load a jpg of a coffee cup.
-
-3. **Make it Interactive**: The output MUST NOT be static. It needs buttons, sliders, drag-and-drop, or dynamic visualizations.
-4. **Self-Contained**: The output must be a single HTML file with embedded CSS (<style>) and JavaScript (<script>). No external dependencies unless absolutely necessary (Tailwind via CDN is allowed).
-5. **Robust & Creative**: If the input is messy or ambiguous, generate a "best guess" creative interpretation. Never return an error. Build *something* fun and functional.
-
-RESPONSE FORMAT:
-Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`html ... \`\`\`). Start immediately with <!DOCTYPE html>.`
+RESPONSE FORMAT: Return ONLY the raw HTML code, no markdown fences, starting immediately with <!DOCTYPE html>.`
 
 // Bug đã gặp: qwen/qwen3.6-27b là reasoning model, mặc định trả về cả khối
 // <think>...</think> TRƯỚC phần code thật. Hệ quả kép:
@@ -179,7 +183,22 @@ Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`htm
 // cắt cụt" (xem ghi chú finish_reason === 'length' trong callGroqVision()
 // bên dưới): trường hợp đó giờ được coi là LỖI để tự động rơi xuống Gemini
 // dự phòng, không còn âm thầm trả HTML hỏng như bug gốc ban đầu.
-const GROQ_MAX_TOKENS = 4300
+//
+// SỰ CỐ LẶP LẠI LẦN 4 (13/08/2026, ngay sau khi hạ xuống 4300): né được 429
+// nhưng 4300 token output không đủ để sinh xong 1 trang HTML/CSS/JS đầy đủ ->
+// finish_reason 'length' (cắt cụt), rơi xuống Gemini fallback — vốn đang lỗi
+// PERMISSION_DENIED ở toàn bộ key (vấn đề billing/project phía Google, xem
+// ghi chú cuối file, KHÔNG sửa được bằng code). Fix đúng lần này: rút gọn
+// SYSTEM_INSTRUCTION (745 -> ~475 token, xem định nghĩa phía trên) để tiết
+// kiệm ~270 token input CỐ ĐỊNH, rồi dồn đúng số đó sang lại cho output:
+// GROQ_MAX_TOKENS 4300 -> 4600. Tổng input+output ước tính không đổi nhiều
+// so với lần chạy 4300 (vốn KHÔNG bị 429) — chỉ chuyển chỗ ngân sách từ input
+// cố định sang output cần thiết hơn — nên vẫn giữ được biên độ an toàn dưới
+// TPM 8000 trong khi có thêm ~270 token để hạn chế cắt cụt. Nếu vẫn còn gặp
+// finish_reason 'length' với ảnh/prompt phức tạp, bước tiếp theo nên là thêm
+// cơ chế TỰ ĐỘNG RETRY với max_tokens thấp hơn + yêu cầu HTML tối giản hơn,
+// chứ không nên tiếp tục vặn 1 con số này lên xuống vô thời hạn.
+const GROQ_MAX_TOKENS = 4600
 
 function cleanHtml(text) {
   let out = text || ''
