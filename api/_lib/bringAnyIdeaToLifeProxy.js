@@ -34,7 +34,7 @@
 // sự cố, để tiết kiệm quota/tiền.
 
 import { GoogleGenAI } from '@google/genai'
-import { withApiKeyRotation, withApiKeyRacing, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
+import { withApiKeyRotation, withApiKeyRacing, getApiKeyByLabel, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
@@ -266,13 +266,22 @@ export async function uploadBringAnyIdeaToLifeVideoToGemini({ publicUrl, mimeTyp
   }
 
   try {
-    return await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
+    // Đua song song (giống callGroqVision/callGemini ở ảnh/PDF) thay vì dò
+    // tuần tự — TẠO FILE MỚI trên Gemini Files API không "thuộc về" key nào
+    // trước đó (khác hẳn checkFile/generate bên dưới, vốn phải gọi lại ĐÚNG
+    // key đã tạo file), nên đua song song vẫn an toàn và giảm độ trễ khi
+    // 1-2 key đầu đang bị rate limit. QUAN TRỌNG: phải nhớ lại label của key
+    // THẮNG CUỘC (`label` — tham số thứ 2 của callback) và trả về cho
+    // client, vì các bước SAU (checkFile, rồi generate) bắt buộc phải dùng
+    // lại chính xác key này — file chỉ tồn tại trong tài khoản của key đã
+    // upload nó, gọi nhầm key khác sẽ báo lỗi "not found" giả.
+    return await withApiKeyRacing('GEMINI_API_KEY', async (apiKey, label) => {
       const ai = new GoogleGenAI({ apiKey })
       const file = await ai.files.upload({
         file: new Blob([videoBuffer], { type: mimeType }),
         config: { mimeType, displayName: displayName || 'video' },
       })
-      return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType || mimeType }
+      return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType || mimeType, geminiKeyLabel: label }
     }, { envSource })
   } catch (err) {
     if (err instanceof BringAnyIdeaToLifeProxyError) throw err
@@ -280,14 +289,31 @@ export async function uploadBringAnyIdeaToLifeVideoToGemini({ publicUrl, mimeTyp
   }
 }
 
-export async function checkBringAnyIdeaToLifeVideoFile({ fileName, envSource }) {
+export async function checkBringAnyIdeaToLifeVideoFile({ fileName, geminiKeyLabel, envSource }) {
   if (!fileName) throw new BringAnyIdeaToLifeProxyError('Missing fileName', 400)
+
+  const attempt = async (apiKey, label) => {
+    const ai = new GoogleGenAI({ apiKey })
+    const file = await ai.files.get({ name: fileName })
+    return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType, geminiKeyLabel: label }
+  }
+
   try {
-    return await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
-      const ai = new GoogleGenAI({ apiKey })
-      const file = await ai.files.get({ name: fileName })
-      return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType }
-    }, { envSource })
+    // File này CHỈ tồn tại trong tài khoản của key đã upload nó (xem
+    // uploadBringAnyIdeaToLifeVideoToGemini ở trên) — nếu client đã gửi lại
+    // đúng geminiKeyLabel (nhận từ response upload), gọi THẲNG đúng key đó,
+    // bỏ qua rotation/racing hoàn toàn (cả 2 đều có thể chọn nhầm key khác
+    // không sở hữu file -> lỗi "not found" giả, không phải lỗi quota thật).
+    if (geminiKeyLabel) {
+      const exactKey = getApiKeyByLabel(geminiKeyLabel, { envSource })
+      if (exactKey) return await attempt(exactKey, geminiKeyLabel)
+      // Key đó không còn trong env (vd vừa redeploy đổi biến môi trường giữa
+      // lúc upload và lúc check) -> rơi về dò tuần tự như cũ, còn hơn lỗi cứng.
+      console.warn(`[bring-any-idea-to-life] Không tìm thấy key ${geminiKeyLabel} đã dùng để upload video, dò tuần tự các key khác.`)
+    }
+    // Không biết geminiKeyLabel (client cũ, hoặc key đã mất) -> dò tuần tự
+    // (KHÔNG đua song song) để không tốn quota gọi nhầm key không sở hữu file.
+    return await withApiKeyRotation('GEMINI_API_KEY', attempt, { envSource })
   } catch (err) {
     if (err instanceof BringAnyIdeaToLifeProxyError) throw err
     throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini Files status error', err?.status || 502)
@@ -297,20 +323,16 @@ export async function checkBringAnyIdeaToLifeVideoFile({ fileName, envSource }) 
 
 // --- Gemini (multimodal, dự phòng khi Groq lỗi cho ảnh/PDF; BẮT BUỘC cho video vì
 // Groq vision (qwen) không hỗ trợ video) ---
-async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUri, geminiFileMimeType, envSource }) {
+async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource }) {
   const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   const effectiveTimeoutMs = isVideo ? videoTimeoutMs : timeoutMs
 
-  // Gọi song song tất cả GEMINI_API_KEY* CHỈ khi không phải nhánh video đã
-  // upload qua Gemini Files API (geminiFileUri) — file đó chỉ tồn tại trong
-  // ĐÚNG 1 tài khoản Gemini (tài khoản đã upload nó), gọi từ key khác sẽ báo
-  // "không tìm thấy file", không phải lỗi quota nên KHÔNG được lợi gì từ việc
-  // đua song song, ngược lại còn dễ gây nhầm lẫn. Ảnh/PDF hoặc video dạng
-  // link (YouTube/Facebook, không gắn với tài khoản nào) thì đua song song
-  // bình thường để giảm độ trễ khi 1-2 key đầu đang bị rate limit tạm thời.
-  const runWithKeys = geminiFileUri ? withApiKeyRotation : withApiKeyRacing
-
-  return await runWithKeys('GEMINI_API_KEY', async (geminiApiKey) => {
+  // Tách phần gọi Gemini thực sự ra 1 hàm riêng (nhận thẳng apiKey) để dùng
+  // được theo 3 cách khác nhau bên dưới: (a) 1 key CỤ THỂ đã biết trước
+  // (nhánh geminiFileUri có geminiKeyLabel), (b) đua song song nhiều key
+  // (withApiKeyRacing), (c) dò tuần tự (withApiKeyRotation, fallback khi
+  // không có geminiKeyLabel).
+  const attemptGeminiGenerate = async (geminiApiKey) => {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
     const parts = [{ text: prompt }]
@@ -376,7 +398,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
         if (!html) throw new BringAnyIdeaToLifeProxyError('Không có nội dung trả về từ Gemini.', 502)
         return html
       } catch (err) {
-        if (isRotatableApiError(err)) throw err // để withApiKeyRotation() bắt và đổi key
+        if (isRotatableApiError(err)) throw err // để withApiKeyRotation()/withApiKeyRacing() bắt và đổi key
         lastErr = err
         if (err?.message === 'timeout') {
           // Lần thử này đã ăn hết phần ngân sách của nó — retry chỉ có nghĩa
@@ -397,12 +419,36 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
       )
     }
     throw new BringAnyIdeaToLifeProxyError(lastErr?.message || 'Gemini generate error', 502)
-  }, { envSource })
+  }
+
+  // Nhánh video đã upload qua Gemini Files API: fileUri đó CHỈ tồn tại trong
+  // ĐÚNG 1 tài khoản (tài khoản đã upload nó, xem
+  // uploadBringAnyIdeaToLifeVideoToGemini — nay cũng đua song song, nên
+  // KHÔNG thể đoán bằng sticky index nữa) — nếu đã biết chính xác key nào đã
+  // upload (geminiKeyLabel, do client gửi lại từ response upload), gọi
+  // THẲNG đúng key đó, bỏ qua cả rotation lẫn racing (cả 2 đều có thể chọn
+  // nhầm key khác không sở hữu file -> lỗi "not found" giả, không phải lỗi
+  // quota thật).
+  if (geminiFileUri && geminiKeyLabel) {
+    const exactKey = getApiKeyByLabel(geminiKeyLabel, { envSource })
+    if (exactKey) return await attemptGeminiGenerate(exactKey)
+    // Key đó không còn trong env (vd vừa redeploy đổi biến môi trường giữa
+    // lúc upload và lúc generate) -> rơi về dò tuần tự như cũ, còn hơn lỗi cứng.
+    console.warn(`[bring-any-idea-to-life] Không tìm thấy key ${geminiKeyLabel} đã dùng để upload video, dò tuần tự các key khác.`)
+  }
+
+  // Ảnh/PDF/text hoặc video dạng link (không gắn với tài khoản nào) thì đua
+  // song song bình thường để giảm độ trễ khi 1-2 key đầu đang bị rate limit
+  // tạm thời. Nhánh video geminiFileUri KHÔNG có geminiKeyLabel hợp lệ (rơi
+  // xuống đây) thì dò tuần tự (rotation) để không tốn quota gọi nhầm key
+  // không sở hữu file.
+  const runWithKeys = geminiFileUri ? withApiKeyRotation : withApiKeyRacing
+  return await runWithKeys('GEMINI_API_KEY', (geminiApiKey) => attemptGeminiGenerate(geminiApiKey), { envSource })
 }
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, envSource }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
@@ -458,7 +504,7 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     // geminiFileUri, bỏ qua toàn bộ nhánh resolve link Facebook/base64 bên
     // dưới vì không áp dụng ở đây.
     if (geminiFileUri) {
-      const html = cleanHtml(await callGemini({ prompt, geminiFileUri, geminiFileMimeType, envSource }))
+      const html = cleanHtml(await callGemini({ prompt, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource }))
       return { html, source: 'gemini' }
     }
     // Gemini "xem" thẳng URL YouTube qua fileUri (hoạt động OK), NHƯNG với

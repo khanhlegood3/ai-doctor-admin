@@ -12,7 +12,7 @@ import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './api/_lib/kolYou
 import { fetchFacebookClipToR2, FacebookDownloadError } from './api/_lib/facebookDownload.js'
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
-import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './api/_lib/bringAnyIdeaToLifeProxy.js'
+import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './api/_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './api/_lib/imageToCodeProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
@@ -279,6 +279,12 @@ function geminiComicDevMiddleware(env) {
                 prompt: parsed.prompt,
                 fileBase64: parsed.fileBase64,
                 mimeType: parsed.mimeType,
+                videoUrl: parsed.videoUrl,
+                imageUrl: parsed.imageUrl,
+                webUrl: parsed.webUrl,
+                geminiFileUri: parsed.geminiFileUri,
+                geminiFileMimeType: parsed.geminiFileMimeType,
+                geminiKeyLabel: parsed.geminiKeyLabel,
                 envSource: env,
               })
               res.setHeader('Content-Type', 'application/json')
@@ -289,6 +295,35 @@ function geminiComicDevMiddleware(env) {
               res.setHeader('Content-Type', 'application/json')
               res.statusCode = error?.status || 500
               res.end(JSON.stringify({ error: error?.message || 'Bring Any Idea to Life proxy error' }))
+            }
+            return
+          }
+
+          if (parsed.provider === 'bring-any-idea-to-life-video-upload') {
+            try {
+              let payload
+              if (parsed.action === 'init') {
+                payload = await createBringAnyIdeaToLifeVideoUploadUrl({ mimeType: parsed.mimeType, envSource: env })
+              } else if (parsed.action === 'uploadToGemini') {
+                payload = await uploadBringAnyIdeaToLifeVideoToGemini({
+                  publicUrl: parsed.publicUrl,
+                  mimeType: parsed.mimeType,
+                  displayName: parsed.displayName,
+                  envSource: env,
+                })
+              } else if (parsed.action === 'checkFile') {
+                payload = await checkBringAnyIdeaToLifeVideoFile({ fileName: parsed.fileName, geminiKeyLabel: parsed.geminiKeyLabel, envSource: env })
+              } else {
+                throw new BringAnyIdeaToLifeProxyError('Unknown bring-any-idea-to-life-video-upload action', 400)
+              }
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              console.error('[bring-any-idea-to-life-video-upload-dev-middleware]', error?.message || error)
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 500
+              res.end(JSON.stringify({ error: error?.message || 'Bring Any Idea to Life video upload error' }))
             }
             return
           }

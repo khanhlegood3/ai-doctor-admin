@@ -184,6 +184,7 @@ const App: React.FC = () => {
       let mimeType: string | undefined;
       let geminiFileUri: string | undefined;
       let geminiFileMimeType: string | undefined;
+      let geminiKeyLabel: string | undefined;
       const creationId = crypto.randomUUID();
 
       if (file) {
@@ -209,6 +210,7 @@ const App: React.FC = () => {
             const uploaded = await uploadVideoFileToGemini(file);
             geminiFileUri = uploaded.uri;
             geminiFileMimeType = uploaded.mimeType;
+            geminiKeyLabel = uploaded.geminiKeyLabel;
           } finally {
             setLoadingLabel('Đang phân tích và tạo app...');
           }
@@ -231,7 +233,7 @@ const App: React.FC = () => {
         }
       }
 
-      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType);
+      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel);
 
       if (html) {
         const newCreation: Creation = {

@@ -192,6 +192,7 @@ export default async function handler(req, res) {
         webUrl: body.webUrl,
         geminiFileUri: body.geminiFileUri,
         geminiFileMimeType: body.geminiFileMimeType,
+        geminiKeyLabel: body.geminiKeyLabel,
       })
       return res.status(200).json(payload)
     } catch (err) {
@@ -217,7 +218,7 @@ export default async function handler(req, res) {
           displayName: body.displayName,
         })
       } else if (body.action === 'checkFile') {
-        payload = await checkBringAnyIdeaToLifeVideoFile({ fileName: body.fileName })
+        payload = await checkBringAnyIdeaToLifeVideoFile({ fileName: body.fileName, geminiKeyLabel: body.geminiKeyLabel })
       } else {
         throw new BringAnyIdeaToLifeProxyError('Unknown bring-any-idea-to-life-video-upload action', 400)
       }

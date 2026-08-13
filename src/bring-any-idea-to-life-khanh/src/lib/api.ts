@@ -15,6 +15,12 @@
 export type UploadedGeminiVideoFile = {
   uri: string;
   mimeType: string;
+  // Nhãn biến môi trường của key ĐÃ upload file này lên Gemini Files API
+  // (vd 'GEMINI_API_KEY2') — file chỉ tồn tại trong tài khoản của đúng key
+  // này, nên các bước sau (poll trạng thái, rồi generate) phải gọi lại
+  // CHÍNH XÁC key này thay vì để server tự dò/đua key khác (sẽ báo lỗi
+  // "not found" giả). Xem api/_lib/bringAnyIdeaToLifeProxy.js.
+  geminiKeyLabel?: string;
 };
 
 // Video LỚN (upload trực tiếp, không phải link YouTube/Facebook): thay vì
@@ -70,7 +76,15 @@ export async function uploadVideoFileToGemini(file: File): Promise<UploadedGemin
     const checkRes = await fetch('/api/groq-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: 'bring-any-idea-to-life-video-upload', action: 'checkFile', fileName: fileResource.name }),
+      body: JSON.stringify({
+        provider: 'bring-any-idea-to-life-video-upload',
+        action: 'checkFile',
+        fileName: fileResource.name,
+        // Gọi lại ĐÚNG key đã upload file này (xem ghi chú UploadedGeminiVideoFile
+        // ở trên) — nếu thiếu (client/response cũ chưa có), server sẽ tự dò
+        // tuần tự như trước, vẫn hoạt động nhưng chậm hơn 1 chút.
+        geminiKeyLabel: fileResource.geminiKeyLabel,
+      }),
     });
     fileResource = await checkRes.json().catch(() => ({}));
     if (!checkRes.ok) {
@@ -81,7 +95,7 @@ export async function uploadVideoFileToGemini(file: File): Promise<UploadedGemin
     throw new Error('Gemini xử lý video thất bại. Hãy thử video khác.');
   }
 
-  return { uri: fileResource.uri, mimeType: fileResource.mimeType || mimeType };
+  return { uri: fileResource.uri, mimeType: fileResource.mimeType || mimeType, geminiKeyLabel: fileResource.geminiKeyLabel };
 }
 
 export async function bringToLife(
@@ -92,7 +106,8 @@ export async function bringToLife(
   imageUrl?: string,
   webUrl?: string,
   geminiFileUri?: string,
-  geminiFileMimeType?: string
+  geminiFileMimeType?: string,
+  geminiKeyLabel?: string
 ): Promise<string> {
   const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
 
@@ -134,6 +149,7 @@ export async function bringToLife(
         webUrl,
         geminiFileUri,
         geminiFileMimeType,
+        geminiKeyLabel,
       }),
     });
   } catch (networkErr) {

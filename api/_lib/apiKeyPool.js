@@ -258,6 +258,27 @@ export async function withApiKeyRotation(prefix, attempt, { envSource = process.
 }
 
 /**
+ * Lấy ĐÚNG giá trị key theo label đã biết trước (vd 'GEMINI_API_KEY2') —
+ * dùng khi cần gọi lại CHÍNH XÁC key đã dùng ở 1 bước trước đó (vd: video đã
+ * upload lên Gemini Files API bằng key nào thì bước generate/check status
+ * sau đó BẮT BUỘC phải dùng lại đúng key đó, vì file chỉ tồn tại trong tài
+ * khoản của key đó — rotation/racing đoán mò key khác sẽ ra lỗi "not found"
+ * giả). label chính là tên biến môi trường, nên chỉ cần đọc thẳng
+ * envSource[label], không cần dò lại cả pool.
+ *
+ * @param {string} label - vd 'GEMINI_API_KEY2' (lấy từ label trả về bởi
+ *   withApiKeyRotation()/withApiKeyRacing() qua tham số thứ 2 của attempt)
+ * @param {object} [opts]
+ * @param {Record<string,string>} [opts.envSource]
+ * @returns {string | null}
+ */
+export function getApiKeyByLabel(label, { envSource = process.env } = {}) {
+  if (!label) return null
+  const value = envSource[label]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/**
  * Đếm nhanh số key khả dụng của 1 prefix — hữu ích để log chẩn đoán khi khởi
  * động 1 nhánh xử lý (vd "[groq-proxy] GROQ_API_KEY pool: 5 key").
  */
