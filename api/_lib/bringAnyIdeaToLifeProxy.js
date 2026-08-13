@@ -34,7 +34,7 @@
 // sự cố, để tiết kiệm quota/tiền.
 
 import { GoogleGenAI } from '@google/genai'
-import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
+import { withApiKeyRotation, withApiKeyRacing, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
@@ -177,7 +177,10 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
     reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho code thật (xem ghi chú trên)
   }
 
-  const data = await withApiKeyRotation('GROQ_API_KEY', async (apiKey) => {
+  // Gọi SONG SONG tất cả GROQ_API_KEY/GROQ_API_KEY1/... — lấy key nào về
+  // đích trước, không đợi tuần tự (xem đánh đổi tốn quota trong ghi chú của
+  // withApiKeyRacing() ở apiKeyPool.js).
+  const data = await withApiKeyRacing('GROQ_API_KEY', async (apiKey) => {
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -298,7 +301,16 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
   const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   const effectiveTimeoutMs = isVideo ? videoTimeoutMs : timeoutMs
 
-  return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
+  // Gọi song song tất cả GEMINI_API_KEY* CHỈ khi không phải nhánh video đã
+  // upload qua Gemini Files API (geminiFileUri) — file đó chỉ tồn tại trong
+  // ĐÚNG 1 tài khoản Gemini (tài khoản đã upload nó), gọi từ key khác sẽ báo
+  // "không tìm thấy file", không phải lỗi quota nên KHÔNG được lợi gì từ việc
+  // đua song song, ngược lại còn dễ gây nhầm lẫn. Ảnh/PDF hoặc video dạng
+  // link (YouTube/Facebook, không gắn với tài khoản nào) thì đua song song
+  // bình thường để giảm độ trễ khi 1-2 key đầu đang bị rate limit tạm thời.
+  const runWithKeys = geminiFileUri ? withApiKeyRotation : withApiKeyRacing
+
+  return await runWithKeys('GEMINI_API_KEY', async (geminiApiKey) => {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
     const parts = [{ text: prompt }]

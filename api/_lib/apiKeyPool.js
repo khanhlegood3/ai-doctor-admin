@@ -264,3 +264,73 @@ export async function withApiKeyRotation(prefix, attempt, { envSource = process.
 export function countApiKeyPool(prefix, opts) {
   return loadApiKeyPool(prefix, opts).length
 }
+
+/**
+ * BIẾN THỂ SONG SONG của withApiKeyRotation(): thay vì thử LẦN LƯỢT từng key
+ * (key #0 lỗi mới thử key #1, ...), gọi `attempt(apiKey, label)` ĐỒNG THỜI
+ * cho TẤT CẢ key trong pool cùng lúc, lấy kết quả của key nào về đích TRƯỚC
+ * TIÊN (dùng Promise.any) — không đợi các key còn lại.
+ *
+ * ĐÁNH ĐỔI cần biết trước khi dùng:
+ *   - Ưu điểm: giảm ĐỘ TRỄ (latency) khi 1-2 key đầu trong pool đang bị rate
+ *     limit/hết quota tạm thời — sequential rotation phải đợi lỗi + có thể
+ *     có delay/backoff trước khi thử key kế, còn racing thì các key khác
+ *     chạy song song ngay từ đầu, không phải đợi.
+ *   - Nhược điểm: TỐN GẤP N LẦN quota/chi phí cho 1 lần gọi thành công (N =
+ *     số key trong pool) — vì TẤT CẢ key đều thực sự gọi upstream, không chỉ
+ *     key thắng cuộc. Với API free tier có giới hạn request/ngày (không chỉ
+ *     TPM), cách này tiêu hao quota nhanh hơn hẳn — chỉ nên dùng khi ưu tiên
+ *     tốc độ/độ tin cậy hơn là tiết kiệm quota, hoặc khi pool có nhiều key dự
+ *     phòng ít dùng tới.
+ *   - Nếu pool chỉ có 1 key, tự động gọi thẳng như bình thường (không có gì
+ *     để "đua song song").
+ *
+ * @template T
+ * @param {string} prefix - vd 'GROQ_API_KEY'
+ * @param {(apiKey: string, label: string) => Promise<T>} attempt
+ * @param {object} [opts]
+ * @param {Record<string,string>} [opts.envSource]
+ * @param {number} [opts.maxConsecutiveMissing]
+ * @param {boolean} [opts.required] - xem withApiKeyRotation()
+ * @returns {Promise<T>}
+ */
+export async function withApiKeyRacing(prefix, attempt, { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING, required = true } = {}) {
+  const pool = loadApiKeyPool(prefix, { envSource, maxConsecutiveMissing })
+
+  if (pool.length === 0) {
+    if (!required) return undefined
+    throw new ApiKeyPoolError(
+      `Chưa cấu hình biến môi trường ${prefix} (hoặc ${prefix}1, ${prefix}2, ...). Thêm ít nhất 1 biến trong Vercel → Settings → Environment Variables rồi redeploy.`,
+      501,
+    )
+  }
+
+  if (pool.length === 1) {
+    // Chỉ 1 key -> không có gì để đua song song, gọi thẳng như bình thường.
+    const { key, label } = pool[0]
+    return attempt(key, label)
+  }
+
+  console.log(`[apiKeyPool] ${prefix}: gọi song song ${pool.length} key (${pool.map((p) => maskKey(p.key)).join(', ')})...`)
+
+  const settled = await Promise.allSettled(pool.map(({ key, label }) => attempt(key, label)))
+
+  const winnerIndex = settled.findIndex((r) => r.status === 'fulfilled')
+  if (winnerIndex !== -1) {
+    console.log(`[apiKeyPool] ${prefix}: key #${winnerIndex} (${pool[winnerIndex].label}) về đích trước trong ${pool.length} key.`)
+    return settled[winnerIndex].value
+  }
+
+  // TẤT CẢ key đều lỗi. Nếu có ít nhất 1 lỗi KHÔNG PHẢI loại "nên đổi key"
+  // (vd request sai 400, bug logic) — ném lỗi đó ra ngay, vì mọi key đều gọi
+  // chung 1 request y hệt nhau nên lỗi loại này chắc chắn cũng xảy ra ở tất
+  // cả các key, đổi/thêm key không giải quyết được.
+  const nonRotatable = settled.find((r) => r.status === 'rejected' && !isRotatableApiError(r.reason))
+  if (nonRotatable) throw nonRotatable.reason
+
+  const lastError = settled[settled.length - 1].reason
+  throw new ApiKeyPoolError(
+    `Tất cả ${pool.length} key ${prefix}* (đã gọi song song) đều đã hết hạn mức/billing hoặc bị lỗi. Vui lòng nạp thêm Token/quota cho ít nhất 1 key rồi thử lại. Lỗi cuối cùng: ${lastError?.message || lastError}`,
+    lastError?.status && Number.isInteger(lastError.status) ? lastError.status : 429,
+  )
+}
