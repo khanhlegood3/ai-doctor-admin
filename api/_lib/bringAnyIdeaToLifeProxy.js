@@ -128,77 +128,38 @@ RESPONSE FORMAT: Return ONLY the raw HTML code, no markdown fences, starting imm
 // bộ ngân sách token cho code thật; (b) đặt max_tokens đủ lớn cho 1 trang
 // HTML/CSS/JS đầy đủ; (c) cleanHtml() vẫn dọn phòng hờ <think> nếu lỡ còn
 // sót (ví dụ nhánh fallback Gemini, hoặc Groq đổi hành vi trong tương lai).
-// LƯU Ý QUAN TRỌNG (sự cố thực tế 13/08/2026): free tier "on_demand" của Groq
-// giới hạn TPM (tokens per minute) = 8000 cho model này — và giới hạn đó áp
-// dụng cho TỪNG REQUEST (input + max_tokens dành cho output), KHÔNG PHẢI chỉ
-// tính tổng nhiều request cộng dồn trong 1 phút. Log lỗi thực tế: "Limit
-// 8000, Requested 11204" với max_tokens=8000 -> suy ra input (system
-// instruction ~750 token + prompt + 1 ảnh 1080x720) đã chiếm ~3200 token.
-// Lần sửa ĐẦU TIÊN chỉ hạ max_tokens xuống 4000 để né lỗi 429 — nhưng lại
-// gây ra bug MỚI: HTML bị cắt cụt giữa chừng (chạm max_tokens trước khi sinh
-// xong đủ </style>/</body>/</script>) -> trang trắng, xem finish_reason ===
-// 'length' trong callGroqVision() ở trên (nay coi là lỗi thay vì "thành
-// công" âm thầm trả HTML hỏng).
-// FIX ĐÚNG (2 phần, không chỉ chỉnh 1 con số): (a) giảm dimension ảnh gửi
-// lên (xem MAX_DIMENSION trong lib/imageCompress.ts, 1600 -> 1024px) để
-// giảm token ẢNH tốn cho input, chừa nhiều ngân sách hơn cho output; (b)
-// tăng max_tokens lên 5500 (thay vì giữ nguyên 8000 gốc, vốn đã được chứng
-// minh vượt quá 8000 TPM ngay cả khi ảnh nhỏ hơn) — với input đã giảm còn
-// ước tính ~1800-2200 token (750 system + ảnh 1024px nhẹ hơn nhiều), tổng
-// input + max_tokens vẫn nằm dưới 8000 với biên độ an toàn cho prompt dài
-// hơn. Nếu vẫn gặp finish_reason 'length' với ảnh phức tạp/prompt dài, hạ
-// tiếp con số này hoặc dimension ảnh, KHÔNG tăng ngược lại quá 8000 - (input
-// ước tính) vì sẽ lại ăn lỗi 429 TPM như cũ.
+// LƯU Ý QUAN TRỌNG — LỊCH SỬ TÓM TẮT (13/08/2026, nhiều sự cố lặp lại liên
+// tiếp): free tier "on_demand" của Groq giới hạn TPM (tokens/phút) = 8000
+// cho model này, áp dụng cho TỪNG REQUEST (input + max_tokens cho output).
+// Đã thử lần lượt: hạ MAX_DIMENSION ảnh (1600->1024->768px, xem
+// lib/imageCompress.ts) và vặn GROQ_MAX_TOKENS (8000->4000->5500->4800->
+// 4300->4600) trong 1 lệnh gọi DUY NHẤT vừa gửi ảnh vừa yêu cầu sinh full
+// HTML — mỗi lần chỉ né được lỗi 429 "Request too large" bằng cách hạ
+// max_tokens, rồi lại ăn lỗi finish_reason 'length' (HTML cắt cụt) vì
+// không đủ token cho 1 trang đầy đủ, rồi lại phải cân bằng lại — biên độ
+// giữa "đủ token sinh xong trang" (~5500) và "không vượt TPM 8000"
+// (max_tokens ≤ 8000 - input, input đo thực tế ổn định ~3200 dù hạ dimension
+// ảnh) chỉ rộng ~300-800 token, quá hẹp để 1 lệnh gọi duy nhất (ảnh + full
+// HTML output) chịu được mọi mức độ phức tạp ảnh. Ngay cả thêm 1 lần retry
+// (giữ nguyên kiến trúc 1-lệnh-gọi) vẫn thất bại với ảnh phức tạp — xem
+// lịch sử commit của file này để biết chi tiết từng lần.
 //
-// SỰ CỐ LẶP LẠI LẦN 2 (14/08/2026): estimate ~1800-2200 token input ở trên
-// SAI TRONG THỰC TẾ — log lỗi mới cho thấy "Limit 8000, Requested 8704" với
-// max_tokens=5500, tức input THẬT SỰ đã ~3200 token ngay cả ở ảnh 1024px
-// (ảnh chụp màn hình/screenshot có nhiều chi tiết/text tốn nhiều token hơn
-// ảnh chụp vật thể đơn giản dùng để test ban đầu). QUAN TRỌNG: đổi SANG KEY
-// KHÁC (rotation/racing) KHÔNG giúp gì cho lỗi này — "Request too large" là
-// giới hạn TPM CỦA MODEL trên toàn bộ free tier "on_demand", ÁP DỤNG NHƯ
-// NHAU cho MỌI key/tài khoản free, không phải lỗi "riêng key này hết hạn
-// mức" — đổi key nào cũng lỗi y hệt. Cách fix DUY NHẤT thật sự hiệu quả là
-// giảm tiếp kích thước request. Hạ thêm: MAX_DIMENSION 1024 -> 768 (giảm
-// mạnh token ảnh, vì token ảnh tỉ lệ ~bậc 2 theo cạnh: 768² / 1024² ≈ 0.56)
-// và GROQ_MAX_TOKENS 5500 -> 4800 (chừa thêm biên độ ~700 token) — mục tiêu
-// input (~2000-2400) + max_tokens (4800) ≈ 6800-7200, có biên độ an toàn rõ
-// rệt dưới mức 8000 thay vì sát nút như trước.
-//
-// SỰ CỐ LẶP LẠI LẦN 3 (13/08/2026, sau khi 768px+4800 đã lên production):
-// log lỗi thực tế "Limit 8000, Requested 8004" — input THẬT SỰ vẫn ~3204
-// token, GẦN NHƯ Y HỆT con số ~3200 đo được TRƯỚC cả 2 lần hạ dimension
-// (1024px lẫn 768px). Kết luận: input tokens cho request này KHÔNG co giãn
-// theo MAX_DIMENSION như ước tính ban đầu (ước tính "tỉ lệ bậc 2 theo cạnh"
-// không đúng với cách vision model của Groq tính token ảnh trong thực tế —
-// có thể model tính theo số "tile" cố định thay vì tỉ lệ mượt theo pixel,
-// nên dimension nhỏ hơn không giảm token tương ứng như kỳ vọng). VÌ VẬY:
-// không tiếp tục đoán mò bằng cách hạ dimension thêm nữa — thay vào đó hạ
-// thẳng GROQ_MAX_TOKENS xuống mức có biên độ an toàn THẬT SỰ RÕ RỆT so với
-// input ~3200 đã đo được nhiều lần (thay vì chỉ chừa vài chục token như
-// 4800 hiện tại, vốn chỉ vừa đủ né lỗi 4 token). Hạ GROQ_MAX_TOKENS
-// 4800 -> 4300: input (~3200) + max_tokens (4300) ≈ 7500, biên độ an toàn
-// ~500 token dưới mức 8000 — đủ chịu được dao động input do prompt dài hơn
-// hoặc ảnh phức tạp hơn bình thường. Không lo tái diễn bug "trang trắng do
-// cắt cụt" (xem ghi chú finish_reason === 'length' trong callGroqVision()
-// bên dưới): trường hợp đó giờ được coi là LỖI để tự động rơi xuống Gemini
-// dự phòng, không còn âm thầm trả HTML hỏng như bug gốc ban đầu.
-//
-// SỰ CỐ LẶP LẠI LẦN 4 (13/08/2026, ngay sau khi hạ xuống 4300): né được 429
-// nhưng 4300 token output không đủ để sinh xong 1 trang HTML/CSS/JS đầy đủ ->
-// finish_reason 'length' (cắt cụt), rơi xuống Gemini fallback — vốn đang lỗi
-// PERMISSION_DENIED ở toàn bộ key (vấn đề billing/project phía Google, xem
-// ghi chú cuối file, KHÔNG sửa được bằng code). Fix đúng lần này: rút gọn
-// SYSTEM_INSTRUCTION (745 -> ~475 token, xem định nghĩa phía trên) để tiết
-// kiệm ~270 token input CỐ ĐỊNH, rồi dồn đúng số đó sang lại cho output:
-// GROQ_MAX_TOKENS 4300 -> 4600. Tổng input+output ước tính không đổi nhiều
-// so với lần chạy 4300 (vốn KHÔNG bị 429) — chỉ chuyển chỗ ngân sách từ input
-// cố định sang output cần thiết hơn — nên vẫn giữ được biên độ an toàn dưới
-// TPM 8000 trong khi có thêm ~270 token để hạn chế cắt cụt. Nếu vẫn còn gặp
-// finish_reason 'length' với ảnh/prompt phức tạp, bước tiếp theo nên là thêm
-// cơ chế TỰ ĐỘNG RETRY với max_tokens thấp hơn + yêu cầu HTML tối giản hơn,
-// chứ không nên tiếp tục vặn 1 con số này lên xuống vô thời hạn.
-const GROQ_MAX_TOKENS = 4600
+// FIX KIẾN TRÚC (không tiếp tục vặn số): tách thành 2 lệnh gọi Groq riêng
+// biệt thay vì 1 lệnh gọi vừa "nhìn ảnh" vừa "viết đủ 1 trang HTML":
+//   1. planFromImage() — gửi ẢNH + yêu cầu viết 1 KẾ HOẠCH TEXT ngắn gọn
+//      (không phải code, xem PLAN_SYSTEM_INSTRUCTION), output nhỏ
+//      (GROQ_PLAN_MAX_TOKENS) nên input (ảnh, cố định ~3200) + output nhỏ
+//      luôn nằm sâu dưới 8000 TPM, gần như không bao giờ chạm giới hạn.
+//   2. codegenFromPlan() — gọi lại Groq CHỈ VỚI TEXT (kế hoạch ở bước 1,
+//      KHÔNG gửi lại ảnh) để sinh HTML đầy đủ. Vì input bước này chỉ còn
+//      system instruction + kế hoạch (~1000-1300 token, KHÔNG có ảnh), ngân
+//      sách output có thể tăng lên GROQ_CODEGEN_MAX_TOKENS (6500) mà vẫn
+//      thừa nhiều đệm dưới 8000 — giải quyết tận gốc việc "không đủ chỗ cho
+//      cả ảnh lẫn HTML đầy đủ trong cùng 1 request" thay vì tiếp tục cân đo
+//      2 con số trong 1 lệnh gọi.
+// Trả giá: 2 lệnh gọi tuần tự thay vì 1 (chậm hơn 1 chút, vẫn nằm trong
+// timeoutMs), và chất lượng HTML phụ thuộc 1 phần vào độ chính xác của kế
+// hoạch trung gian — chấp nhận được so với việc liên tục lỗi 429/cắt cụt.
 
 function cleanHtml(text) {
   let out = text || ''
@@ -212,17 +173,69 @@ function cleanHtml(text) {
   return out.trim()
 }
 
-// --- Groq (vision, miễn phí, ưu tiên gọi trước) ---
+// --- Groq (vision, miễn phí, ưu tiên gọi trước) — kiến trúc 2 bước ---
 class GroqTruncatedError extends Error {}
 
-// Yêu cầu bổ sung dùng cho lần retry (chỉ gọi khi lần 1 bị cắt cụt vì hết
-// max_tokens) — ép model ưu tiên HOÀN THÀNH file thay vì phong phú tính
-// năng, để tăng khả năng sinh xong 1 HTML hợp lệ trong ngân sách token còn
-// hẹp, thay vì lặp lại y hệt lỗi cũ.
-const GROQ_COMPACT_RETRY_SUFFIX = `
+// Bước 1: chỉ yêu cầu 1 KẾ HOẠCH TEXT ngắn (không phải code) từ ảnh — giữ
+// output nhỏ để input (ảnh, cố định ~3200 token) + output không bao giờ áp
+// sát TPM 8000. Nếu model lỡ vẫn cắt cụt kế hoạch (hiếm, vì GROQ_PLAN_MAX_TOKENS
+// đã có biên độ rộng), vẫn DÙNG ĐƯỢC phần kế hoạch dở dang cho bước 2 —
+// không throw, khác hẳn HTML cắt cụt (dở dang = hỏng hẳn, không dùng được).
+const PLAN_SYSTEM_INSTRUCTION = `You are an expert product designer. Look at the uploaded image/PDF/file (and any accompanying text) and write a CONCISE build plan for turning it into a fully functional, interactive single-page HTML/CSS/JS app "bringing it to life" — plain text only, NOT code, under 200 words.
 
-IMPORTANT — RETRY WITH A STRICT LENGTH BUDGET: your previous attempt at this exact same input did not finish within the token budget and got cut off mid-file. This time you MUST produce a noticeably SIMPLER and SHORTER app: fewer visual flourishes, minimal (but complete) CSS, only the 1-2 most essential interactive features. Finishing a complete, valid, well-closed HTML document is more important than richness — never sacrifice completeness for polish.`
+Decide what to build:
+- Sketch/wireframe: note the detected buttons, inputs, layout -> plan a clean modern UI.
+- Mundane real-world photo (desk, room, fruit bowl, etc.): do NOT plan to just display it — plan a game (e.g. a "clean up" clicking game) or a utility inspired by it (e.g. a nutrition tracker for a fruit bowl).
+- Document/form: plan a specific interactive wizard or dashboard.
+- Webpage/channel/homepage text: infer brand, audience, product, and CTAs -> plan an interactive landing page, dashboard, guide, or mini-app.
 
+Write:
+1. One or two sentences on the core concept and interaction.
+2. A short bullet list of the key UI elements/sections, their layout, and any specific colors, shapes, labels, or text worth preserving from the input.
+3. A one-line reminder that visuals must be built with CSS shapes, inline SVG, emojis, or gradients — never external <img> URLs.
+
+Output the plan as plain text only — no HTML, no markdown code fences.`
+
+const GROQ_PLAN_MAX_TOKENS = 700
+
+async function planFromImage({ prompt, fileBase64, mimeType, envSource }) {
+  const content = [
+    { type: 'text', text: `User request: ${prompt}\n\nAnalyze the attached file and write the build plan described in your instructions.` },
+  ]
+  if (fileBase64 && mimeType) {
+    content.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBase64}` } })
+  }
+  const { content: planText } = await requestGroqChat({
+    systemInstruction: PLAN_SYSTEM_INSTRUCTION,
+    userContent: content,
+    envSource,
+    maxTokens: GROQ_PLAN_MAX_TOKENS,
+  })
+  return cleanHtml(planText) // dọn <think>/fence phòng hờ dù plan không phải HTML
+}
+
+// Bước 2: CHỈ text (kế hoạch bước 1), KHÔNG gửi lại ảnh — input nhỏ hẳn nên
+// có nhiều ngân sách cho output hơn hẳn so với kiến trúc 1-lệnh-gọi cũ.
+const CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION = `You are an expert AI Engineer who turns a build plan into a fully functional, interactive single-page HTML/CSS/JS app.
+
+CORE DIRECTIVES:
+1. Build exactly what the plan below describes — do not invent a different concept.
+2. NO external image URLs: <img src="..."> to imgur/placeholder/etc will fail. Represent visuals with CSS shapes, inline SVGs, emojis, or CSS gradients instead.
+3. Make it interactive — buttons, sliders, drag-and-drop, or dynamic visualizations. Never static.
+4. Self-contained: one HTML file, embedded <style> and <script>, no external deps unless essential (Tailwind via CDN allowed).
+5. If the plan is ambiguous or incomplete, make a confident creative "best guess" to fill the gaps — never return an error, always build something fun and functional.
+6. You have a generous token budget — prioritize a complete, polished, fully closed HTML document over extreme brevity, but avoid pointless bloat.
+
+RESPONSE FORMAT: Return ONLY the raw HTML code, no markdown fences, starting immediately with <!DOCTYPE html>.`
+
+// Yêu cầu bổ sung dùng khi retry (chỉ gọi nếu lần 1 vẫn bị cắt cụt dù đã có
+// ngân sách rộng — ảnh/kế hoạch bất thường phức tạp) — ép ưu tiên hoàn
+// thành file hợp lệ hơn là phong phú tính năng.
+const GROQ_CODEGEN_COMPACT_RETRY_SUFFIX = `
+
+IMPORTANT — RETRY WITH A STRICT LENGTH BUDGET: your previous attempt at this exact same plan did not finish within the token budget and got cut off mid-file. This time you MUST produce a noticeably SIMPLER and SHORTER app: fewer visual flourishes, minimal (but complete) CSS, only the 1-2 most essential interactive features. Finishing a complete, valid, well-closed HTML document is more important than richness — never sacrifice completeness for polish.`
+
+const GROQ_CODEGEN_MAX_TOKENS = 6500
 // Ngân sách retry: KHÔNG dùng "số lần retry cố định" ăn trọn lại toàn bộ
 // timeoutMs mỗi lần (bài học cũ từ 504 Gateway Timeout ở nhánh Gemini, xem
 // ghi chú retryWithinBudget/MIN_ATTEMPT_BUDGET_MS phía trên) — chỉ retry nếu
@@ -230,28 +243,36 @@ IMPORTANT — RETRY WITH A STRICT LENGTH BUDGET: your previous attempt at this e
 // request (ảnh/PDF/text: timeoutMs = 55s).
 const GROQ_RETRY_MIN_BUDGET_MS = 15_000
 
-async function requestGroqCompletion({ systemInstruction, prompt, fileBase64, mimeType, envSource, maxTokens }) {
-  const content = [{ type: 'text', text: prompt }]
-  if (fileBase64 && mimeType) {
-    content.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBase64}` } })
+async function codegenFromPlan({ prompt, plan, envSource, maxTokens, systemInstruction }) {
+  const userContent = `USER REQUEST: ${prompt}\n\nBUILD PLAN:\n${plan}\n\nNow write the complete HTML file implementing this plan.`
+  const { content, truncated } = await requestGroqChat({ systemInstruction, userContent, envSource, maxTokens })
+  if (truncated) {
+    throw new GroqTruncatedError(
+      'Groq trả về HTML bị cắt cụt (chạm giới hạn max_tokens trước khi sinh xong trang) — kế hoạch có thể quá phức tạp cho ngân sách token miễn phí.',
+    )
   }
+  return content
+}
 
+// Gọi Groq chat completions dùng chung cho cả 2 bước (plan + codegen). Trả
+// về cả `truncated` (finish_reason === 'length') thay vì tự throw, để bước
+// 1 (plan) có thể CHẤP NHẬN kết quả dở dang (vẫn dùng được), còn bước 2
+// (codegen) tự quyết định throw GroqTruncatedError khi cần — xem 2 hàm gọi.
+async function requestGroqChat({ systemInstruction, userContent, envSource, maxTokens }) {
   const body = {
     model: GROQ_VISION_MODEL,
     messages: [
       { role: 'system', content: systemInstruction },
-      { role: 'user', content },
+      { role: 'user', content: userContent },
     ],
     temperature: 0.5,
     max_tokens: maxTokens,
-    reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho code thật (xem ghi chú trên)
+    reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho nội dung thật (xem ghi chú trên)
   }
 
   // Đua song song 2 key đầu để giảm độ trễ, rồi TỰ ĐỘNG dò tuần tự các key
-  // dự phòng còn lại trong pool nếu cả nhóm đua đều lỗi (sự cố thực tế
-  // 13/08/2026: withApiKeyRacing() đơn thuần chỉ đua đúng 2 key rồi bỏ cuộc,
-  // 2 key dự phòng khác trong pool 4 key KHÔNG BAO GIỜ được thử tới — xem
-  // ghi chú đầy đủ ở withApiKeyRacingThenRotation() trong apiKeyPool.js).
+  // dự phòng còn lại trong pool nếu cả nhóm đua đều lỗi (xem ghi chú đầy đủ
+  // ở withApiKeyRacingThenRotation() trong apiKeyPool.js).
   const data = await withApiKeyRacingThenRotation('GROQ_API_KEY', async (apiKey) => {
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -263,81 +284,49 @@ async function requestGroqCompletion({ systemInstruction, prompt, fileBase64, mi
   }, { envSource })
 
   const choice = data?.choices?.[0]
-  // BUG THỰC TẾ (sự cố 13/08/2026): trước đây hàm này coi MỌI content trả về
-  // (kể cả bị cắt cụt giữa chừng vì chạm max_tokens) là THÀNH CÔNG — nên khi
-  // hạ GROQ_MAX_TOKENS để né lỗi 429 "Request too large" (xem ghi chú ở
-  // GROQ_MAX_TOKENS bên dưới), HTML bị cắt cụt (thiếu </style>/</body>/
-  // </script>) vẫn được trả thẳng cho client -> hiện trang TRẮNG, không có
-  // lỗi nào được báo. Groq trả `finish_reason: 'length'` khi bị cắt vì hết
-  // max_tokens (khác 'stop' = sinh xong bình thường) — coi trường hợp này là
-  // THẤT BẠI (GroqTruncatedError riêng, không phải Error thường) để
-  // callGroqVision() phân biệt được với lỗi khác và biết khi nào nên retry.
-  if (choice?.finish_reason === 'length') {
-    throw new GroqTruncatedError(
-      'Groq trả về HTML bị cắt cụt (chạm giới hạn max_tokens trước khi sinh xong trang) — ảnh/prompt có thể quá phức tạp cho ngân sách token miễn phí.',
-    )
-  }
-
-  return choice?.message?.content || ''
+  return { content: choice?.message?.content || '', truncated: choice?.finish_reason === 'length' }
 }
-
-// SỰ CỐ LẶP LẠI LẦN 4 (13/08/2026): 4300 -> 4600 token vẫn có thể không đủ
-// với ảnh/prompt phức tạp bất thường — vặn mãi 1 con số GROQ_MAX_TOKENS cố
-// định không bao giờ đảm bảo 100%, vì ngân sách "vừa đủ sinh xong trang" phụ
-// thuộc độ phức tạp của TỪNG ảnh, không phải hằng số. Thay vì tiếp tục đoán
-// mò, thêm 1 lần TỰ ĐỘNG RETRY khi gặp finish_reason 'length': lần 2 vẫn
-// dùng model/ảnh y hệt nhưng yêu cầu model sinh 1 phiên bản ĐƠN GIẢN/NGẮN
-// HƠN hẳn (xem GROQ_COMPACT_RETRY_SUFFIX) để giảm số token output THỰC SỰ
-// CẦN — đây là đòn bẩy chính, KHÔNG tăng max_tokens ở lần retry: suffix yêu
-// cầu ngắn gọn tự nó đã cộng thêm ~115 token vào input, nên nếu vừa tăng
-// max_tokens vừa tăng input thì biên độ an toàn dưới TPM 8000 co lại gần hết
-// (đã tính: input xấu nhất từng đo ~2934 sau khi rút gọn SYSTEM_INSTRUCTION,
-// + suffix ~115 + max_tokens nếu tăng lên 4900 = ~7950, chỉ còn ~50 token
-// đệm — quá mong manh). Giữ GROQ_COMPACT_RETRY_MAX_TOKENS bằng đúng
-// GROQ_MAX_TOKENS (4600): ~2934 + 115 + 4600 ≈ 7650, còn đệm ~350 token, an
-// toàn hơn nhiều trong khi vẫn kỳ vọng đủ vì output cần thiết đã giảm nhờ
-// yêu cầu đơn giản hoá. Chỉ retry 1 lần (không phải vòng lặp vô hạn) và chỉ
-// khi còn đủ ngân sách thời gian, để không kéo dài quá timeoutMs tổng của
-// request và không tốn thêm quota TPM một cách vô ích nếu chắc chắn sẽ lại
-// timeout.
-const GROQ_COMPACT_RETRY_MAX_TOKENS = 4600
 
 async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
   const startedAt = Date.now()
+
+  // Bước 1: kế hoạch từ ảnh (input có ảnh, nhưng output nhỏ nên an toàn).
+  const plan = await planFromImage({ prompt, fileBase64, mimeType, envSource })
+  if (!plan) {
+    throw new Error('Groq không tạo được kế hoạch từ ảnh/prompt — thử lại hoặc dùng ảnh khác.')
+  }
+
+  // Bước 2: sinh HTML đầy đủ CHỈ TỪ TEXT (kế hoạch) — không còn ảnh trong
+  // input nên có nhiều ngân sách token hơn hẳn cho output.
   try {
-    return await requestGroqCompletion({
-      systemInstruction: SYSTEM_INSTRUCTION,
+    return await codegenFromPlan({
       prompt,
-      fileBase64,
-      mimeType,
+      plan,
       envSource,
-      maxTokens: GROQ_MAX_TOKENS,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION,
     })
   } catch (err) {
     if (!(err instanceof GroqTruncatedError)) throw err
     const elapsed = Date.now() - startedAt
     if (timeoutMs - elapsed < GROQ_RETRY_MIN_BUDGET_MS) {
       // Không còn đủ thời gian cho 1 lần thử nữa trong ngân sách timeoutMs
-      // tổng của request — retry chắc chắn sẽ timeout hoặc đẩy request sát
-      // giới hạn Vercel, thà nhường ngân sách còn lại cho Gemini fallback.
+      // tổng của request — thà nhường ngân sách còn lại cho Gemini fallback.
       throw err
     }
-    console.warn('[bring-any-idea-to-life] Groq bị cắt cụt lần 1, tự động retry với yêu cầu ngắn gọn hơn:', err.message)
-    return await requestGroqCompletion({
-      systemInstruction: SYSTEM_INSTRUCTION + GROQ_COMPACT_RETRY_SUFFIX,
+    console.warn('[bring-any-idea-to-life] Groq codegen bị cắt cụt lần 1 (hiếm, sau khi đã có ngân sách rộng), tự động retry với yêu cầu ngắn gọn hơn:', err.message)
+    return await codegenFromPlan({
       prompt,
-      fileBase64,
-      mimeType,
+      plan,
       envSource,
-      maxTokens: GROQ_COMPACT_RETRY_MAX_TOKENS,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION + GROQ_CODEGEN_COMPACT_RETRY_SUFFIX,
     })
-    // Nếu lần retry NÀY cũng ném GroqTruncatedError (hoặc lỗi khác), để nó
-    // bay thẳng lên runBringAnyIdeaToLifeGenerate() như trước đây — vẫn rơi
-    // xuống Gemini fallback bình thường, không nuốt lỗi.
+    // Nếu lần retry NÀY cũng lỗi, để nó bay thẳng lên
+    // runBringAnyIdeaToLifeGenerate() như trước đây — vẫn rơi xuống Gemini
+    // fallback bình thường, không nuốt lỗi.
   }
 }
-
-
 
 // --- Upload video LỚN qua R2 thay vì nhồi base64 vào JSON body ---
 // TẠI SAO: base64 video được gửi thẳng trong JSON body (inlineData) trước
