@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "predev": "node scripts-copy-mediapipe-wasm.mjs && node scripts-copy-mediapipe-models.mjs && node scripts-copy-vibecheck-vendor.mjs",
-    "build": "vite build",
+    "build": "npm run build:main && npm run build:subapps",
+    "build:main": "BUILD_TARGET=main vite build",
+    "build:subapps": "BUILD_TARGET=subapps vite build",
+    "build:legacy": "vite build",
     "preview": "vite preview",
     "prebuild": "node scripts-copy-mediapipe-wasm.mjs && node scripts-copy-mediapipe-models.mjs && node scripts-copy-vibecheck-vendor.mjs"
   },

@@ -446,6 +446,13 @@ export default defineConfig(({ mode }) => {
     // Include .wasm so Vite processes `?url` imports from node_modules/@mediapipe
     assetsInclude: ['**/*.wasm', '**/*.PNG', '**/*.JPG', '**/*.JPEG', '**/*.HEIC'],
     build: {
+      // Cả 2 lần `vite build` (BUILD_TARGET=main rồi BUILD_TARGET=subapps)
+      // đều ghi ra CÙNG 1 thư mục `dist`. Vite mặc định emptyOutDir=true
+      // khi outDir nằm trong root -> lần build subapps chạy SAU sẽ XOÁ
+      // SẠCH output của lần build main chạy TRƯỚC nếu không tắt đi. Chỉ
+      // dọn dist 1 LẦN DUY NHẤT, ở lần build đầu tiên (main); lần build
+      // subapps chỉ được PHÉP GHI THÊM vào, không được xoá.
+      emptyOutDir: process.env.BUILD_TARGET !== 'subapps',
       // FIX: trang chủ (entry "main") đang bị Rollup/Vite tự chèn
       // <link rel="modulepreload"> cho chunk của các app con KHÔNG liên
       // quan (mediapipe-khanh, vision-sync-khanh, vibe-tracking-khanh,
@@ -476,8 +483,29 @@ export default defineConfig(({ mode }) => {
           })
         },
       },
+      // FIX GỐC RỄ (thay cho việc vá manualChunks từng trường hợp một —
+      // xem lịch sử 33c5614/3876809/lần sửa "shared-app-styles" ở dưới,
+      // mỗi lần vá lại lòi ra 1 kiểu leak MỚI: react nhét nhầm chunk, CSS
+      // dùng chung bị xoá nhầm, rồi giờ tới `import "./mediapipeKhanh-*.js"`
+      // side-effect-only mà Rollup TỰ giữ lại dù binding đã bị tree-shake
+      // hết — xác nhận qua build --minify false: 2 dòng `import
+      // "./mediapipeKhanh-*.js"` / `import "./visionSyncKhanh-*.js"`
+      // KHÔNG có named export nào, chỉ để đảm bảo side-effect, main.js vẫn
+      // TỰ chạy code app con dù không hề cần symbol nào của nó).
+      // NGUYÊN NHÂN THẬT SỰ: build 15 entry HTML trong CÙNG 1 lần
+      // `vite build` khiến Rollup's chunk-splitting algorithm có vô số
+      // cách "hợp lý" để nhóm module dùng chung, và không có cách nào vá
+      // bằng manualChunks đủ để loại trừ HẾT các trường hợp — mỗi lần vá
+      // xong lại lòi ra 1 dạng leak khác. Cách triệt để: KHÔNG cho trang
+      // chủ ("main") build CÙNG LÚC với bất kỳ app con "-khanh" nào nữa —
+      // tách thành 2 lần gọi `vite build` riêng biệt (xem package.json:
+      // "build" giờ chạy "build:main" rồi "build:subapps", điều khiển qua
+      // biến môi trường BUILD_TARGET). Khi build main ĐƠN ĐỘC, Rollup
+      // không có module nào của 14 entry còn lại trong đồ thị để nhầm lẫn
+      // — loại bỏ HẲN cả lớp lỗi này bằng cấu trúc, không phải heuristic.
       rollupOptions: {
-        input: {
+      input: (() => {
+        const ALL_INPUTS = {
           main: resolve(__dirname, 'index.html'),
           mediapipeKhanh: resolve(__dirname, 'src/mediapipe-khanh/index.html'),
           visionSyncKhanh: resolve(__dirname, 'src/vision-sync-khanh/index.html'),
@@ -493,7 +521,17 @@ export default defineConfig(({ mode }) => {
           humanTankCameraKeyReact: resolve(__dirname, 'src/games/human-tank-camera-key.html'),
           coTheTankCameraKeyReact: resolve(__dirname, 'src/games/co-the-tank-camera-key.html'),
           bodyProtectionHtmlReact: resolve(__dirname, 'src/games/body-protection-html.html'),
-        },
+        }
+        const target = process.env.BUILD_TARGET // 'main' | 'subapps' | undefined
+        if (target === 'main') return { main: ALL_INPUTS.main }
+        if (target === 'subapps') {
+          const { main, ...rest } = ALL_INPUTS
+          return rest
+        }
+        // Không set BUILD_TARGET (vd `vite build` chạy tay, hoặc dev
+        // server) -> giữ nguyên hành vi cũ, build/serve tất cả gộp chung.
+        return ALL_INPUTS
+      })(),
         output: {
           // Cô lập code nguồn của từng app con "-khanh" (Dino Jump, Vision
           // Sync, Prism Hair, Bring Any Idea to Life, ...) vào chunk riêng
@@ -506,7 +544,45 @@ export default defineConfig(({ mode }) => {
           // cô lập từng app con theo tên thư mục giúp loại bỏ hẳn rủi ro này
           // mà không ảnh hưởng tới vendor chunk chung (node_modules vẫn được
           // Rollup tự gộp bình thường vì không khớp pattern bên dưới).
-          manualChunks(id) {
+          manualChunks: (() => {
+            // Cache DÙNG CHUNG giữa mọi lần gọi manualChunks (không phải mỗi
+            // module 1 cache riêng) — tránh duyệt lại đồ thị import nhiều
+            // lần cho cùng 1 module khi Rollup gọi callback này lặp lại.
+            const outsideReachCache = new Map()
+            function isReachableFromOutsideSubApp(id, ownName, getModuleInfo, visiting) {
+              if (outsideReachCache.has(id)) return outsideReachCache.get(id)
+              if (visiting.has(id)) return false // cắt vòng lặp (circular import) — coi như chưa xác định được từ nhánh này
+              visiting.add(id)
+              const info = getModuleInfo(id)
+              let result = false
+              for (const importerId of info?.importers || []) {
+                if (/[\\/]node_modules[\\/]/.test(importerId)) continue // vendor code KHÔNG được tự ý import ngược app source -> bỏ qua, không tính là "outside" hợp lệ ở đây
+                const importerMatch = importerId.match(/[\\/]src[\\/]([a-z0-9-]+-khanh)[\\/]/)
+                const importerSameSubApp = importerMatch && importerMatch[1] === ownName
+                if (!importerSameSubApp) {
+                  // Importer là code trang chủ HOẶC 1 app con "-khanh" KHÁC
+                  // -> module này thật sự dùng chung, không phải riêng của
+                  // app con ownName.
+                  result = true
+                  break
+                }
+                // Importer cùng app con -> đệ quy lên tiếp: chính importer
+                // đó có bị import từ bên ngoài không (bắt các trường hợp
+                // gián tiếp qua nhiều lớp file nội bộ trước khi chạm ra
+                // ngoài — đây là lý do fix nông 1-lớp trước đó KHÔNG đủ,
+                // xác nhận bằng build thật vẫn còn "Circular chunk" +
+                // main.js vẫn static-import dinoJumpKhanh/mediapipeKhanh/
+                // vibeTrackingKhanh/visionSyncKhanh sau lần sửa đầu).
+                if (isReachableFromOutsideSubApp(importerId, ownName, getModuleInfo, visiting)) {
+                  result = true
+                  break
+                }
+              }
+              visiting.delete(id)
+              outsideReachCache.set(id, result)
+              return result
+            }
+            return function manualChunks(id, { getModuleInfo }) {
             // Ép các thư viện dùng chung phổ biến nhất (react, react-dom,
             // jsx-runtime) luôn về 1 vendor chunk cố định, kiểm tra TRƯỚC
             // rule "-khanh" bên dưới. Nếu không, khi build gộp >15 entry
@@ -554,8 +630,38 @@ export default defineConfig(({ mode }) => {
               return 'shared-app-styles'
             }
             const match = id.match(/[\\/]src[\\/]([a-z0-9-]+-khanh)[\\/]/)
-            if (match) return match[1]
-          },
+            if (match) {
+              const ownName = match[1]
+              // FIX (cùng nguyên lý với index.css ở trên, tổng quát hoá):
+              // 1 module tuy NẰM VẬT LÝ trong thư mục "-khanh" nhưng lại
+              // được import TRỰC TIẾP bởi ≥1 module KHÔNG thuộc app con đó
+              // (vd trang chủ, hoặc 1 app con khác) → đây là dependency
+              // DÙNG CHUNG thực sự, không phải code riêng của app con này.
+              // Nếu vẫn ép nó vào chunk riêng của app con, entry dùng
+              // chung (trang chủ) buộc phải static-import cả chunk đó,
+              // kéo theo TOÀN BỘ side-effect top-level của app con (Tone.js
+              // tự start AudioContext, MediaPipe GPU init, createRoot cố
+              // mount...) chạy ngay trên trang chủ dù không hề dùng tới.
+              // XÁC NHẬN qua Console Production thật (sau khi đã có guard
+              // #id không crash ở 33c5614): visionSyncKhanh/dinoJumpKhanh/
+              // mediapipeKhanh/vibeTrackingKhanh vẫn cùng load + chạy log
+              // "bỏ qua khởi tạo" NGAY khi vừa mở trang chủ landing — main.js
+              // (dist/assets/main-*.js) chứa thẳng
+              // `import{...}from"./dinoJumpKhanh-*.js"` v.v. Rollup cũng tự
+              // cảnh báo lúc build: "Circular chunk: dino-jump-khanh ->
+              // mediapipe-khanh -> vendor -> dino-jump-khanh".
+              // Chỉ kiểm tra importer TRỰC TIẾP (không đệ quy hết đồ thị,
+              // đủ bắt các trường hợp đã xác nhận, tránh build quá chậm) —
+              // nếu có ≥1 importer trực tiếp không phải cùng app con này
+              // và không phải node_modules → coi là "dùng chung", gộp
+              // vào 'vendor' (đã ổn định, không bị 2 filter CSS/modulepreload
+              // đụng tới vì không khớp subAppEntryNames).
+              const hasOutsideImporter = isReachableFromOutsideSubApp(id, ownName, getModuleInfo, new Set())
+              if (hasOutsideImporter) return 'vendor'
+              return ownName
+            }
+          }
+          })(),
         },
       },
     },

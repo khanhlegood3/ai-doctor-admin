@@ -411,7 +411,7 @@ function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage
                   onClick={() => goToPage(item.key)}
                   className={
                     item.children.some((c) => c.key === page) || page === item.key
-                      ? 'border-b-2 border-white pb-1 flex items-center gap-1'
+                      ? 'text-white border-b-2 border-white pb-1 flex items-center gap-1'
                       : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent flex items-center gap-1'
                   }
                 >
@@ -442,7 +442,7 @@ function NavBar({ page, setPage, onLogin, onGetStarted, t, language, setLanguage
                 onClick={() => setPage(item.key)}
                 className={
                   page === item.key
-                    ? 'border-b-2 border-white pb-1'
+                    ? 'text-white border-b-2 border-white pb-1'
                     : 'text-gray-300 hover:text-white transition pb-1 border-b-2 border-transparent'
                 }
               >
