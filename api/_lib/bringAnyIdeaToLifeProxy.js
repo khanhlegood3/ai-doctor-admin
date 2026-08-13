@@ -57,16 +57,24 @@ const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel
 // ảnh tĩnh — dùng timeout dài hơn, vẫn dưới maxDuration 120s của api/groq-proxy.js
 // (xem vercel.json), giống hệt GEMINI_TIMEOUT_MS của videoToLearningProxy.js.
 const videoTimeoutMs = 110_000
-// Tăng từ 2 lên 4: lỗi 503 "model is currently experiencing high demand"/
-// UNAVAILABLE của Gemini (quá tải tạm thời phía Google, KHÔNG phải lỗi key
-// nên isRotatableApiError() không rotate sang key khác — xem apiKeyPool.js)
-// trước đây chỉ được thử lại 1 lần (2 attempt, cách nhau 1.2s) — quá ít nếu
-// đợt quá tải kéo dài vài giây. 4 attempt + backoff dài hơn (xem
-// geminiRetryDelayMs) vẫn nằm gọn trong timeoutMs/videoTimeoutMs.
-const maxRetriesPerKey = 4 // retry TRÊN CÙNG 1 key cho lỗi tạm thời (timeout/mạng/quá tải 503)
-// Backoff giữa các lần retry: 1.5s, 3s, 6s (dừng ở 6s) — đủ thời gian để đợt
-// quá tải/UNAVAILABLE tạm thời của Gemini đi qua mà không vượt quá timeoutMs.
-const geminiRetryDelayMs = (attempt) => Math.min(1500 * 2 ** attempt, 6000)
+// LƯU Ý QUAN TRỌNG (bài học từ sự cố 504 Gateway Timeout thực tế): tăng SỐ
+// LẦN RETRY không giúp gì nếu mỗi lần retry vẫn được phép "ăn" trọn lại
+// timeoutMs/videoTimeoutMs — 4 attempt x 55s có thể cộng dồn tới hơn 3 phút,
+// vượt xa giới hạn thời gian THẬT SỰ mà nền tảng Vercel cho phép (khác với
+// con số maxDuration khai báo trong vercel.json, vốn có thể bị nền tảng âm
+// thầm giới hạn thấp hơn tuỳ gói) — khi đó Vercel tự cắt ngang bằng 504
+// TRƯỚC KHI code kịp trả lỗi rõ ràng của riêng nó, làm mất luôn cả những lần
+// retry đáng lẽ có thể thành công. Vì vậy KHÔNG dùng "số lần retry cố định",
+// mà dùng "ngân sách thời gian cố định" — xem retryWithinBudget() bên dưới:
+// tổng thời gian của TẤT CẢ các lần thử (kể cả retry) không bao giờ vượt quá
+// đúng effectiveTimeoutMs ban đầu (con số đã biết là AN TOÀN dưới giới hạn
+// thật của nền tảng, vì bản gốc chỉ gọi 1 lần với timeout này và không bao
+// giờ bị 504). Chỉ retry khi lỗi là loại "thất bại nhanh" (503 quá tải,
+// network reset...) và vẫn còn đủ ngân sách cho 1 lần thử nữa — KHÔNG retry
+// sau khi đã hết hẳn 1 lượt timeout (đằng nào retry cũng sẽ timeout tiếp,
+// chỉ tổ ngốn thêm ngân sách và làm tăng nguy cơ bị 504 giữa chừng).
+const MIN_ATTEMPT_BUDGET_MS = 8_000 // dưới mức này thì không đáng thử thêm 1 lần nữa
+const geminiRetryDelayMs = (attempt) => Math.min(800 * 2 ** attempt, 2000)
 
 const withTimeout = (promise, ms) => {
   const timeout = new Promise((_, reject) => {
@@ -274,7 +282,14 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
       parts.push({ inlineData: { data: fileBase64, mimeType } })
     }
 
-    for (let attempt = 0; attempt < maxRetriesPerKey; attempt++) {
+    const callStartedAt = Date.now()
+    let lastErr
+    let attempt = 0
+    while (true) {
+      const elapsed = Date.now() - callStartedAt
+      const remaining = effectiveTimeoutMs - elapsed
+      if (remaining < MIN_ATTEMPT_BUDGET_MS) break // hết ngân sách, không thử thêm nữa
+
       try {
         const modelPromise = ai.models.generateContent({
           model: GEMINI_MODEL,
@@ -285,27 +300,36 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
           },
         })
 
-        const response = await withTimeout(modelPromise, effectiveTimeoutMs)
+        // Timeout của LẦN THỬ NÀY = phần ngân sách còn lại (không phải trọn
+        // effectiveTimeoutMs mỗi lần) — đảm bảo tổng cộng mọi lần thử (kể cả
+        // retry) không bao giờ vượt quá effectiveTimeoutMs ban đầu.
+        const response = await withTimeout(modelPromise, remaining)
 
         const html = response.text || ''
         if (!html) throw new BringAnyIdeaToLifeProxyError('Không có nội dung trả về từ Gemini.', 502)
         return html
       } catch (err) {
         if (isRotatableApiError(err)) throw err // để withApiKeyRotation() bắt và đổi key
-        if (attempt === maxRetriesPerKey - 1) {
-          if (err instanceof BringAnyIdeaToLifeProxyError) throw err
-          if (err?.message === 'timeout') {
-            throw new BringAnyIdeaToLifeProxyError(
-              `Gemini xử lý video quá lâu (vượt quá ${Math.round(effectiveTimeoutMs / 1000)} giây). Video có thể quá dài — hãy thử video ngắn hơn.`,
-              504,
-            )
-          }
-          throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini generate error', 502)
+        lastErr = err
+        if (err?.message === 'timeout') {
+          // Lần thử này đã ăn hết phần ngân sách của nó — retry chỉ có nghĩa
+          // nếu vẫn còn đủ ngân sách CHO LẦN SAU (kiểm tra lại ở đầu vòng
+          // lặp), không cố retry ngay lập tức như lỗi 503 quá tải bên dưới.
+          continue
         }
-        await new Promise((res) => setTimeout(res, geminiRetryDelayMs(attempt)))
+        attempt += 1
+        await new Promise((res) => setTimeout(res, Math.min(geminiRetryDelayMs(attempt), Math.max(remaining - MIN_ATTEMPT_BUDGET_MS, 0))))
       }
     }
-    throw new BringAnyIdeaToLifeProxyError('All retries failed', 502)
+
+    if (lastErr instanceof BringAnyIdeaToLifeProxyError) throw lastErr
+    if (lastErr?.message === 'timeout') {
+      throw new BringAnyIdeaToLifeProxyError(
+        `Gemini xử lý quá lâu (vượt quá ${Math.round(effectiveTimeoutMs / 1000)} giây). File/video có thể quá lớn hoặc model đang quá tải — hãy thử lại, dùng file gọn hơn, hoặc đợi ít phút.`,
+        504,
+      )
+    }
+    throw new BringAnyIdeaToLifeProxyError(lastErr?.message || 'Gemini generate error', 502)
   }, { envSource })
 }
 
