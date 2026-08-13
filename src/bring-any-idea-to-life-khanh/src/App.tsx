@@ -10,7 +10,7 @@ import { CreationHistory, Creation } from './components/CreationHistory';
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
-import { bringToLife } from './lib/api';
+import { bringToLife, uploadVideoFileToGemini } from './lib/api';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
 import { saveCreationToR2, loadAllCreationsFromR2, uploadSourceFileToR2 } from './lib/historyR2Client';
@@ -20,6 +20,7 @@ import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 const App: React.FC = () => {
   const [activeCreation, setActiveCreation] = useState<Creation | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState<string | undefined>(undefined);
   const [history, setHistory] = useState<Creation[]>([]);
   const [isLoadingR2History, setIsLoadingR2History] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -181,6 +182,8 @@ const App: React.FC = () => {
     try {
       let imageBase64: string | undefined;
       let mimeType: string | undefined;
+      let geminiFileUri: string | undefined;
+      let geminiFileMimeType: string | undefined;
       const creationId = crypto.randomUUID();
 
       if (file) {
@@ -195,14 +198,30 @@ const App: React.FC = () => {
           const compressed = await compressImageFile(file);
           imageBase64 = compressed.base64;
           mimeType = compressed.mimeType;
+        } else if (rawMimeType.startsWith('video/')) {
+          // Video: KHÔNG còn giới hạn 3MB nữa — upload thẳng lên R2 rồi để
+          // server đẩy sang Gemini Files API (xem uploadVideoFileToGemini
+          // trong lib/api.ts), giống hệt luồng video-analyzer-khanh. Chỉ
+          // gửi geminiFileUri sang bringToLife(), KHÔNG gửi base64.
+          mimeType = rawMimeType;
+          setLoadingLabel('Đang tải video lên...');
+          try {
+            const uploaded = await uploadVideoFileToGemini(file);
+            geminiFileUri = uploaded.uri;
+            geminiFileMimeType = uploaded.mimeType;
+          } finally {
+            setLoadingLabel('Đang phân tích và tạo app...');
+          }
         } else {
-          // PDF / video: không nén được dễ dàng ở client. Chặn sớm với
-          // thông báo rõ ràng thay vì để request âm thầm thất bại với
-          // "Load failed" khi vượt giới hạn 4.5MB của Vercel.
+          // PDF / các loại file khác: không nén được dễ dàng ở client. Chặn
+          // sớm với thông báo rõ ràng thay vì để request âm thầm thất bại
+          // với "Load failed" khi vượt giới hạn 4.5MB của Vercel — video đã
+          // tách sang nhánh R2/Gemini Files API ở trên nên không còn bị chặn
+          // ở đây nữa.
           if (file.size > MAX_UNCOMPRESSED_FILE_BYTES) {
             throw new Error(
               `File "${file.name}" (${(file.size / 1024 / 1024).toFixed(1)}MB) vượt quá giới hạn ` +
-                `${(MAX_UNCOMPRESSED_FILE_BYTES / 1024 / 1024).toFixed(1)}MB cho PDF/video (giới hạn request ` +
+                `${(MAX_UNCOMPRESSED_FILE_BYTES / 1024 / 1024).toFixed(1)}MB cho PDF (giới hạn request ` +
                 `body của Vercel serverless function). Hãy dùng file nhỏ hơn để AI xử lý trước, ` +
                 `sau đó hệ thống mới upload file gốc lên R2.`
             );
@@ -212,7 +231,7 @@ const App: React.FC = () => {
         }
       }
 
-      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl);
+      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType);
 
       if (html) {
         const newCreation: Creation = {
@@ -528,6 +547,7 @@ ${message}`);
       <LivePreview
         creation={activeCreation}
         isLoading={isGenerating}
+        loadingLabel={loadingLabel}
         isFocused={isFocused}
         onReset={handleReset}
         onUploadMissingSource={handleUploadMissingSource}

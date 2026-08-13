@@ -27,7 +27,7 @@ import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTracki
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
-import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError } from './_lib/bringAnyIdeaToLifeProxy.js'
+import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
@@ -181,7 +181,7 @@ export default async function handler(req, res) {
 
   // --- Nhánh Bring Any Idea to Life (Gemini 3 Pro thật server-side, cần GEMINI_API_KEY trả phí) ---
   if (body.provider === 'bring-any-idea-to-life') {
-    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl), '| hasImageUrl:', Boolean(body.imageUrl), '| hasWebUrl:', Boolean(body.webUrl))
+    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl), '| hasImageUrl:', Boolean(body.imageUrl), '| hasWebUrl:', Boolean(body.webUrl), '| hasGeminiFileUri:', Boolean(body.geminiFileUri))
     try {
       const payload = await runBringAnyIdeaToLifeGenerate({
         prompt: body.prompt,
@@ -190,12 +190,42 @@ export default async function handler(req, res) {
         videoUrl: body.videoUrl,
         imageUrl: body.imageUrl,
         webUrl: body.webUrl,
+        geminiFileUri: body.geminiFileUri,
+        geminiFileMimeType: body.geminiFileMimeType,
       })
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (bring-any-idea-to-life) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life proxy error' })
+    }
+  }
+
+  // --- Nhánh upload video LỚN qua R2 -> Gemini Files API cho "Bring Any
+  // Idea to Life" (xem ghi chú đầu bringAnyIdeaToLifeProxy.js) — 3 action
+  // con dùng chung field `provider` này, phân biệt bằng `action`. ---
+  if (body.provider === 'bring-any-idea-to-life-video-upload') {
+    console.log('[groq-proxy] (bring-any-idea-to-life-video-upload) action:', body.action)
+    try {
+      let payload
+      if (body.action === 'init') {
+        payload = await createBringAnyIdeaToLifeVideoUploadUrl({ mimeType: body.mimeType })
+      } else if (body.action === 'uploadToGemini') {
+        payload = await uploadBringAnyIdeaToLifeVideoToGemini({
+          publicUrl: body.publicUrl,
+          mimeType: body.mimeType,
+          displayName: body.displayName,
+        })
+      } else if (body.action === 'checkFile') {
+        payload = await checkBringAnyIdeaToLifeVideoFile({ fileName: body.fileName })
+      } else {
+        throw new BringAnyIdeaToLifeProxyError('Unknown bring-any-idea-to-life-video-upload action', 400)
+      }
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-video-upload) error:', err?.message || err)
+      const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life video upload error' })
     }
   }
 

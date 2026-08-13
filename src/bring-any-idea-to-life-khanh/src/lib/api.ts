@@ -12,13 +12,87 @@
 // api/_lib/bringAnyIdeaToLifeProxy.js. System instruction + logic chọn
 // prompt giữ nguyên từ bản gốc, chỉ chuyển sang chạy phía server.
 
+export type UploadedGeminiVideoFile = {
+  uri: string;
+  mimeType: string;
+};
+
+// Video LỚN (upload trực tiếp, không phải link YouTube/Facebook): thay vì
+// nhồi base64 vào JSON body của /api/groq-proxy (giới hạn cứng ~4.5MB body
+// của Vercel Serverless Function, buộc client trước đây phải chặn video ở
+// mức 3MB — xem MAX_UNCOMPRESSED_FILE_BYTES trong lib/imageCompress.ts),
+// upload thẳng lên R2 rồi để SERVER đẩy tiếp sang Gemini Files API — giống
+// hệt luồng đã dùng ở video-analyzer-khanh/src/lib/api.ts. Video sau khi
+// upload xong sẽ không còn bị giới hạn 3MB, chỉ còn giới hạn thực tế của R2
+// + Gemini Files API (hàng trăm MB), và không còn cần gọi hàm này cho ảnh/
+// PDF nhỏ — chỉ áp dụng cho file video.
+export async function uploadVideoFileToGemini(file: File): Promise<UploadedGeminiVideoFile> {
+  const mimeType = file.type || 'video/mp4';
+
+  const initRes = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-video-upload', action: 'init', mimeType }),
+  });
+  const initData = await initRes.json().catch(() => ({}));
+  if (!initRes.ok) {
+    throw new Error(initData?.error || `Không tạo được URL upload video (${initRes.status})`);
+  }
+  const { uploadUrl, publicUrl } = initData;
+
+  const r2Res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType },
+    body: file,
+  });
+  if (!r2Res.ok) {
+    throw new Error(`Upload video lên R2 thất bại (${r2Res.status})`);
+  }
+
+  const uploadRes = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'bring-any-idea-to-life-video-upload',
+      action: 'uploadToGemini',
+      publicUrl,
+      mimeType,
+      displayName: file.name,
+    }),
+  });
+  let fileResource = await uploadRes.json().catch(() => ({}));
+  if (!uploadRes.ok) {
+    throw new Error(fileResource?.error || `Gemini không nhận được video (${uploadRes.status})`);
+  }
+
+  while (fileResource.state === 'PROCESSING') {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const checkRes = await fetch('/api/groq-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'bring-any-idea-to-life-video-upload', action: 'checkFile', fileName: fileResource.name }),
+    });
+    fileResource = await checkRes.json().catch(() => ({}));
+    if (!checkRes.ok) {
+      throw new Error(fileResource?.error || `Không kiểm tra được trạng thái video (${checkRes.status})`);
+    }
+  }
+  if (fileResource.state === 'FAILED') {
+    throw new Error('Gemini xử lý video thất bại. Hãy thử video khác.');
+  }
+
+  return { uri: fileResource.uri, mimeType: fileResource.mimeType || mimeType };
+}
+
 export async function bringToLife(
   prompt: string,
   fileBase64?: string,
   mimeType?: string,
   videoUrl?: string,
   imageUrl?: string,
-  webUrl?: string
+  webUrl?: string,
+  geminiFileUri?: string,
+  geminiFileMimeType?: string
 ): Promise<string> {
   const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
 
@@ -58,6 +132,8 @@ export async function bringToLife(
         videoUrl,
         imageUrl,
         webUrl,
+        geminiFileUri,
+        geminiFileMimeType,
       }),
     });
   } catch (networkErr) {

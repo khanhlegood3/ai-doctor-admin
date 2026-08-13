@@ -11,6 +11,7 @@ interface LivePreviewProps {
   creation: Creation | null;
   isLoading: boolean;
   isFocused: boolean;
+  loadingLabel?: string;
   onReset: () => void;
   onUploadMissingSource?: (creation: Creation, file: File) => Promise<void>;
   onDeleteUploadedSource?: (creation: Creation) => Promise<void>;
@@ -136,7 +137,7 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
     const [isUploadingSource, setIsUploadingSource] = useState(false);
@@ -391,7 +392,7 @@ ${message}`);
                         </svg>
                     </div>
                     <h3 className="text-zinc-100 font-mono text-lg tracking-tight">Constructing Environment</h3>
-                    <p className="text-zinc-500 text-sm mt-2">Interpreting visual data...</p>
+                    <p className="text-zinc-500 text-sm mt-2">{loadingLabel || 'Interpreting visual data...'}</p>
                 </div>
 
                 {/* Progress Bar */}

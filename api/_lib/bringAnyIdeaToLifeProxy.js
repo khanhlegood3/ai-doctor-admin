@@ -38,6 +38,7 @@ import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApi
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
+import { createR2PresignedUploadUrl, genR2Key } from './r2Storage.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
   constructor(message, status = 500) {
@@ -50,12 +51,22 @@ export class BringAnyIdeaToLifeProxyError extends Error {
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file)
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
+const R2_VIDEO_KEY_PREFIX = 'bring-any-idea-to-life/video-uploads'
 const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel (ảnh/PDF/text)
 // Video (upload trực tiếp hoặc link YouTube/Facebook) tốn nhiều thời gian xử lý hơn
 // ảnh tĩnh — dùng timeout dài hơn, vẫn dưới maxDuration 120s của api/groq-proxy.js
 // (xem vercel.json), giống hệt GEMINI_TIMEOUT_MS của videoToLearningProxy.js.
 const videoTimeoutMs = 110_000
-const maxRetriesPerKey = 2 // retry TRÊN CÙNG 1 key cho lỗi tạm thời (timeout/mạng)
+// Tăng từ 2 lên 4: lỗi 503 "model is currently experiencing high demand"/
+// UNAVAILABLE của Gemini (quá tải tạm thời phía Google, KHÔNG phải lỗi key
+// nên isRotatableApiError() không rotate sang key khác — xem apiKeyPool.js)
+// trước đây chỉ được thử lại 1 lần (2 attempt, cách nhau 1.2s) — quá ít nếu
+// đợt quá tải kéo dài vài giây. 4 attempt + backoff dài hơn (xem
+// geminiRetryDelayMs) vẫn nằm gọn trong timeoutMs/videoTimeoutMs.
+const maxRetriesPerKey = 4 // retry TRÊN CÙNG 1 key cho lỗi tạm thời (timeout/mạng/quá tải 503)
+// Backoff giữa các lần retry: 1.5s, 3s, 6s (dừng ở 6s) — đủ thời gian để đợt
+// quá tải/UNAVAILABLE tạm thời của Gemini đi qua mà không vượt quá timeoutMs.
+const geminiRetryDelayMs = (attempt) => Math.min(1500 * 2 ** attempt, 6000)
 
 const withTimeout = (promise, ms) => {
   const timeout = new Promise((_, reject) => {
@@ -150,17 +161,108 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
   return data?.choices?.[0]?.message?.content || ''
 }
 
+// --- Upload video LỚN qua R2 thay vì nhồi base64 vào JSON body ---
+// TẠI SAO: base64 video được gửi thẳng trong JSON body (inlineData) trước
+// đây bị giới hạn cứng bởi Vercel Serverless Function (~4.5MB request body,
+// base64 lại phình ~33% so với file gốc) — nên client phải chặn upload
+// video/PDF ở mức MAX_UNCOMPRESSED_FILE_BYTES = 3MB (xem App.tsx), khiến
+// video "vài MB" (rất bình thường, kể cả video 10-15 giây) đã bị từ chối.
+// GIẢI PHÁP (giống hệt video-analyzer-khanh — xem videoAnalyzerProxy.js):
+//   1. initVideoUpload  — server ký presigned PUT URL lên R2 (KHÔNG qua
+//                         Serverless Function body, không giới hạn 4.5MB).
+//                         Trình duyệt PUT bytes video thẳng lên R2.
+//   2. uploadVideoToGemini — SAU KHI upload R2 xong, server (không phải
+//                         trình duyệt, nên không bị CORS từ phía Gemini)
+//                         tải bytes từ R2 rồi đẩy sang Gemini Files API
+//                         (ai.files.upload) — trả về 1 fileUri Gemini có thể
+//                         "xem" thẳng, không cần base64 trong request nữa.
+//   3. checkVideoFile   — poll trạng thái xử lý (PROCESSING -> ACTIVE),
+//                         Gemini cần vài giây để xử lý video vừa upload.
+//   4. Nhánh video của runBringAnyIdeaToLifeGenerate() nhận geminiFileUri đã
+//      upload sẵn, gọi callGemini với fileData:{fileUri} y hệt cách đã dùng
+//      cho link YouTube — không còn giới hạn 3MB nào áp dụng cho video nữa.
+
+function extFromMimeType(mimeType) {
+  const sub = String(mimeType || '').split('/')[1] || 'mp4'
+  return sub.split(';')[0]
+}
+
+export async function createBringAnyIdeaToLifeVideoUploadUrl({ mimeType, envSource }) {
+  if (!mimeType || !mimeType.startsWith('video/')) {
+    throw new BringAnyIdeaToLifeProxyError('mimeType phải là video/*.', 400)
+  }
+  const key = genR2Key(R2_VIDEO_KEY_PREFIX, extFromMimeType(mimeType))
+  try {
+    return await createR2PresignedUploadUrl({ key, contentType: mimeType, envSource })
+  } catch (err) {
+    throw new BringAnyIdeaToLifeProxyError(err?.message || 'R2 presign error', err?.status || 502)
+  }
+}
+
+export async function uploadBringAnyIdeaToLifeVideoToGemini({ publicUrl, mimeType, displayName, envSource }) {
+  if (!publicUrl || !mimeType) {
+    throw new BringAnyIdeaToLifeProxyError('Missing publicUrl/mimeType', 400)
+  }
+
+  let videoBuffer
+  try {
+    const r2Res = await fetch(publicUrl)
+    if (!r2Res.ok) {
+      throw new BringAnyIdeaToLifeProxyError(`Không tải được video vừa upload từ R2 (HTTP ${r2Res.status}).`, 502)
+    }
+    videoBuffer = Buffer.from(await r2Res.arrayBuffer())
+  } catch (err) {
+    if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+    throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không đọc được video từ R2.', 502)
+  }
+
+  try {
+    return await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
+      const ai = new GoogleGenAI({ apiKey })
+      const file = await ai.files.upload({
+        file: new Blob([videoBuffer], { type: mimeType }),
+        config: { mimeType, displayName: displayName || 'video' },
+      })
+      return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType || mimeType }
+    }, { envSource })
+  } catch (err) {
+    if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+    throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini Files upload error', err?.status || 502)
+  }
+}
+
+export async function checkBringAnyIdeaToLifeVideoFile({ fileName, envSource }) {
+  if (!fileName) throw new BringAnyIdeaToLifeProxyError('Missing fileName', 400)
+  try {
+    return await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
+      const ai = new GoogleGenAI({ apiKey })
+      const file = await ai.files.get({ name: fileName })
+      return { name: file.name, state: file.state, uri: file.uri, mimeType: file.mimeType }
+    }, { envSource })
+  } catch (err) {
+    if (err instanceof BringAnyIdeaToLifeProxyError) throw err
+    throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini Files status error', err?.status || 502)
+  }
+}
+
+
 // --- Gemini (multimodal, dự phòng khi Groq lỗi cho ảnh/PDF; BẮT BUỘC cho video vì
 // Groq vision (qwen) không hỗ trợ video) ---
-async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource }) {
-  const isVideo = Boolean(videoUrl) || /^video\//i.test(mimeType || '')
+async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUri, geminiFileMimeType, envSource }) {
+  const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   const effectiveTimeoutMs = isVideo ? videoTimeoutMs : timeoutMs
 
   return await withApiKeyRotation('GEMINI_API_KEY', async (geminiApiKey) => {
     const ai = new GoogleGenAI({ apiKey: geminiApiKey })
 
     const parts = [{ text: prompt }]
-    if (videoUrl) {
+    if (geminiFileUri) {
+      // Video LỚN đã upload sẵn qua R2 -> Gemini Files API (xem
+      // uploadBringAnyIdeaToLifeVideoToGemini ở trên) — dùng thẳng fileUri
+      // đó, không cần base64 trong request này nữa (khác videoUrl bên dưới,
+      // vốn là link YouTube/Facebook để Gemini tự tải).
+      parts.push({ fileData: { mimeType: geminiFileMimeType || mimeType || 'video/mp4', fileUri: geminiFileUri } })
+    } else if (videoUrl) {
       // videoUrl ở đây LUÔN đã sẵn sàng cho Gemini đọc thẳng: link YouTube
       // gốc (Gemini hỗ trợ fileUri là URL YouTube), hoặc URL mp4 CDN trực
       // tiếp đã resolve từ link Facebook (xem runBringAnyIdeaToLifeGenerate
@@ -200,7 +302,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource })
           }
           throw new BringAnyIdeaToLifeProxyError(err?.message || 'Gemini generate error', 502)
         }
-        await new Promise((res) => setTimeout(res, 1200 * 2 ** attempt))
+        await new Promise((res) => setTimeout(res, geminiRetryDelayMs(attempt)))
       }
     }
     throw new BringAnyIdeaToLifeProxyError('All retries failed', 502)
@@ -209,7 +311,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, envSource })
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, envSource }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, envSource }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
@@ -252,13 +354,21 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
 
   // Video (upload trực tiếp hoặc link YouTube/Facebook): Groq vision (qwen) KHÔNG
   // hỗ trợ video, chỉ ảnh — bắt buộc đi thẳng Gemini, không thử Groq trước.
-  const isVideo = Boolean(videoUrl) || /^video\//i.test(mimeType || '')
+  const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   if (isVideo) {
     if (!hasGemini) {
       throw new BringAnyIdeaToLifeProxyError(
         'Xử lý video (tải lên hoặc link YouTube/Facebook) cần GEMINI_API_KEY (Groq chưa hỗ trợ video). Thêm biến GEMINI_API_KEY trong Vercel → Settings → Environment Variables rồi redeploy.',
         501,
       )
+    }
+    // Video upload trực tiếp LỚN (đã qua R2 -> Gemini Files API ở client
+    // trước khi gọi action generate, xem InputArea.tsx/App.tsx): dùng thẳng
+    // geminiFileUri, bỏ qua toàn bộ nhánh resolve link Facebook/base64 bên
+    // dưới vì không áp dụng ở đây.
+    if (geminiFileUri) {
+      const html = cleanHtml(await callGemini({ prompt, geminiFileUri, geminiFileMimeType, envSource }))
+      return { html, source: 'gemini' }
     }
     // Gemini "xem" thẳng URL YouTube qua fileUri (hoạt động OK), NHƯNG với
     // Facebook thì KHÔNG — Gemini không tải/đọc được trang facebook.com
