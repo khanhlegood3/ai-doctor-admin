@@ -56,6 +56,40 @@ const App: React.FC = () => {
     });
   };
 
+  // Creation cũ (từ trước khi luồng upload video chuyển hẳn sang R2-first, xem
+  // uploadSourceInBackground bên dưới) có thể vẫn còn kẹt originalImage ở dạng
+  // data: URL base64 khổng lồ trong IndexedDB — ví dụ do lúc đó R2 upload nền
+  // bị lỗi/mất mạng nên bản patch sang R2 URL không bao giờ chạy xong. Video
+  // base64 quá lớn gán thẳng vào <video src> dễ khiến Safari mobile hết bộ nhớ
+  // và tự reload trang (xem useVideoPlaybackSrc trong LivePreview.tsx cho fix
+  // hiển thị tức thời). Ở đây dọn dẹp tận gốc: âm thầm upload các video "mồ
+  // côi" này lên R2 rồi thay originalImage bằng URL nhẹ, để lần mở sau không
+  // còn phải tải/giữ base64 khổng lồ trong bộ nhớ nữa.
+  const LOCAL_VIDEO_MIGRATION_THRESHOLD_BYTES = 4 * 1024 * 1024;
+
+  const migrateOrphanedLocalVideos = async (creations: Creation[]) => {
+    const candidates = creations.filter(
+      (c) => c.originalImage && c.originalImage.startsWith('data:video') && c.originalImage.length >= LOCAL_VIDEO_MIGRATION_THRESHOLD_BYTES
+    );
+    for (const c of candidates) {
+      try {
+        const res = await fetch(c.originalImage as string);
+        const blob = await res.blob();
+        const mimeMatch = (c.originalImage as string).match(/^data:([^;]+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : c.mimeType || 'video/mp4';
+        const file = new File([blob], c.name || 'video', { type: mimeType });
+        const uploaded = await uploadSourceFileToR2(c.id, file);
+        await patchCreation(c.id, { originalImage: uploaded.publicUrl, r2ImageUrl: uploaded.publicUrl });
+        setHistory((prev) => prev.map((item) => (item.id === c.id ? { ...item, originalImage: uploaded.publicUrl } : item)));
+        setActiveCreation((prev) => (prev && prev.id === c.id ? { ...prev, originalImage: uploaded.publicUrl } : prev));
+      } catch (e) {
+        // Không chặn UI — video vẫn xem được cục bộ nhờ Blob URL fallback ở
+        // LivePreview, chỉ là lần sau sẽ thử migrate lại.
+        console.warn('[bring-any-idea-to-life] Failed to migrate orphaned local video to R2 for creation', c.id, e);
+      }
+    }
+  };
+
   // Load history from IndexedDB on mount, then automatically hydrate any old
   // creation JSONs that were already backed up in R2 so the landing-page embed
   // shows previous work without requiring a manual click.
@@ -65,7 +99,12 @@ const App: React.FC = () => {
         await migrateFromLocalStorageOnce();
         const rows = await getAllCreations();
         if (rows.length > 0) {
-          setHistory(rows.map((r) => ({ ...r, timestamp: new Date(r.timestamp) })));
+          const mapped = rows.map((r) => ({ ...r, timestamp: new Date(r.timestamp) }));
+          setHistory(mapped);
+          // Chạy nền, không chặn UI — chỉ dọn rác IndexedDB dần dần.
+          migrateOrphanedLocalVideos(mapped).catch((e) =>
+            console.warn('[bring-any-idea-to-life] Orphaned local video migration pass failed', e)
+          );
         }
       } catch (e) {
         console.error('Failed to load history from IndexedDB', e);

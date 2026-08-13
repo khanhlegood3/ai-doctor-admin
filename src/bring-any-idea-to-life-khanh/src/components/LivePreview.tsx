@@ -7,6 +7,57 @@ import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracket
 import { Creation } from './CreationHistory';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
+// Video gốc upload trực tiếp từ điện thoại (trước khi kịp upload lên R2, hoặc
+// creation cũ từ trước khi có R2 migration) được lưu trong IndexedDB dưới dạng
+// data: URL base64 — có thể lên tới hàng chục/hàng trăm MB. Gán thẳng chuỗi
+// data: đó vào <video src> buộc Safari mobile phải giữ nguyên chuỗi base64
+// khổng lồ + bản decode trong memory cùng lúc, dễ vượt giới hạn bộ nhớ của tab
+// và khiến Safari tự "reload lại trang" (thông báo "This webpage was reloaded
+// because it was using too much memory."). Chuyển sang Blob URL trước khi phát
+// giúp trình duyệt xử lý dữ liệu nhị phân trực tiếp, nhẹ hơn nhiều cho mobile.
+const DATA_URL_VIDEO_BLOB_THRESHOLD_BYTES = 4 * 1024 * 1024; // ~4MB base64 trở lên mới cần đổi sang blob
+
+function useVideoPlaybackSrc(originalImage: string | undefined | null): string | undefined {
+    const [playbackSrc, setPlaybackSrc] = useState<string | undefined>(originalImage || undefined);
+
+    useEffect(() => {
+        let cancelled = false;
+        let createdBlobUrl: string | null = null;
+
+        if (!originalImage || !originalImage.startsWith('data:')) {
+            setPlaybackSrc(originalImage || undefined);
+            return;
+        }
+
+        // Data URL nhỏ (thumbnail-scale) thì cứ dùng thẳng, không cần tốn 1 lần
+        // decode + tạo Blob URL thêm.
+        if (originalImage.length < DATA_URL_VIDEO_BLOB_THRESHOLD_BYTES) {
+            setPlaybackSrc(originalImage);
+            return;
+        }
+
+        setPlaybackSrc(undefined); // Tránh render <video src="data:..."> khổng lồ dù chỉ trong 1 frame
+        fetch(originalImage)
+            .then((res) => res.blob())
+            .then((blob) => {
+                if (cancelled) return;
+                createdBlobUrl = URL.createObjectURL(blob);
+                setPlaybackSrc(createdBlobUrl);
+            })
+            .catch((e) => {
+                console.warn('[bring-any-idea-to-life] Failed to convert data URL video to Blob URL, falling back to data URL:', e);
+                if (!cancelled) setPlaybackSrc(originalImage);
+            });
+
+        return () => {
+            cancelled = true;
+            if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
+        };
+    }, [originalImage]);
+
+    return playbackSrc;
+}
+
 interface LivePreviewProps {
   creation: Creation | null;
   isLoading: boolean;
@@ -281,6 +332,7 @@ ${message}`);
 
     const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
     const isOriginalVideo = Boolean(creation?.originalImage) && (/^video\//i.test(originalMimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation?.originalImage || ''));
+    const videoPlaybackSrc = useVideoPlaybackSrc(isOriginalVideo ? creation?.originalImage : undefined);
     const isOriginalPdf = Boolean(creation?.originalImage) && (originalMimeType === 'application/pdf' || /\.pdf(\?|$)/i.test(creation?.originalImage || ''));
     const hasOriginalSource = Boolean(creation?.originalImage || creation?.videoUrl);
     const canUploadMissingSource = Boolean(creation && !hasOriginalSource && onUploadMissingSource);
@@ -531,14 +583,21 @@ ${message}`);
                         ) : isOriginalPdf && creation.originalImage?.startsWith('data:') ? (
                             <PdfRenderer dataUrl={creation.originalImage} />
                         ) : isOriginalVideo ? (
-                            <video
-                                key={creation.originalImage}
-                                src={creation.originalImage}
-                                controls
-                                playsInline
-                                preload="metadata"
-                                className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
-                            />
+                            videoPlaybackSrc ? (
+                                <video
+                                    key={videoPlaybackSrc}
+                                    src={videoPlaybackSrc}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center gap-2 text-sm text-zinc-400">
+                                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-600 border-t-transparent" />
+                                    Đang chuẩn bị video...
+                                </div>
+                            )
                         ) : creation.originalImage ? (
                             <img 
                                 src={creation.originalImage} 
