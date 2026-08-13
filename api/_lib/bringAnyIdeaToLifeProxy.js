@@ -268,6 +268,21 @@ async function requestGroqChat({ systemInstruction, userContent, envSource, maxT
     temperature: 0.5,
     max_tokens: maxTokens,
     reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho nội dung thật (xem ghi chú trên)
+    // SỰ CỐ LẶP LẠI LẦN 5 (13/08/2026, ngay sau khi tách kiến trúc 2 bước):
+    // reasoning_format: 'hidden' CHỈ ẩn phần suy luận khỏi response, KHÔNG
+    // tắt việc model suy luận — qwen3.6-27b mặc định reasoning_effort =
+    // 'default' (bật suy luận ẩn), và phần suy luận ẩn đó vẫn TÍNH VÀO
+    // max_tokens. GROQ_PLAN_MAX_TOKENS=700 quá nhỏ để vừa đủ cho suy luận ẩn
+    // + plan text thật -> model ngốn hết 700 token cho suy luận, message.content
+    // trả về RỖNG (không phải lỗi/exception, không phải finish_reason
+    // 'length' cắt cụt — chỉ đơn giản là '') -> planFromImage() trả '' ->
+    // callGroqVision() throw "Groq không tạo được kế hoạch...". FIX: tắt hẳn
+    // suy luận bằng reasoning_effort: 'none' (Groq hỗ trợ 'none'/'default'
+    // cho model Qwen) thay vì chỉ ẩn — giải phóng toàn bộ max_tokens cho nội
+    // dung thật ở cả 2 bước (plan lẫn codegen), vừa tránh bug rỗng này vừa
+    // nhanh hơn/tốn ít token hơn vì model không tốn thời gian suy luận không
+    // cần thiết cho 1 tác vụ mô tả/sinh code trực tiếp.
+    reasoning_effort: 'none',
   }
 
   // Đua song song 2 key đầu để giảm độ trễ, rồi TỰ ĐỘNG dò tuần tự các key
