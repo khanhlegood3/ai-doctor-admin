@@ -28,7 +28,16 @@
 // CSS/JS sinh ra -> bị cắt cụt giữa chừng (trang trắng). Hạ xuống 1024px:
 // vẫn đủ chi tiết để model đọc sketch/whiteboard/vật thể, nhưng giảm đáng kể
 // token ảnh, chừa nhiều chỗ hơn cho output.
-const MAX_DIMENSION = 1024; // đủ chi tiết cho model vision đọc ảnh, không cần full-res gốc
+//
+// SỰ CỐ LẶP LẠI LẦN 2 (14/08/2026): 1024px vẫn CHƯA đủ với ảnh screenshot
+// nhiều chi tiết/text (khác ảnh vật thể đơn giản dùng để test ban đầu) — log
+// lỗi thực tế cho thấy input request vẫn ~3200 token, vượt ngân sách cho
+// phép cùng GROQ_MAX_TOKENS=5500 (8704 > 8000 TPM). Hạ tiếp xuống 768px:
+// token ảnh giảm mạnh hơn (tỉ lệ ~bậc 2 theo cạnh, 768²/1024² ≈ 0.56) mà vẫn
+// đủ rõ để model nhận diện layout/text chính trong sketch/wireframe/
+// screenshot — không cần đọc được từng chữ nhỏ li ti, chỉ cần hiểu bố cục
+// tổng thể để "hồi sinh" thành app tương tác.
+const MAX_DIMENSION = 768; // hạ từ 1024 lần 2 — vẫn còn tràn TPM 8000 của Groq với ảnh nhiều chi tiết
 const JPEG_QUALITY = 0.8;
 
 export interface CompressedImage {

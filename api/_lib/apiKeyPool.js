@@ -386,3 +386,103 @@ export async function withApiKeyRacing(
     lastError?.status && Number.isInteger(lastError.status) ? lastError.status : 429,
   )
 }
+
+/**
+ * BUG THỰC TẾ đã gặp với withApiKeyRacing() dùng ĐƠN ĐỘC (sự cố 13/08/2026):
+ * pool có 4 key, nhưng withApiKeyRacing() mặc định chỉ đua 2 key đầu
+ * (maxParallel=2) — khi CẢ 2 key đó đều lỗi (vd cùng chung 1 project nên
+ * cùng chung 1 quota, hoặc lỗi "request quá lớn" xảy ra như nhau ở mọi key),
+ * hàm NÉM LỖI NGAY, 2 KEY DỰ PHÒNG CÒN LẠI TRONG POOL KHÔNG BAO GIỜ ĐƯỢC THỬ
+ * — trái ngược hoàn toàn mục đích ban đầu của "key pool" (càng nhiều key dự
+ * phòng càng khó hết hạn mức). Đây chính là ghi chú "nên được dùng ở lớp gọi
+ * phía trên nếu muốn thử tiếp các key còn lại tuần tự" trong docstring của
+ * withApiKeyRacing() ở trên — nhưng KHÔNG nơi nào trong dự án thực sự nối
+ * bước đó lại, nên bug tồn tại âm thầm.
+ *
+ * HÀM NÀY nối đúng 2 bước lại làm 1, để chỗ gọi không phải tự ghép thủ công:
+ *   1. Đua song song `maxParallel` key đầu (giống hệt withApiKeyRacing) — vẫn
+ *      giữ nguyên lợi ích giảm độ trễ khi 1-2 key đầu bị rate limit tạm thời.
+ *   2. Nếu TẤT CẢ key trong nhóm đua đều lỗi kiểu "nên đổi key" (quota/
+ *      billing/rate-limit) — dò TUẦN TỰ (không đua nữa, tiết kiệm quota) qua
+ *      các key CÒN LẠI trong pool (chưa được thử ở bước 1), y hệt
+ *      withApiKeyRotation() nhưng bỏ qua nhóm key đã biết chắc là lỗi.
+ *   3. Chỉ khi TOÀN BỘ pool (cả nhóm đua lẫn nhóm dò tuần tự sau đó) đều lỗi
+ *      mới thực sự ném lỗi cuối cùng.
+ *
+ * @template T
+ * @param {string} prefix
+ * @param {(apiKey: string, label: string) => Promise<T>} attempt
+ * @param {object} [opts] - giống hệt withApiKeyRacing()
+ * @returns {Promise<T>}
+ */
+export async function withApiKeyRacingThenRotation(
+  prefix,
+  attempt,
+  { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING, required = true, maxParallel = 2 } = {},
+) {
+  const pool = loadApiKeyPool(prefix, { envSource, maxConsecutiveMissing })
+
+  if (pool.length === 0) {
+    if (!required) return undefined
+    throw new ApiKeyPoolError(
+      `Chưa cấu hình biến môi trường ${prefix} (hoặc ${prefix}1, ${prefix}2, ...). Thêm ít nhất 1 biến trong Vercel → Settings → Environment Variables rồi redeploy.`,
+      501,
+    )
+  }
+
+  if (pool.length === 1) {
+    const { key, label } = pool[0]
+    return attempt(key, label)
+  }
+
+  const startIndex = stickyKeyIndexByPrefix.get(prefix) ?? 0
+  const orderedPool = pool.map((_, i) => pool[(startIndex + i) % pool.length])
+  const raceCount = Math.max(1, Math.min(maxParallel, orderedPool.length))
+  const racePool = orderedPool.slice(0, raceCount)
+  const remainingPool = orderedPool.slice(raceCount) // key CHƯA được thử ở bước đua
+
+  console.log(
+    `[apiKeyPool] ${prefix}: gọi song song ${racePool.length}/${pool.length} key (${racePool.map((p) => maskKey(p.key)).join(', ')})...`,
+  )
+
+  const settled = await Promise.allSettled(racePool.map(({ key, label }) => attempt(key, label)))
+
+  const winnerIndex = settled.findIndex((r) => r.status === 'fulfilled')
+  if (winnerIndex !== -1) {
+    const winner = racePool[winnerIndex]
+    console.log(`[apiKeyPool] ${prefix}: ${winner.label} về đích trước trong nhóm ${racePool.length} key đua.`)
+    const winnerPoolIndex = pool.findIndex((p) => p.label === winner.label)
+    if (winnerPoolIndex !== -1) stickyKeyIndexByPrefix.set(prefix, winnerPoolIndex)
+    return settled[winnerIndex].value
+  }
+
+  const nonRotatable = settled.find((r) => r.status === 'rejected' && !isRotatableApiError(r.reason))
+  if (nonRotatable) throw nonRotatable.reason
+
+  let lastError = settled[settled.length - 1].reason
+
+  if (remainingPool.length > 0) {
+    console.warn(
+      `[apiKeyPool] ${prefix}: ${racePool.length} key vừa đua đều lỗi hết hạn mức. Đang dò tuần tự ${remainingPool.length} key dự phòng còn lại...`,
+    )
+    for (const { key, label } of remainingPool) {
+      try {
+        const result = await attempt(key, label)
+        const winnerPoolIndex = pool.findIndex((p) => p.label === label)
+        if (winnerPoolIndex !== -1) stickyKeyIndexByPrefix.set(prefix, winnerPoolIndex)
+        console.log(`[apiKeyPool] ${prefix}: ${label} thành công (key dự phòng sau nhóm đua).`)
+        return result
+      } catch (err) {
+        lastError = err
+        if (!isRotatableApiError(err)) throw err
+        console.warn(`[apiKeyPool] ${label} (${maskKey(key)}) cũng lỗi hết hạn mức/billing (${err?.status || ''} ${err?.message || ''}).`)
+        continue
+      }
+    }
+  }
+
+  throw new ApiKeyPoolError(
+    `Tất cả ${pool.length} key ${prefix}* (đua song song ${racePool.length} + dò tuần tự ${remainingPool.length} còn lại) đều đã hết hạn mức/billing hoặc bị lỗi. Vui lòng nạp thêm Token/quota cho ít nhất 1 key rồi thử lại. Lỗi cuối cùng: ${lastError?.message || lastError}`,
+    lastError?.status && Number.isInteger(lastError.status) ? lastError.status : 429,
+  )
+}

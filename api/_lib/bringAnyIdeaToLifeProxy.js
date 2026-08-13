@@ -34,7 +34,7 @@
 // sự cố, để tiết kiệm quota/tiền.
 
 import { GoogleGenAI } from '@google/genai'
-import { withApiKeyRotation, withApiKeyRacing, getApiKeyByLabel, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
+import { withApiKeyRotation, withApiKeyRacingThenRotation, getApiKeyByLabel, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
@@ -145,7 +145,22 @@ Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (\`\`\`htm
 // hơn. Nếu vẫn gặp finish_reason 'length' với ảnh phức tạp/prompt dài, hạ
 // tiếp con số này hoặc dimension ảnh, KHÔNG tăng ngược lại quá 8000 - (input
 // ước tính) vì sẽ lại ăn lỗi 429 TPM như cũ.
-const GROQ_MAX_TOKENS = 5500
+//
+// SỰ CỐ LẶP LẠI LẦN 2 (14/08/2026): estimate ~1800-2200 token input ở trên
+// SAI TRONG THỰC TẾ — log lỗi mới cho thấy "Limit 8000, Requested 8704" với
+// max_tokens=5500, tức input THẬT SỰ đã ~3200 token ngay cả ở ảnh 1024px
+// (ảnh chụp màn hình/screenshot có nhiều chi tiết/text tốn nhiều token hơn
+// ảnh chụp vật thể đơn giản dùng để test ban đầu). QUAN TRỌNG: đổi SANG KEY
+// KHÁC (rotation/racing) KHÔNG giúp gì cho lỗi này — "Request too large" là
+// giới hạn TPM CỦA MODEL trên toàn bộ free tier "on_demand", ÁP DỤNG NHƯ
+// NHAU cho MỌI key/tài khoản free, không phải lỗi "riêng key này hết hạn
+// mức" — đổi key nào cũng lỗi y hệt. Cách fix DUY NHẤT thật sự hiệu quả là
+// giảm tiếp kích thước request. Hạ thêm: MAX_DIMENSION 1024 -> 768 (giảm
+// mạnh token ảnh, vì token ảnh tỉ lệ ~bậc 2 theo cạnh: 768² / 1024² ≈ 0.56)
+// và GROQ_MAX_TOKENS 5500 -> 4800 (chừa thêm biên độ ~700 token) — mục tiêu
+// input (~2000-2400) + max_tokens (4800) ≈ 6800-7200, có biên độ an toàn rõ
+// rệt dưới mức 8000 thay vì sát nút như trước.
+const GROQ_MAX_TOKENS = 4800
 
 function cleanHtml(text) {
   let out = text || ''
@@ -177,10 +192,12 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
     reasoning_format: 'hidden', // qwen3.x: ẩn hẳn <think>, dồn token cho code thật (xem ghi chú trên)
   }
 
-  // Gọi SONG SONG tất cả GROQ_API_KEY/GROQ_API_KEY1/... — lấy key nào về
-  // đích trước, không đợi tuần tự (xem đánh đổi tốn quota trong ghi chú của
-  // withApiKeyRacing() ở apiKeyPool.js).
-  const data = await withApiKeyRacing('GROQ_API_KEY', async (apiKey) => {
+  // Đua song song 2 key đầu để giảm độ trễ, rồi TỰ ĐỘNG dò tuần tự các key
+  // dự phòng còn lại trong pool nếu cả nhóm đua đều lỗi (sự cố thực tế
+  // 13/08/2026: withApiKeyRacing() đơn thuần chỉ đua đúng 2 key rồi bỏ cuộc,
+  // 2 key dự phòng khác trong pool 4 key KHÔNG BAO GIỜ được thử tới — xem
+  // ghi chú đầy đủ ở withApiKeyRacingThenRotation() trong apiKeyPool.js).
+  const data = await withApiKeyRacingThenRotation('GROQ_API_KEY', async (apiKey) => {
     const res = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -275,7 +292,7 @@ export async function uploadBringAnyIdeaToLifeVideoToGemini({ publicUrl, mimeTyp
     // client, vì các bước SAU (checkFile, rồi generate) bắt buộc phải dùng
     // lại chính xác key này — file chỉ tồn tại trong tài khoản của key đã
     // upload nó, gọi nhầm key khác sẽ báo lỗi "not found" giả.
-    return await withApiKeyRacing('GEMINI_API_KEY', async (apiKey, label) => {
+    return await withApiKeyRacingThenRotation('GEMINI_API_KEY', async (apiKey, label) => {
       const ai = new GoogleGenAI({ apiKey })
       const file = await ai.files.upload({
         file: new Blob([videoBuffer], { type: mimeType }),
@@ -442,7 +459,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
   // tạm thời. Nhánh video geminiFileUri KHÔNG có geminiKeyLabel hợp lệ (rơi
   // xuống đây) thì dò tuần tự (rotation) để không tốn quota gọi nhầm key
   // không sở hữu file.
-  const runWithKeys = geminiFileUri ? withApiKeyRotation : withApiKeyRacing
+  const runWithKeys = geminiFileUri ? withApiKeyRotation : withApiKeyRacingThenRotation
   return await runWithKeys('GEMINI_API_KEY', (geminiApiKey) => attemptGeminiGenerate(geminiApiKey), { envSource })
 }
 
