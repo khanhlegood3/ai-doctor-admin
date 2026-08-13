@@ -292,15 +292,37 @@ const App: React.FC = () => {
     setActiveCreation(creation);
   };
 
+  // Suy ra mimeType từ đuôi file của URL thumbnail (tất cả thumbnail demo
+  // hiện tại đều là .png/.jpg/.jpeg, xem lib/demoTemplates/index.ts) — để
+  // LivePreview nhận diện đúng đây là ảnh (isOriginalVideo/isOriginalPdf =
+  // false) và render bằng <img>, không rơi vào nhánh "Thiếu file".
+  const guessImageMimeType = (url: string): string => {
+    const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'gif') return 'image/gif';
+    return 'image/png';
+  };
+
   // Bấm 1 mẫu trong "bộ mẫu demo" (DemoTemplates) -> xem ngay trong
   // LivePreview, giống hệt loadMockExample() của Video to Learning: KHÔNG
   // gọi AI, và KHÔNG ghi vào lịch sử thật (IndexedDB/R2) vì đây chỉ là mẫu
   // có sẵn để tham khảo, không phải sáng tạo của người dùng.
+  //
+  // FIX: gắn sẵn originalImage = template.thumbnail (ảnh gốc demo đã có sẵn
+  // URL thật, xem lib/demoTemplates/index.ts) thay vì để trống — trước đây
+  // để trống khiến khung "Original Input" hiểu nhầm là "artifact cũ thiếu
+  // file gốc" và bắt người dùng tự upload lại, dù thumbnail đã tồn tại sẵn.
+  // Panel vẫn hiển thị nút "Upload R2" (xem LivePreview.tsx, nút này không
+  // điều kiện theo originalImage) để người dùng tự thay bằng file khác nếu
+  // muốn — đúng thứ tự "load ảnh cũ trước, cho đè lên sau nếu muốn".
   const handleSelectDemo = (template: DemoTemplate) => {
     setActiveCreation({
       id: 'demo-' + template.id,
       name: template.name,
       html: template.html,
+      originalImage: template.thumbnail,
+      mimeType: guessImageMimeType(template.thumbnail),
       timestamp: new Date(),
     });
   };
