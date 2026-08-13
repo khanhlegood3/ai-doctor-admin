@@ -292,9 +292,24 @@ export function countApiKeyPool(prefix, opts) {
  * @param {Record<string,string>} [opts.envSource]
  * @param {number} [opts.maxConsecutiveMissing]
  * @param {boolean} [opts.required] - xem withApiKeyRotation()
+ * @param {number} [opts.maxParallel] - CHỈ đua song song tối đa N key đầu
+ *   (mặc định 2) thay vì toàn bộ pool — cân bằng giữa tốc độ (vẫn có key dự
+ *   phòng chạy song song ngay khi key đầu bị rate limit) và tiết kiệm quota
+ *   (không đốt hết cả chục key free tier cho 1 request). Nếu pool còn nhiều
+ *   hơn maxParallel key, các key KHÔNG được chọn đua lần này vẫn còn nguyên
+ *   quota, dự phòng cho request kế tiếp hoặc khi cả maxParallel key đều lỗi
+ *   thật (Promise.allSettled trả lỗi hết) — withApiKeyRotation() nên được
+ *   dùng ở lớp gọi phía trên nếu muốn thử tiếp các key còn lại tuần tự sau
+ *   khi nhóm đua song song đầu tiên thất bại (xem cách dùng trong
+ *   bringAnyIdeaToLifeProxy.js). Truyền `Infinity` để đua toàn bộ pool như
+ *   hành vi cũ (không giới hạn).
  * @returns {Promise<T>}
  */
-export async function withApiKeyRacing(prefix, attempt, { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING, required = true } = {}) {
+export async function withApiKeyRacing(
+  prefix,
+  attempt,
+  { envSource = process.env, maxConsecutiveMissing = MAX_CONSECUTIVE_MISSING, required = true, maxParallel = 2 } = {},
+) {
   const pool = loadApiKeyPool(prefix, { envSource, maxConsecutiveMissing })
 
   if (pool.length === 0) {
@@ -311,26 +326,42 @@ export async function withApiKeyRacing(prefix, attempt, { envSource = process.en
     return attempt(key, label)
   }
 
-  console.log(`[apiKeyPool] ${prefix}: gọi song song ${pool.length} key (${pool.map((p) => maskKey(p.key)).join(', ')})...`)
+  // Đua song song bắt đầu từ key "đang chạy tốt" gần nhất (sticky, giống
+  // withApiKeyRotation()) thay vì luôn cố định key #0, #1 — nếu key #0 vừa
+  // hết quota ở request trước, không có lý do gì đưa nó vào nhóm đua lần
+  // này thay vì 1 key khác chưa biết trạng thái.
+  const startIndex = stickyKeyIndexByPrefix.get(prefix) ?? 0
+  const orderedPool = pool.map((_, i) => pool[(startIndex + i) % pool.length])
+  const raceCount = Math.max(1, Math.min(maxParallel, orderedPool.length))
+  const racePool = orderedPool.slice(0, raceCount)
 
-  const settled = await Promise.allSettled(pool.map(({ key, label }) => attempt(key, label)))
+  console.log(
+    `[apiKeyPool] ${prefix}: gọi song song ${racePool.length}/${pool.length} key (${racePool.map((p) => maskKey(p.key)).join(', ')})...`,
+  )
+
+  const settled = await Promise.allSettled(racePool.map(({ key, label }) => attempt(key, label)))
 
   const winnerIndex = settled.findIndex((r) => r.status === 'fulfilled')
   if (winnerIndex !== -1) {
-    console.log(`[apiKeyPool] ${prefix}: key #${winnerIndex} (${pool[winnerIndex].label}) về đích trước trong ${pool.length} key.`)
+    const winner = racePool[winnerIndex]
+    console.log(`[apiKeyPool] ${prefix}: ${winner.label} về đích trước trong nhóm ${racePool.length} key đua.`)
+    // Nhớ lại key thắng để lần gọi kế (trên cùng instance ấm) đua bắt đầu từ
+    // đây trước, giống cơ chế sticky của withApiKeyRotation().
+    const winnerPoolIndex = pool.findIndex((p) => p.label === winner.label)
+    if (winnerPoolIndex !== -1) stickyKeyIndexByPrefix.set(prefix, winnerPoolIndex)
     return settled[winnerIndex].value
   }
 
-  // TẤT CẢ key đều lỗi. Nếu có ít nhất 1 lỗi KHÔNG PHẢI loại "nên đổi key"
-  // (vd request sai 400, bug logic) — ném lỗi đó ra ngay, vì mọi key đều gọi
-  // chung 1 request y hệt nhau nên lỗi loại này chắc chắn cũng xảy ra ở tất
-  // cả các key, đổi/thêm key không giải quyết được.
+  // TẤT CẢ key trong nhóm đua đều lỗi. Nếu có ít nhất 1 lỗi KHÔNG PHẢI loại
+  // "nên đổi key" (vd request sai 400, bug logic) — ném lỗi đó ra ngay, vì
+  // mọi key đều gọi chung 1 request y hệt nhau nên lỗi loại này chắc chắn
+  // cũng xảy ra ở tất cả các key, đổi/thêm key không giải quyết được.
   const nonRotatable = settled.find((r) => r.status === 'rejected' && !isRotatableApiError(r.reason))
   if (nonRotatable) throw nonRotatable.reason
 
   const lastError = settled[settled.length - 1].reason
   throw new ApiKeyPoolError(
-    `Tất cả ${pool.length} key ${prefix}* (đã gọi song song) đều đã hết hạn mức/billing hoặc bị lỗi. Vui lòng nạp thêm Token/quota cho ít nhất 1 key rồi thử lại. Lỗi cuối cùng: ${lastError?.message || lastError}`,
+    `${racePool.length}/${pool.length} key ${prefix}* (đã gọi song song) đều đã hết hạn mức/billing hoặc bị lỗi. Vui lòng nạp thêm Token/quota cho ít nhất 1 key rồi thử lại. Lỗi cuối cùng: ${lastError?.message || lastError}`,
     lastError?.status && Number.isInteger(lastError.status) ? lastError.status : 429,
   )
 }
