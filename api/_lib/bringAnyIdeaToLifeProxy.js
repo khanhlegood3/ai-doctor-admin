@@ -430,12 +430,20 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     return { html, source: 'gemini' }
   }
 
+  // Lưu lại lý do Groq lỗi (nếu có) để gộp vào thông báo lỗi cuối cùng — trước
+  // đây lỗi Groq chỉ console.warn() (không ai thấy trên client), nên khi cả
+  // Gemini dự phòng cũng lỗi (vd hết quota), người dùng chỉ thấy mỗi lỗi
+  // Gemini và tưởng lầm Groq chưa từng được thử/không hoạt động, trong khi
+  // thực ra có thể Groq đã thử và lỗi trước — gộp cả 2 giúp chẩn đoán đúng
+  // (thiếu GROQ_API_KEY trên Vercel? hay Groq key cũng hết quota?).
+  let groqErrorMessage
   if (hasGroq) {
     try {
       const html = cleanHtml(await callGroqVision({ prompt, fileBase64, mimeType, envSource }))
       if (html) return { html, source: 'groq' }
     } catch (err) {
-      console.warn('[bring-any-idea-to-life] Groq failed on all keys, falling back to Gemini:', err?.message || err)
+      groqErrorMessage = err?.message || String(err)
+      console.warn('[bring-any-idea-to-life] Groq failed on all keys, falling back to Gemini:', groqErrorMessage)
     }
   }
 
@@ -446,6 +454,17 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     )
   }
 
-  const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, envSource }))
-  return { html, source: 'gemini-fallback' }
+  try {
+    const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, envSource }))
+    return { html, source: 'gemini-fallback' }
+  } catch (err) {
+    if (!hasGroq) throw err // Groq chưa cấu hình -> không có gì để gộp, giữ nguyên lỗi Gemini
+    const geminiMsg = err?.message || String(err)
+    throw new BringAnyIdeaToLifeProxyError(
+      groqErrorMessage
+        ? `Groq lỗi: ${groqErrorMessage}. Gemini (dự phòng) cũng lỗi: ${geminiMsg}`
+        : geminiMsg,
+      err?.status || 502,
+    )
+  }
 }
