@@ -531,6 +531,28 @@ export default defineConfig(({ mode }) => {
             if (/[\\/]node_modules[\\/]/.test(id)) {
               return 'vendor'
             }
+            // FIX: src/index.css (Tailwind + toàn bộ CSS gốc của cả site) được
+            // TẤT CẢ 9 app con "-khanh" import DÙNG CHUNG qua
+            // `import '../../index.css'` (xem comment trong từng main.tsx) —
+            // không phải app con nào có CSS riêng. Vì nhiều entry HTML cùng
+            // import 1 file CSS này, Rollup gộp nó vào 1 chunk CSS chung DUY
+            // NHẤT, nhưng lại tự đặt tên chunk đó trùng tên 1 trong các app
+            // con (vd "visionSyncKhanh-*.css") thay vì "main". Hậu quả:
+            // stripForeignSubAppCssPlugin ở trên (vốn chỉ nhằm chặn CSS
+            // RIÊNG của app con khác leak sang) hiểu nhầm đây là CSS riêng
+            // của visionSyncKhanh và XOÁ LUÔN <link> CSS này khỏi trang chủ —
+            // khiến trang chủ/landing/chooseRole/hero/login build ra KHÔNG
+            // CÓ file CSS nào (xác nhận qua build thật: dist/index.html
+            // không còn thẻ <link rel="stylesheet"> nào), vỡ toàn bộ layout
+            // kể cả các class Tailwind điều khiển scroll — nguyên nhân của
+            // lỗi "landing/2 trang anh hùng/login không scroll được".
+            // Ép file này về 1 chunk tên cố định, KHÔNG trùng bất kỳ tên nào
+            // trong subAppEntryNames, để không bao giờ bị 2 filter ở trên
+            // (modulePreload + CSS) coi nhầm là "CSS riêng của app con khác"
+            // và xoá mất — chunk này sẽ được giữ lại đúng ở MỌI entry cần nó.
+            if (/[\\/]src[\\/]index\.css(\?|$)/.test(id)) {
+              return 'shared-app-styles'
+            }
             const match = id.match(/[\\/]src[\\/]([a-z0-9-]+-khanh)[\\/]/)
             if (match) return match[1]
           },
