@@ -12,6 +12,7 @@ import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
 import { bringToLife, uploadVideoFileToGemini } from './lib/api';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
+import { extractVideoFrames } from './lib/videoFrames';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
 import { saveCreationToR2, loadAllCreationsFromR2, uploadSourceFileToR2 } from './lib/historyR2Client';
 import { DemoTemplate } from './lib/demoTemplates';
@@ -224,6 +225,7 @@ const App: React.FC = () => {
       let geminiFileUri: string | undefined;
       let geminiFileMimeType: string | undefined;
       let geminiKeyLabel: string | undefined;
+      let frameImages: string[] | undefined;
       const creationId = crypto.randomUUID();
 
       if (file) {
@@ -239,20 +241,31 @@ const App: React.FC = () => {
           imageBase64 = compressed.base64;
           mimeType = compressed.mimeType;
         } else if (rawMimeType.startsWith('video/')) {
-          // Video: KHÔNG còn giới hạn 3MB nữa — upload thẳng lên R2 rồi để
-          // server đẩy sang Gemini Files API (xem uploadVideoFileToGemini
-          // trong lib/api.ts), giống hệt luồng video-analyzer-khanh. Chỉ
-          // gửi geminiFileUri sang bringToLife(), KHÔNG gửi base64.
+          // Video: ƯU TIÊN thử Groq (miễn phí) TRƯỚC bằng cách trích vài khung
+          // hình JPEG nhỏ ngay trên trình duyệt (canvas, không cần upload gì
+          // cả — xem lib/videoFrames.ts). Chỉ khi việc trích khung hình thất
+          // bại (codec lạ, video hỏng...) mới upload thẳng lên R2/Gemini Files
+          // API như luồng cũ. Nếu Groq (dùng khung hình) sau đó lỗi hoàn toàn
+          // ở bước gọi bringToLife(), catch bên dưới sẽ tự fallback sang
+          // Gemini bằng chính uploadVideoFileToGemini() này.
           mimeType = rawMimeType;
-          setLoadingLabel('Đang tải video lên...');
+          setLoadingLabel('Đang trích khung hình từ video...');
           try {
-            const uploaded = await uploadVideoFileToGemini(file);
-            geminiFileUri = uploaded.uri;
-            geminiFileMimeType = uploaded.mimeType;
-            geminiKeyLabel = uploaded.geminiKeyLabel;
-          } finally {
-            setLoadingLabel('Đang phân tích và tạo app...');
+            const frames = await extractVideoFrames(file);
+            frameImages = frames.map((f) => f.base64);
+          } catch (frameErr) {
+            console.warn('[bring-any-idea-to-life] Trích khung hình thất bại, dùng thẳng Gemini (upload video đầy đủ):', frameErr);
+            setLoadingLabel('Đang tải video lên...');
+            try {
+              const uploaded = await uploadVideoFileToGemini(file);
+              geminiFileUri = uploaded.uri;
+              geminiFileMimeType = uploaded.mimeType;
+              geminiKeyLabel = uploaded.geminiKeyLabel;
+            } finally {
+              setLoadingLabel('Đang phân tích và tạo app...');
+            }
           }
+          setLoadingLabel('Đang phân tích và tạo app...');
         } else {
           // PDF / các loại file khác: không nén được dễ dàng ở client. Chặn
           // sớm với thông báo rõ ràng thay vì để request âm thầm thất bại
@@ -272,7 +285,28 @@ const App: React.FC = () => {
         }
       }
 
-      const html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel);
+      let html: string;
+      try {
+        html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, frameImages);
+      } catch (bringErr) {
+        // Chỉ fallback tự động khi vừa thử bằng khung hình (Groq) cho video —
+        // trường hợp này server KHÔNG có video gốc nên không tự chuyển sang
+        // Gemini được (xem ghi chú trong bringAnyIdeaToLifeProxy.js). Ở đây
+        // client tự upload nguyên video lên Gemini Files API rồi gọi lại.
+        if (file && frameImages && frameImages.length > 0 && !geminiFileUri) {
+          console.warn('[bring-any-idea-to-life] Groq (khung hình video) lỗi hoàn toàn, tự động chuyển sang Gemini (tải nguyên video):', bringErr);
+          setLoadingLabel('Groq gặp sự cố, đang chuyển sang Gemini (tải video)...');
+          const uploaded = await uploadVideoFileToGemini(file);
+          geminiFileUri = uploaded.uri;
+          geminiFileMimeType = uploaded.mimeType;
+          geminiKeyLabel = uploaded.geminiKeyLabel;
+          frameImages = undefined;
+          setLoadingLabel('Đang phân tích và tạo app...');
+          html = await bringToLife(promptText, imageBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, undefined);
+        } else {
+          throw bringErr;
+        }
+      }
 
       if (html) {
         const newCreation: Creation = {

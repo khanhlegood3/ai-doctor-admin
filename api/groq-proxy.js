@@ -181,7 +181,7 @@ export default async function handler(req, res) {
 
   // --- Nhánh Bring Any Idea to Life (Gemini 3 Pro thật server-side, cần GEMINI_API_KEY trả phí) ---
   if (body.provider === 'bring-any-idea-to-life') {
-    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl), '| hasImageUrl:', Boolean(body.imageUrl), '| hasWebUrl:', Boolean(body.webUrl), '| hasGeminiFileUri:', Boolean(body.geminiFileUri))
+    console.log('[groq-proxy] (bring-any-idea-to-life) hasFile:', Boolean(body.fileBase64), '| hasVideoUrl:', Boolean(body.videoUrl), '| hasImageUrl:', Boolean(body.imageUrl), '| hasWebUrl:', Boolean(body.webUrl), '| hasGeminiFileUri:', Boolean(body.geminiFileUri), '| frameImagesCount:', Array.isArray(body.frameImages) ? body.frameImages.length : 0)
     try {
       const payload = await runBringAnyIdeaToLifeGenerate({
         prompt: body.prompt,
@@ -193,6 +193,10 @@ export default async function handler(req, res) {
         geminiFileUri: body.geminiFileUri,
         geminiFileMimeType: body.geminiFileMimeType,
         geminiKeyLabel: body.geminiKeyLabel,
+        // Vài khung hình JPEG nhỏ đã trích xuất SẴN Ở CLIENT (canvas) từ video
+        // upload trực tiếp — cho phép thử Groq (miễn phí) trước cho cả video,
+        // thay vì luôn đi thẳng Gemini. Xem ghi chú đầy đủ trong bringAnyIdeaToLifeProxy.js.
+        frameImages: Array.isArray(body.frameImages) ? body.frameImages : undefined,
       })
       return res.status(200).json(payload)
     } catch (err) {

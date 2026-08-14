@@ -107,7 +107,12 @@ export async function bringToLife(
   webUrl?: string,
   geminiFileUri?: string,
   geminiFileMimeType?: string,
-  geminiKeyLabel?: string
+  geminiKeyLabel?: string,
+  // Vài khung hình JPEG nhỏ đã trích SẴN ở client (xem lib/videoFrames.ts) từ
+  // video upload trực tiếp — cho phép server thử Groq (miễn phí) TRƯỚC cho cả
+  // video, chỉ dùng Gemini khi Groq lỗi hoàn toàn (App.tsx tự fallback bằng
+  // cách gọi lại bringToLife với geminiFileUri sau khi bắt được lỗi này).
+  frameImages?: string[]
 ): Promise<string> {
   const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
 
@@ -132,6 +137,7 @@ export async function bringToLife(
     hasVideoUrl: Boolean(videoUrl),
     hasImageUrl: Boolean(imageUrl),
     hasWebUrl: Boolean(webUrl),
+    frameImagesCount: frameImages?.length || 0,
   });
 
   let res: Response;
@@ -150,6 +156,7 @@ export async function bringToLife(
         geminiFileUri,
         geminiFileMimeType,
         geminiKeyLabel,
+        frameImages,
       }),
     });
   } catch (networkErr) {

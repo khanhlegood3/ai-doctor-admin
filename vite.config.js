@@ -285,6 +285,7 @@ function geminiComicDevMiddleware(env) {
                 geminiFileUri: parsed.geminiFileUri,
                 geminiFileMimeType: parsed.geminiFileMimeType,
                 geminiKeyLabel: parsed.geminiKeyLabel,
+                frameImages: Array.isArray(parsed.frameImages) ? parsed.frameImages : undefined,
                 envSource: env,
               })
               res.setHeader('Content-Type', 'application/json')

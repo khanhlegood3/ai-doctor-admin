@@ -214,6 +214,81 @@ async function planFromImage({ prompt, fileBase64, mimeType, envSource }) {
   return cleanHtml(planText) // dọn <think>/fence phòng hờ dù plan không phải HTML
 }
 
+// --- Groq (vision) cho VIDEO qua vài khung hình JPEG nhỏ trích sẵn ở client
+// (xem src/bring-any-idea-to-life-khanh/src/lib/videoFrames.ts) ---
+// Biến thể của PLAN_SYSTEM_INSTRUCTION, nhấn mạnh việc NHIỀU ảnh gửi lên là
+// các khung hình LIÊN TIẾP theo thời gian của CÙNG 1 video (không phải nhiều
+// ảnh rời rạc) — model cần suy luận hành động/quá trình xuyên suốt các khung
+// hình, giống hệt tinh thần của SYSTEM_INSTRUCTION gốc (nhánh "Video" ở đầu
+// file) chứ không chỉ mô tả từng ảnh riêng lẻ.
+const VIDEO_PLAN_SYSTEM_INSTRUCTION = `You are an expert product designer. You will see several JPEG frames sampled in order across a single short video (not separate unrelated images) — infer the subject, action, or process shown ACROSS the whole sequence, not just describe one frame. Write a CONCISE build plan for turning this into a fully functional, interactive single-page HTML/CSS/JS app "bringing it to life" — plain text only, NOT code, under 200 words.
+
+Decide what to build:
+- Tutorial/demo/process shown across the frames: plan an interactive step-by-step walkthrough or simulator of that process.
+- Real-world scene or activity: plan a themed mini-game (e.g. a "clean up" clicking game) or a utility inspired by it (e.g. a tracker).
+- If the frames are too similar/static to infer motion, treat the clearest frame as a photo and follow the same "mundane real-world photo" logic (gamify or build a utility, do not just display it).
+
+Write:
+1. One or two sentences on the core concept and interaction, referencing what changes/happens across the frames.
+2. A short bullet list of the key UI elements/sections, their layout, and any specific colors, shapes, labels, or text worth preserving from the frames.
+3. A one-line reminder that visuals must be built with CSS shapes, inline SVG, emojis, or gradients — never external <img> URLs.
+
+Output the plan as plain text only — no HTML, no markdown code fences.`
+
+async function planFromFrames({ prompt, frameImages, envSource }) {
+  const content = [
+    {
+      type: 'text',
+      text: `User request: ${prompt}\n\nThe following ${frameImages.length} images are JPEG frames sampled in chronological order across a single video. Analyze them together and write the build plan described in your instructions.`,
+    },
+  ]
+  for (const frame of frameImages) {
+    if (!frame) continue
+    content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${frame}` } })
+  }
+  const { content: planText } = await requestGroqChat({
+    systemInstruction: VIDEO_PLAN_SYSTEM_INSTRUCTION,
+    userContent: content,
+    envSource,
+    // Nhiều khung hình cộng dồn token input hơn 1 ảnh đơn — giữ output nhỏ
+    // (giống GROQ_PLAN_MAX_TOKENS) để vẫn nằm sâu dưới TPM 8000 (client đã cố
+    // tình trích khung hình nhỏ/nén mạnh hơn ảnh thường, xem videoFrames.ts).
+    maxTokens: GROQ_PLAN_MAX_TOKENS,
+  })
+  return cleanHtml(planText)
+}
+
+async function callGroqVideoFrames({ prompt, frameImages, envSource }) {
+  const startedAt = Date.now()
+
+  const plan = await planFromFrames({ prompt, frameImages, envSource })
+  if (!plan) {
+    throw new Error('Groq không tạo được kế hoạch từ các khung hình video — thử lại hoặc dùng video khác.')
+  }
+
+  try {
+    return await codegenFromPlan({
+      prompt,
+      plan,
+      envSource,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION,
+    })
+  } catch (err) {
+    if (!(err instanceof GroqTruncatedError)) throw err
+    const elapsed = Date.now() - startedAt
+    if (timeoutMs - elapsed < GROQ_RETRY_MIN_BUDGET_MS) throw err
+    console.warn('[bring-any-idea-to-life] Groq codegen (video frames) bị cắt cụt lần 1, tự động retry với yêu cầu ngắn gọn hơn:', err.message)
+    return await codegenFromPlan({
+      prompt,
+      plan,
+      envSource,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION + GROQ_CODEGEN_COMPACT_RETRY_SUFFIX,
+    })
+  }
+}
+
 // Bước 2: CHỈ text (kế hoạch bước 1), KHÔNG gửi lại ảnh — input nhỏ hẳn nên
 // có nhiều ngân sách cho output hơn hẳn so với kiến trúc 1-lệnh-gọi cũ.
 const CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION = `You are an expert AI Engineer who turns a build plan into a fully functional, interactive single-page HTML/CSS/JS app.
@@ -581,7 +656,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
@@ -622,10 +697,24 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     )
   }
 
-  // Video (upload trực tiếp hoặc link YouTube/Facebook): Groq vision (qwen) KHÔNG
-  // hỗ trợ video, chỉ ảnh — bắt buộc đi thẳng Gemini, không thử Groq trước.
+  // Video: Groq vision (qwen) không nhận input video trực tiếp, CHỈ ảnh — vì
+  // vậy link YouTube/Facebook hoặc video đã upload sẵn lên Gemini Files API
+  // (geminiFileUri) bắt buộc đi thẳng Gemini như trước. NHƯNG nếu client đã
+  // tự trích sẵn vài khung hình JPEG nhỏ từ video upload trực tiếp
+  // (frameImages, xem lib/videoFrames.ts), thử Groq TRƯỚC với các khung hình
+  // đó (dùng chung kiến trúc 2 bước plan->codegen như ảnh/PDF) để tiết kiệm
+  // quota Gemini free tier (rất dễ hết, limit 20 request/ngày/key) — chỉ rơi
+  // xuống Gemini khi Groq lỗi ở TẤT CẢ key. Server ở đây KHÔNG có video gốc
+  // (chỉ vài khung hình tĩnh) nên không thể tự fallback sang Gemini — ném lỗi
+  // rõ ràng để App.tsx (client) tự bắt và fallback bằng cách upload nguyên
+  // video lên Gemini Files API rồi gọi lại với geminiFileUri.
   const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   if (isVideo) {
+    if (Array.isArray(frameImages) && frameImages.length > 0 && hasGroq && !geminiFileUri && !videoUrl) {
+      const html = cleanHtml(await callGroqVideoFrames({ prompt, frameImages, envSource }))
+      if (html) return { html, source: 'groq-video-frames' }
+    }
+
     if (!hasGemini) {
       throw new BringAnyIdeaToLifeProxyError(
         'Xử lý video (tải lên hoặc link YouTube/Facebook) cần GEMINI_API_KEY (Groq chưa hỗ trợ video). Thêm biến GEMINI_API_KEY trong Vercel → Settings → Environment Variables rồi redeploy.',
