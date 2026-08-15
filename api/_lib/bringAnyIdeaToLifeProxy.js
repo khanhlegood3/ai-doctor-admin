@@ -30,6 +30,18 @@
 //   xem videoToLearningProxy.js dùng cùng model Flash này với lý do tương
 //   tự) — chấp nhận chất lượng thấp hơn 1 chút ở nhánh dự phòng.
 //
+// VIDEO QUA LINK DÁN (YouTube/Facebook): sự cố thực tế (14/08/2026) — nhánh
+// này TRƯỚC ĐÂY luôn đi thẳng Gemini (Groq vision không nhận input video),
+// khiến MỌI request video-qua-link tốn quota Gemini free tier (rất chặt),
+// dễ báo lỗi "hết hạn mức ở tất cả API key" dù Groq vẫn còn dư — trong khi
+// "Video to Learning" chạy ổn với CÙNG link vì đã tách riêng 1 đường transcript
+// (lấy phụ đề video MIỄN PHÍ, không cần key, xem youtubeTranscript.js/
+// facebookTranscript.js) + Groq (đọc TEXT transcript thay vì "xem" video) —
+// FIX: áp dụng lại đúng kiến trúc đó ở đây (xem callGroqVideoTranscript() +
+// nhánh videoUrl trong runBringAnyIdeaToLifeGenerate()), chỉ rơi xuống
+// Gemini xem-trực-tiếp khi video không có phụ đề, phụ đề quá ngắn, hoặc
+// Groq lỗi ở tất cả key.
+//
 // KHÔNG chạy song song 2 bên cùng lúc — chỉ gọi Gemini khi Groq THỰC SỰ gặp
 // sự cố, để tiết kiệm quota/tiền.
 
@@ -38,6 +50,8 @@ import { withApiKeyRotation, withApiKeyRacingThenRotation, getApiKeyByLabel, isR
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
+import { fetchYoutubeTranscript, YoutubeTranscriptError } from './youtubeTranscript.js'
+import { fetchFacebookTranscript, FacebookTranscriptError } from './facebookTranscript.js'
 import { createR2PresignedUploadUrl, genR2Key } from './r2Storage.js'
 
 export class BringAnyIdeaToLifeProxyError extends Error {
@@ -51,6 +65,20 @@ export class BringAnyIdeaToLifeProxyError extends Error {
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file)
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
+// Ngưỡng transcript "đủ dùng" — giống hệt MIN_TRANSCRIPT_CHARS của
+// videoToLearningProxy.js (video không phụ đề hoặc phụ đề quá ngắn thì
+// không đáng tin để suy luận nội dung, rơi thẳng xuống Gemini).
+const MIN_TRANSCRIPT_CHARS = 200
+// Transcript gốc có thể dài tới 24000 ký tự (~6000 token, xem
+// youtubeTranscript.js/facebookTranscript.js) — với model Groq
+// qwen/qwen3.6-27b dùng ở file này, TPM CỨNG chỉ 8000 token/request (khác
+// hẳn model text llama-3.3-70b-versatile mà videoToLearningProxy.js dùng,
+// vốn có TPM rộng hơn nên gửi thẳng transcript đầy đủ) — gửi nguyên transcript
+// 6000 token + system instruction + output budget cho bước "plan" dễ vượt
+// TPM. Cắt bớt xuống mức đủ để nắm ý chính, an toàn dưới TPM, giống tinh
+// thần "giảm input cố định thay vì vặn max_tokens" đã áp dụng cho ảnh/khung
+// hình video ở file này.
+const TRANSCRIPT_PLAN_MAX_CHARS = 6000
 const R2_VIDEO_KEY_PREFIX = 'bring-any-idea-to-life/video-uploads'
 const timeoutMs = 55_000 // thấp hơn timeout Serverless Function của Vercel (ảnh/PDF/text)
 // Video (upload trực tiếp hoặc link YouTube/Facebook) tốn nhiều thời gian xử lý hơn
@@ -279,6 +307,70 @@ async function callGroqVideoFrames({ prompt, frameImages, envSource }) {
     const elapsed = Date.now() - startedAt
     if (timeoutMs - elapsed < GROQ_RETRY_MIN_BUDGET_MS) throw err
     console.warn('[bring-any-idea-to-life] Groq codegen (video frames) bị cắt cụt lần 1, tự động retry với yêu cầu ngắn gọn hơn:', err.message)
+    return await codegenFromPlan({
+      prompt,
+      plan,
+      envSource,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION + GROQ_CODEGEN_COMPACT_RETRY_SUFFIX,
+    })
+  }
+}
+
+// --- Groq (text) cho VIDEO qua LINK dán (YouTube/Facebook) — lấy transcript/
+// phụ đề MIỄN PHÍ (không cần key, xem youtubeTranscript.js/facebookTranscript.js)
+// thay vì luôn bắt Gemini "xem" thẳng video. Đây chính là kiến trúc đã dùng ở
+// Video to Learning (videoToLearningProxy.js) — trước đây file NÀY chưa có
+// nhánh này nên MỌI link video dán vào đều đi thẳng Gemini, dễ hết quota free
+// tier (rất chặt) dù Groq vẫn còn dư — xem ghi chú tại nơi gọi trong
+// runBringAnyIdeaToLifeGenerate().
+const TRANSCRIPT_PLAN_SYSTEM_INSTRUCTION = `You are an expert product designer. You will read a text TRANSCRIPT (spoken captions) of a single short video — infer the subject, key steps, or process described throughout the WHOLE transcript, not just the beginning. Write a CONCISE build plan for turning this into a fully functional, interactive single-page HTML/CSS/JS app "bringing it to life" — plain text only, NOT code, under 200 words.
+
+Decide what to build:
+- Tutorial/demo/process described in the transcript: plan an interactive step-by-step walkthrough or simulator of that process.
+- Story/vlog/real-world activity: plan a themed mini-game (e.g. a "clean up" clicking game) or a utility inspired by it (e.g. a tracker).
+- Product review/pitch/talk: plan an interactive landing page, comparison tool, or mini-app inspired by it.
+
+Write:
+1. One or two sentences on the core concept and interaction, referencing the key content of the transcript.
+2. A short bullet list of the key UI elements/sections, their layout, and any specific labels, numbers, or text worth preserving from the transcript.
+3. A one-line reminder that visuals must be built with CSS shapes, inline SVG, emojis, or gradients — never external <img> URLs.
+
+Output the plan as plain text only — no HTML, no markdown code fences.`
+
+async function planFromTranscript({ prompt, transcript, envSource }) {
+  const truncated = transcript.length > TRANSCRIPT_PLAN_MAX_CHARS ? transcript.slice(0, TRANSCRIPT_PLAN_MAX_CHARS) + ' […]' : transcript
+  const userContent = `User request: ${prompt}\n\nVIDEO TRANSCRIPT (spoken captions, may be auto-generated and imperfect):\n${truncated}\n\nAnalyze the transcript above and write the build plan described in your instructions.`
+  const { content: planText } = await requestGroqChat({
+    systemInstruction: TRANSCRIPT_PLAN_SYSTEM_INSTRUCTION,
+    userContent,
+    envSource,
+    maxTokens: GROQ_PLAN_MAX_TOKENS,
+  })
+  return cleanHtml(planText)
+}
+
+async function callGroqVideoTranscript({ prompt, transcript, envSource }) {
+  const startedAt = Date.now()
+
+  const plan = await planFromTranscript({ prompt, transcript, envSource })
+  if (!plan) {
+    throw new Error('Groq không tạo được kế hoạch từ transcript video — thử lại hoặc dùng video khác.')
+  }
+
+  try {
+    return await codegenFromPlan({
+      prompt,
+      plan,
+      envSource,
+      maxTokens: GROQ_CODEGEN_MAX_TOKENS,
+      systemInstruction: CODEGEN_FROM_PLAN_SYSTEM_INSTRUCTION,
+    })
+  } catch (err) {
+    if (!(err instanceof GroqTruncatedError)) throw err
+    const elapsed = Date.now() - startedAt
+    if (timeoutMs - elapsed < GROQ_RETRY_MIN_BUDGET_MS) throw err
+    console.warn('[bring-any-idea-to-life] Groq codegen (transcript video) bị cắt cụt lần 1, tự động retry với yêu cầu ngắn gọn hơn:', err.message)
     return await codegenFromPlan({
       prompt,
       plan,
@@ -715,6 +807,39 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
       if (html) return { html, source: 'groq-video-frames' }
     }
 
+    // Link YouTube/Facebook dán trực tiếp (KHÔNG phải video upload): trước
+    // đây nhánh này luôn đi thẳng Gemini bên dưới (Groq vision không nhận
+    // input video) — khiến MỌI request video-qua-link đều tốn quota Gemini
+    // free tier (rất chặt, dễ báo "hết hạn mức ở tất cả API key" dù còn dư
+    // Groq), dù "Video to Learning" đã giải quyết đúng vấn đề này bằng cách
+    // lấy transcript/phụ đề (miễn phí, không cần key) rồi cho Groq đọc TEXT
+    // thay vì bắt Gemini "xem" video — áp dụng lại chính kiến trúc đó ở đây.
+    // Lưu `facebookDirectUrl` để tái dùng cho nhánh Gemini bên dưới nếu vẫn
+    // cần rơi xuống đó, tránh phải resolveFacebookVideo() lần 2.
+    let facebookDirectUrl
+    if (videoUrl && hasGroq && !geminiFileUri) {
+      const isFacebook = isFacebookVideoUrl(videoUrl)
+      let transcriptResult = null
+      try {
+        transcriptResult = isFacebook ? await fetchFacebookTranscript(videoUrl) : await fetchYoutubeTranscript(videoUrl)
+        facebookDirectUrl = transcriptResult?.directUrl
+      } catch (transcriptErr) {
+        console.warn('[bring-any-idea-to-life] Không lấy được transcript video, chuyển sang Gemini (xem video trực tiếp):', transcriptErr?.message || transcriptErr)
+      }
+
+      const hasEnoughTranscript = Boolean(transcriptResult && transcriptResult.transcript.length >= MIN_TRANSCRIPT_CHARS)
+      if (hasEnoughTranscript) {
+        try {
+          const html = cleanHtml(await callGroqVideoTranscript({ prompt, transcript: transcriptResult.transcript, envSource }))
+          if (html) return { html, source: 'groq-video-transcript' }
+        } catch (err) {
+          console.warn('[bring-any-idea-to-life] Groq (transcript video) lỗi ở tất cả key, chuyển sang Gemini:', err?.message || err)
+        }
+      } else if (transcriptResult) {
+        console.warn('[bring-any-idea-to-life] Transcript quá ngắn, chuyển sang Gemini (xem video trực tiếp)')
+      }
+    }
+
     if (!hasGemini) {
       throw new BringAnyIdeaToLifeProxyError(
         'Xử lý video (tải lên hoặc link YouTube/Facebook) cần GEMINI_API_KEY (Groq chưa hỗ trợ video). Thêm biến GEMINI_API_KEY trong Vercel → Settings → Environment Variables rồi redeploy.',
@@ -736,12 +861,16 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     // cách videoToLearningProxy.js xử lý — xem api/_lib/facebookVideo.js.
     let effectiveVideoUrl = videoUrl
     if (videoUrl && isFacebookVideoUrl(videoUrl)) {
-      try {
-        const resolved = await resolveFacebookVideo(videoUrl)
-        effectiveVideoUrl = resolved.directUrl
-      } catch (err) {
-        if (err instanceof FacebookVideoError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
-        throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không lấy được video Facebook để phân tích.', 422)
+      if (facebookDirectUrl) {
+        effectiveVideoUrl = facebookDirectUrl
+      } else {
+        try {
+          const resolved = await resolveFacebookVideo(videoUrl)
+          effectiveVideoUrl = resolved.directUrl
+        } catch (err) {
+          if (err instanceof FacebookVideoError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
+          throw new BringAnyIdeaToLifeProxyError(err?.message || 'Không lấy được video Facebook để phân tích.', 422)
+        }
       }
     }
     const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, videoUrl: effectiveVideoUrl, envSource }))
