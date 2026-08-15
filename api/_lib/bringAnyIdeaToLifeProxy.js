@@ -138,6 +138,7 @@ CORE DIRECTIVES:
 4. Self-contained: one HTML file, embedded <style> and <script>, no external deps unless essential (Tailwind via CDN allowed).
 5. If the input is messy or ambiguous, make a confident creative "best guess" — never return an error, always build something fun and functional.
 6. Keep the code lean and token-efficient: no long comments, no unnecessary boilerplate, so the full page fits comfortably within the response budget.
+7. Add a small fixed-position toggle button (e.g. top-right, "VI/EN") that switches all visible text between Vietnamese (default) and English via a compact JS translations map — instant, no reload.
 
 RESPONSE FORMAT: Return ONLY the raw HTML code, no markdown fences, starting immediately with <!DOCTYPE html>.`
 
@@ -392,6 +393,7 @@ CORE DIRECTIVES:
 4. Self-contained: one HTML file, embedded <style> and <script>, no external deps unless essential (Tailwind via CDN allowed).
 5. If the plan is ambiguous or incomplete, make a confident creative "best guess" to fill the gaps — never return an error, always build something fun and functional.
 6. You have a generous token budget — prioritize a complete, polished, fully closed HTML document over extreme brevity, but avoid pointless bloat.
+7. Add a small fixed-position toggle button (e.g. top-right, "VI/EN") that switches all visible text between Vietnamese (default) and English via a compact JS translations map — instant, no reload.
 
 RESPONSE FORMAT: Return ONLY the raw HTML code, no markdown fences, starting immediately with <!DOCTYPE html>.`
 

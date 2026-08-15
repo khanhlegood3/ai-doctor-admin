@@ -26,4 +26,4 @@ Provide the result as a JSON object containing a single field called "spec", who
 export const CODE_REGION_OPENER = '```';
 export const CODE_REGION_CLOSER = '```';
 
-export const SPEC_ADDENDUM = `\n\nThe app must be fully responsive and function properly on both desktop and mobile. Provide the code as a single, self-contained HTML document. All styles and scripts must be inline. In the result, encase the code between "${CODE_REGION_OPENER}" and "${CODE_REGION_CLOSER}" for easy parsing.`;
+export const SPEC_ADDENDUM = `\n\nThe app must be fully responsive and function properly on both desktop and mobile. Provide the code as a single, self-contained HTML document. All styles and scripts must be inline. The app must also include a small fixed-position language toggle button (e.g. top-right corner, labeled "VI / EN") that switches ALL visible text between Vietnamese (default) and English via a compact JS translations map keyed by data-i18n attributes — instant, no reload. In the result, encase the code between "${CODE_REGION_OPENER}" and "${CODE_REGION_CLOSER}" for easy parsing.`;

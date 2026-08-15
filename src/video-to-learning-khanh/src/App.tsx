@@ -31,6 +31,7 @@ import { getFacebookEmbedUrl, getYoutubeEmbedUrl, validateYoutubeUrl } from './l
 import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType } from './lib/linkClassifier';
 import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
+import { saveCreationToR2, loadAllCreationsFromR2, type R2CreationRecord } from './lib/history/historyR2Client';
 import { getIdentity } from './lib/identity';
 import exampleHistoryData from './lib/history/examples.json';
 
@@ -99,11 +100,12 @@ export default function App() {
 
   // --- Lịch sử: nạp từ IndexedDB ngay (nhanh), rồi đối chiếu/merge từ
   // server (bản "chính", đầy đủ hơn nếu người dùng đổi máy).
-  // Local (IndexedDB) LUÔN là nguồn cho nút Reload vì có fullSpec/fullCode
-  // (server không lưu 2 trường này, xem historyStorage.ts). Merge chỉ để
-  // BỔ SUNG các lượt đã lưu từ máy/trình duyệt KHÁC (không có ở IndexedDB
-  // máy này) — các dòng bổ sung này sẽ không Reload được nội dung đầy đủ
-  // (chỉ có specPreview), Reload lúc đó chỉ nạp lại link vào ô nhập.
+  // Local (IndexedDB) LUÔN là nguồn ƯU TIÊN cho nút Reload vì có
+  // fullSpec/fullCode. MongoDB (remote) chỉ có specPreview (không Reload
+  // được đầy đủ). R2 (r2Creations) có ĐẦY ĐỦ spec+code như local — dùng để
+  // bổ sung các lượt đã tạo từ máy/trình duyệt KHÁC (không có ở IndexedDB
+  // máy này) MÀ VẪN Reload được đầy đủ, thay vì chỉ nạp lại link như trước
+  // khi có R2 (xem lib/history/historyR2Client.ts + videoToLearningHistoryR2.js).
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
@@ -111,9 +113,32 @@ export default function App() {
       const localKeys = new Set(local.map((e) => `${e.link}|${e.createdAt}`));
       let merged: any[] = local;
       if (identity.uuid) {
-        const remote = await fetchHistoryFromServer(identity.uuid);
-        const remoteOnly = remote.filter((r: any) => !localKeys.has(`${r.link}|${r.createdAt}`));
-        merged = [...local, ...remoteOnly].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        const [remote, r2Creations] = await Promise.all([
+          fetchHistoryFromServer(identity.uuid),
+          loadAllCreationsFromR2(identity.uuid).catch((err) => {
+            console.warn('[video-to-learning] loadAllCreationsFromR2 failed:', err);
+            return [] as R2CreationRecord[];
+          }),
+        ]);
+
+        const r2AsHistory = r2Creations.map((c) => ({
+          ownerUuid: identity.uuid,
+          type: c.type,
+          link: c.link || '',
+          title: c.title ?? null,
+          aiSource: c.aiSource ?? null,
+          status: 'success' as const,
+          errorMessage: null,
+          specPreview: (c.spec || '').slice(0, 500),
+          fullSpec: c.spec,
+          fullCode: c.code,
+          createdAt: c.timestamp,
+        }));
+        const r2Keys = new Set(r2AsHistory.map((e) => `${e.link}|${e.createdAt}`));
+
+        const remoteOnly = remote.filter((r: any) => !localKeys.has(`${r.link}|${r.createdAt}`) && !r2Keys.has(`${r.link}|${r.createdAt}`));
+        const r2Only = r2AsHistory.filter((e) => !localKeys.has(`${e.link}|${e.createdAt}`));
+        merged = [...local, ...remoteOnly, ...r2Only].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       }
       setHistoryEntries(merged);
     } finally {
@@ -164,8 +189,8 @@ export default function App() {
       console.warn('[video-to-learning] addHistoryEntry (IndexedDB) failed:', err);
     }
     // ...rồi bắn lên server (không chặn UI nếu lỗi, xem historyClient.ts).
-    // CỐ Ý không gửi fullSpec/fullCode lên server — giữ document Mongo gọn,
-    // đủ dùng cho Admin xem/thống kê; bản đầy đủ chỉ cần có cục bộ cho nút Reload.
+    // CỐ Ý không gửi fullSpec/fullCode lên MongoDB — giữ document Mongo gọn,
+    // đủ dùng cho Admin xem/thống kê.
     if (identity.uuid) {
       saveHistoryToServer({
         uuid: identity.uuid,
@@ -178,6 +203,24 @@ export default function App() {
         status: entry.status,
         errorMessage: entry.errorMessage ?? null,
         specPreview: entry.specPreview ?? null,
+      });
+    }
+    // ...và sao lưu ĐẦY ĐỦ (spec+code) lên R2 — CHỈ khi thực sự có code (bỏ
+    // qua 'error'/'saved-only', giống hệt cách Bring Any Idea to Life chỉ
+    // gọi saveCreationToR2 sau khi đã có html) — cho phép Reload đầy đủ dù
+    // đổi máy/xoá cache, khác Mongo ở trên (chỉ specPreview). Fire-and-forget,
+    // không chặn UI nếu lỗi (xem historyR2Client.ts).
+    if (identity.uuid && entry.fullCode) {
+      saveCreationToR2({
+        uuid: identity.uuid,
+        id: crypto.randomUUID(),
+        type: entry.type,
+        link: entry.link,
+        title: entry.title ?? null,
+        spec: entry.fullSpec ?? '',
+        code: entry.fullCode,
+        aiSource: entry.aiSource ?? null,
+        timestamp: new Date().toISOString(),
       });
     }
   };

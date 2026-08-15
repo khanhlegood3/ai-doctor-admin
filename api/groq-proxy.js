@@ -32,6 +32,7 @@ import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCod
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
+import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { fetchFacebookClipToR2, FacebookDownloadError } from './_lib/facebookDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -339,6 +340,45 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (video-to-learning-history) error:', err?.message || err)
       const status = err instanceof VideoToLearningHistoryError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Video to Learning history error' })
+    }
+  }
+
+  // --- Nhánh sao lưu creation "Video to Learning" ĐẦY ĐỦ (spec+code) lên R2
+  // (KHÔNG gọi AI) — lấp khoảng trống mà MongoDB ở trên cố tình bỏ qua (chỉ
+  // lưu specPreview để gọn document), giống hệt cơ chế R2 đã có ở "Bring Any
+  // Idea to Life" — xem videoToLearningHistoryR2.js. Chạy SONG SONG với
+  // IndexedDB cục bộ, fire-and-forget ở client (xem lib/history/historyR2Client.ts).
+  if (body.provider === 'video-to-learning-save-r2') {
+    console.log('[groq-proxy] (video-to-learning-save-r2) id:', body.id, '| uuid:', body.uuid)
+    try {
+      const payload = await saveVideoToLearningCreationToR2({
+        uuid: body.uuid,
+        id: body.id,
+        type: body.type,
+        link: body.link,
+        title: body.title,
+        spec: body.spec,
+        code: body.code,
+        aiSource: body.aiSource,
+        timestamp: body.timestamp,
+      })
+      return res.status(201).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning-save-r2) error:', err?.message || err)
+      const status = err instanceof VideoToLearningHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video to Learning R2 save error' })
+    }
+  }
+
+  if (body.provider === 'video-to-learning-load-r2') {
+    console.log('[groq-proxy] (video-to-learning-load-r2) uuid:', body.uuid)
+    try {
+      const payload = await loadVideoToLearningCreationsFromR2({ uuid: body.uuid })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning-load-r2) error:', err?.message || err)
+      const status = err instanceof VideoToLearningHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video to Learning R2 load error' })
     }
   }
 
