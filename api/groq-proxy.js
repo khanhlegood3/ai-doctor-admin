@@ -23,6 +23,7 @@ import { runGeminiComicGenerate, GeminiComicError } from './_lib/geminiComic.js'
 import { runDinoPalGenerate, DinoPalProxyError } from './_lib/dinoPalProxy.js'
 import { runArcadeSpriteGenerate, ArcadeSpriteError } from './_lib/arcadeSprite.js'
 import { runVisionSyncVibe, createVisionSyncLiveToken, VisionSyncProxyError } from './_lib/visionSyncProxy.js'
+import { createChessChatLiveToken, runChessChatPieceImage, runChessChatStrategist, ChessChatProxyError } from './_lib/chessChatProxy.js'
 import { runVibeTrackingEmotionAnalysis, runVibeTrackingSignAnalysis, VibeTrackingProxyError } from './_lib/vibeTrackingProxy.js'
 import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy.js'
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
@@ -87,6 +88,31 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (vision-sync) error:', err?.message || err)
       const status = err instanceof VisionSyncProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Vision Sync proxy error' })
+    }
+  }
+
+  // --- Nhánh Chess Chat (liveToken: Gemini ephemeral token | pieceImage +
+  // strategist: proxy REST generateContent toàn bộ, key không rời server) ---
+  if (body.provider === 'chess-chat') {
+    console.log('[groq-proxy] (chess-chat) action:', body.action)
+    try {
+      if (body.action === 'liveToken') {
+        const payload = await createChessChatLiveToken({})
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'pieceImage') {
+        const payload = await runChessChatPieceImage({ prompt: body.prompt })
+        return res.status(200).json(payload)
+      }
+      if (body.action === 'strategist') {
+        const payload = await runChessChatStrategist({ parts: body.parts })
+        return res.status(200).json(payload)
+      }
+      return res.status(400).json({ error: 'Unknown chess-chat action' })
+    } catch (err) {
+      console.error('[groq-proxy] (chess-chat) error:', err?.message || err)
+      const status = err instanceof ChessChatProxyError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Chess Chat proxy error' })
     }
   }
 
