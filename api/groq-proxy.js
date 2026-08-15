@@ -460,9 +460,9 @@ export default async function handler(req, res) {
   // về đây, KHÔNG đi qua function này nữa nên không bị giới hạn kích thước
   // request/response của Vercel. Xem api/_lib/kolR2Upload.js.
   if (body.provider === 'kol-r2-upload-url') {
-    console.log('[groq-proxy] (kol-r2-upload-url) kind:', body.kind, '| contentType:', body.contentType)
+    console.log('[groq-proxy] (kol-r2-upload-url) kind:', body.kind, '| contentType:', body.contentType, '| bucketSlot:', body.bucketSlot ?? 0)
     try {
-      const payload = await createKolR2UploadUrl({ kind: body.kind, contentType: body.contentType })
+      const payload = await createKolR2UploadUrl({ kind: body.kind, contentType: body.contentType, bucketSlot: body.bucketSlot ?? 0 })
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (kol-r2-upload-url) error:', err?.message || err)

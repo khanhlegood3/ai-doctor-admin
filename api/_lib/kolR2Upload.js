@@ -7,7 +7,7 @@
 //               MediaRecorder (KolPoseMakerPanel.jsx)
 // Không đi qua Vercel Function nghĩa là KHÔNG còn giới hạn ~4.5MB
 // request/response cho các file này nữa — video đi thẳng browser → R2.
-import { createR2PresignedUploadUrl, genR2Key, uploadBufferToR2 } from './r2Storage.js'
+import { createR2PresignedUploadUrl, genR2Key, uploadBufferToR2, hasFallbackR2Bucket } from './r2Storage.js'
 
 export class KolR2UploadError extends Error {
   constructor(message, status = 400) {
@@ -31,10 +31,15 @@ function extFromContentType(contentType) {
  * @param {object} params
  * @param {'raw'|'posed'} params.kind
  * @param {string} [params.contentType]
+ * @param {0|1} [params.bucketSlot] - 0 = bucket chính (mặc định), 1 = bucket
+ *   dự phòng — client dùng khi PUT trực tiếp lên bucket chính thất bại
+ *   (thường do CORS chưa cấu hình đúng ở bucket đó), để tự động thử bucket
+ *   còn lại thay vì rơi thẳng vào fallback base64 (dính giới hạn 4.5MB của
+ *   Vercel, gây HTTP 413 với video — bug thực tế đã gặp).
  * @param {Record<string,string>} [params.envSource]
  * @returns {Promise<{ uploadUrl: string, publicUrl: string, key: string }>}
  */
-export async function createKolR2UploadUrl({ kind, contentType, envSource = process.env }) {
+export async function createKolR2UploadUrl({ kind, contentType, bucketSlot = 0, envSource = process.env }) {
   const prefix = KIND_PREFIX[kind]
   if (!prefix) {
     throw new KolR2UploadError(`kind không hợp lệ: ${kind} (chỉ nhận 'raw' hoặc 'posed').`, 400)
@@ -42,8 +47,11 @@ export async function createKolR2UploadUrl({ kind, contentType, envSource = proc
   if (!contentType || !contentType.startsWith('video/')) {
     throw new KolR2UploadError('contentType phải là video/*.', 400)
   }
+  if (bucketSlot === 1 && !hasFallbackR2Bucket(envSource)) {
+    throw new KolR2UploadError('Bucket R2 dự phòng chưa được cấu hình (thiếu R2_BUCKET_NAME1/R2_ACCESS_URL1).', 501)
+  }
   const key = genR2Key(prefix, extFromContentType(contentType))
-  return createR2PresignedUploadUrl({ key, contentType, envSource })
+  return createR2PresignedUploadUrl({ key, contentType, envSource, bucketSlot })
 }
 
 
