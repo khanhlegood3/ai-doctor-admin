@@ -109,7 +109,28 @@ export function extractVideoFrames(file: File, frameCount: number = DEFAULT_FRAM
 
       const seekAndCapture = (time: number): Promise<void> =>
         new Promise((res, rej) => {
+          // BUG ĐÃ VÁ: 1 số trình duyệt (đặc biệt Safari/iOS với video
+          // MOV/HEVC quay thẳng từ iPhone) đôi khi KHÔNG BAO GIỜ bắn sự kiện
+          // 'seeked' sau khi set video.currentTime bằng code — trước đây
+          // seekAndCapture() không có timeout nên Promise treo vô hạn, khiến
+          // toàn bộ luồng đứng mãi ở "Đang trích khung hình từ video..." và
+          // cơ chế fallback sang Gemini (upload nguyên video, xem App.tsx)
+          // không bao giờ được kích hoạt vì extractVideoFrames() không bao
+          // giờ reject. Thêm timeout riêng cho mỗi lần tua để đảm bảo luôn
+          // reject trong thời gian hữu hạn, cho phép fallback chạy.
+          let seekSettled = false;
+          const seekTimeoutMs = 8_000;
+          const seekTimeout = setTimeout(() => {
+            if (seekSettled) return;
+            seekSettled = true;
+            video.removeEventListener('seeked', onSeeked);
+            rej(new Error(`Hết thời gian chờ tua video tới ${time.toFixed(2)}s để trích khung hình (trình duyệt không bắn sự kiện 'seeked').`));
+          }, seekTimeoutMs);
+
           const onSeeked = () => {
+            if (seekSettled) return;
+            seekSettled = true;
+            clearTimeout(seekTimeout);
             video.removeEventListener('seeked', onSeeked);
             try {
               ctx.drawImage(video, 0, 0, width, height);
