@@ -87,6 +87,7 @@ export const ONE_SHOT_ARCADE_HTML = `<!DOCTYPE html>
   <div id="titleScreen" class="screen">
     <h1 class="glow">🕹️ ONE SHOT ARCADE</h1>
     <div class="sub">ẢNH CỦA BẠN → NHÂN VẬT GAME · AI SINH BẰNG GROQ + POLLINATIONS</div>
+    <div class="sub" id="whoamiLine" style="opacity:0.7;"></div>
 
     <label class="upload panel" id="uploadBox">
       <div id="uploadHint">📸 Bấm để chọn ảnh chân dung của bạn (không bắt buộc)</div>
@@ -165,16 +166,109 @@ export const ONE_SHOT_ARCADE_HTML = `<!DOCTYPE html>
     { id: 'ninja', emoji: '🥷', label: 'Ninja Bóng Tối', desc: 'a shadowy ninja villain in black with glowing crimson eyes and twin daggers' },
   ];
 
-  function uid() {
-    var k = 'osa_uuid';
-    try {
-      var v = localStorage.getItem(k);
-      if (!v) { v = 'osa-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(k, v); }
-      return v;
-    } catch (e) { return 'osa-' + Math.random().toString(36).slice(2); }
+  // ---------------------------------------------------------------------
+  // Danh tính người chơi cho leaderboard — ƯU TIÊN:
+  //   1) Tên tài khoản THẬT đang đăng nhập trên app chính, đọc trực tiếp
+  //      từ localStorage 'cdoc_session' (session hiện tại) + 'cdoc_users'
+  //      (bảng user), CÙNG key mà src/context/AuthContext.jsx dùng —
+  //      không tạo hệ thống tài khoản riêng cho game.
+  //   2) Nếu tài khoản có 'uuid'/'userId' nhưng CHƯA đặt tên hiển thị
+  //      (name rỗng) -> dùng userId ("mã người dùng" người dùng tự đặt 1
+  //      lần trong hồ sơ) làm tên hiển thị.
+  //   3) Nếu vẫn chưa có (khách chưa đăng nhập, đã có phiên "khách" từ
+  //      app chính lưu trong IndexedDB 'cdoc_guest') -> dùng uuid của
+  //      phiên khách đó (rút gọn) làm tên hiển thị. CHỈ ĐỌC, không bao
+  //      giờ tự mở/ tạo DB này nếu nó chưa tồn tại, để không vô tình phá
+  //      schema mà anonDB.js (app chính) đang quản lý.
+  //   4) Cuối cùng, nếu trình duyệt chặn hết (không cookie/site data từ
+  //      app chính, ví dụ mở game này độc lập) -> tự sinh 1 uuid CỤC BỘ
+  //      riêng cho game, chỉ dùng khi thật sự không tìm được danh tính
+  //      nào khác — hiển thị "Ẩn danh".
+  // Cùng 1 uuid được ghi thẳng lên leaderboard MongoDB dùng chung
+  // (api/game-leaderboard.js) nên nếu người chơi đã đăng nhập, điểm của
+  // họ sẽ nối tiếp đúng vào cùng 1 danh tính dù chơi ở game/thiết bị nào.
+  // ---------------------------------------------------------------------
+  function readLocalJSON(key) {
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; }
   }
-  function playerName() {
-    try { return localStorage.getItem('osa_name') || 'Ẩn danh'; } catch (e) { return 'Ẩn danh'; }
+
+  function resolveLoggedInAccount() {
+    var session = readLocalJSON('cdoc_session');
+    if (session && session.email) {
+      var users = readLocalJSON('cdoc_users') || {};
+      var rec = users[session.email];
+      if (rec && (rec.uuid || rec.name || rec.userId)) {
+        return { uuid: rec.uuid || null, name: rec.name || null, userId: rec.userId || null };
+      }
+    }
+    return null;
+  }
+
+  function guestDbExists() {
+    if (!window.indexedDB || typeof indexedDB.databases !== 'function') return Promise.resolve(false);
+    return indexedDB.databases().then(function (list) {
+      return Array.isArray(list) && list.some(function (d) { return d && d.name === 'cdoc_guest'; });
+    }).catch(function () { return false; });
+  }
+
+  // Chỉ ĐỌC phiên khách có sẵn — không set version khi open() và huỷ ngay
+  // nếu trình duyệt định chạy onupgradeneeded (nghĩa là DB chưa tồn tại
+  // đúng như mong đợi), để không bao giờ tự tạo/đổi schema 'cdoc_guest'.
+  function resolveGuestAccount() {
+    return guestDbExists().then(function (exists) {
+      if (!exists) return null;
+      return new Promise(function (resolve) {
+        try {
+          var req = indexedDB.open('cdoc_guest');
+          req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} };
+          req.onerror = function () { resolve(null); };
+          req.onsuccess = function () {
+            var db = req.result;
+            try {
+              if (!db.objectStoreNames.contains('session')) { db.close(); return resolve(null); }
+              var tx = db.transaction('session', 'readonly');
+              var getReq = tx.objectStore('session').get('anon');
+              getReq.onsuccess = function () {
+                var row = getReq.result;
+                db.close();
+                resolve(row ? { uuid: row.uuid || null, name: row.name || null, userId: row.userId || null } : null);
+              };
+              getReq.onerror = function () { db.close(); resolve(null); };
+            } catch (e) { try { db.close(); } catch (e2) {} resolve(null); }
+          };
+        } catch (e) { resolve(null); }
+      });
+    }).catch(function () { return null; });
+  }
+
+  function localFallbackIdentity() {
+    var v = null;
+    try { v = localStorage.getItem('osa_fallback_uuid'); } catch (e) {}
+    if (!v) {
+      v = 'osa-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try { localStorage.setItem('osa_fallback_uuid', v); } catch (e) {}
+    }
+    return { uuid: v, name: null, userId: null };
+  }
+
+  var _identityPromise = null;
+  function resolveIdentity() {
+    if (_identityPromise) return _identityPromise;
+    _identityPromise = Promise.resolve().then(function () {
+      var acc = resolveLoggedInAccount();
+      if (acc) return acc;
+      return resolveGuestAccount().then(function (g) { return g || localFallbackIdentity(); });
+    }).then(function (acc) {
+      var uuid = acc.uuid || localFallbackIdentity().uuid;
+      var displayName = (acc.name && String(acc.name).trim())
+        || (acc.userId && String(acc.userId).trim())
+        || (uuid ? uuid.slice(0, 10) : 'Ẩn danh');
+      return { uuid: uuid, name: displayName };
+    }).catch(function () {
+      var fb = localFallbackIdentity();
+      return { uuid: fb.uuid, name: fb.uuid.slice(0, 10) };
+    });
+    return _identityPromise;
   }
 
   // ---------------------------------------------------------------------
@@ -570,17 +664,19 @@ export const ONE_SHOT_ARCADE_HTML = `<!DOCTYPE html>
     clearInterval(timerHandle); cancelAnimationFrame(rafHandle);
     var score = coinsCollected * 100 + (won ? 500 : 0);
 
-    apiPost && fetch('/api/game-play-log', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uuid: uid(), name: playerName(), gameId: GAME_ID, gameTitle: GAME_TITLE, status: won ? 'win' : 'lose', score: score, timeSec: elapsed, meta: { coinsCollected: coinsCollected, coinsTotal: coinsTotal, villain: selectedVillain.id } }),
-    }).catch(function () {});
-
-    if (won) {
-      fetch('/api/game-leaderboard', {
+    resolveIdentity().then(function (identity) {
+      fetch('/api/game-play-log', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uuid: uid(), name: playerName(), gameId: GAME_ID, gameTitle: GAME_TITLE, status: 'win', score: score, timeSec: elapsed }),
+        body: JSON.stringify({ uuid: identity.uuid, name: identity.name, gameId: GAME_ID, gameTitle: GAME_TITLE, status: won ? 'win' : 'lose', score: score, timeSec: elapsed, meta: { coinsCollected: coinsCollected, coinsTotal: coinsTotal, villain: selectedVillain.id } }),
       }).catch(function () {});
-    }
+
+      if (won) {
+        fetch('/api/game-leaderboard', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uuid: identity.uuid, name: identity.name, gameId: GAME_ID, gameTitle: GAME_TITLE, status: 'win', score: score, timeSec: elapsed }),
+        }).catch(function () {});
+      }
+    });
 
     $('endTitle').textContent = won ? '🏆 BẠN ĐÃ THOÁT!' : '💀 GAME OVER';
     $('endTitle').style.color = won ? '#5cff9e' : '#ff2e6c';
@@ -616,6 +712,10 @@ export const ONE_SHOT_ARCADE_HTML = `<!DOCTYPE html>
   $('lbCloseBtn').onclick = function () { show(gameRunning ? 'game' : (heroSpriteUrl !== undefined && screens.end.classList.contains('hidden') === false ? 'end' : 'title')); };
 
   show('title');
+  resolveIdentity().then(function (identity) {
+    var el = $('whoamiLine');
+    if (el) el.textContent = '👤 ' + identity.name;
+  });
 })();
 </script>
 </body>
