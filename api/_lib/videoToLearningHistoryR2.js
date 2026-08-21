@@ -14,10 +14,13 @@
 //
 // KHÁC bringAnyIdeaToLifeHistoryR2.js (không có đăng nhập, lưu phẳng theo id
 // ẩn danh): Video to Learning ĐÃ CÓ uuid ẩn danh ổn định theo từng người
-// dùng (xem lib/khanhIdentity.js, dùng chung với MongoDB ở trên) — nên scope
-// R2 theo uuid ngay từ tên object, vừa cho phép "load lịch sử của riêng tôi"
-// (không cần quét toàn bộ bucket), vừa tránh 1 người dùng thấy creation của
-// người khác.
+// dùng (xem lib/khanhIdentity.js, dùng chung với MongoDB ở trên) — nên khi
+// LƯU vẫn ghi object key theo uuid (video-to-learning/creations/<uuid>/...),
+// và loadVideoToLearningCreationsFromR2() bên dưới vẫn hỗ trợ lọc theo 1
+// uuid cụ thể nếu cần. Nhưng nút "Load history from R2" trên UI lại muốn
+// XEM TOÀN BỘ HỆ THỐNG (giống Bring Any Idea to Life) — nên có thêm
+// loadAllVideoToLearningCreationsFromR2() bên dưới, quét cả prefix gốc,
+// không lọc theo uuid.
 //
 // Object layout trong bucket (dùng chung bucket R2 hiện có, xem r2Storage.js):
 //   video-to-learning/creations/<uuid>/<id>.json
@@ -101,6 +104,38 @@ export async function loadVideoToLearningCreationsFromR2({ uuid, envSource = pro
   if (!cleanUuid) throw new VideoToLearningHistoryR2Error('Thiếu uuid.', 400)
 
   const keys = await listR2Keys({ prefix: `video-to-learning/creations/${cleanUuid}/`, envSource })
+  const creations = []
+
+  await Promise.all(keys.filter((key) => key.endsWith('.json')).map(async (key) => {
+    const url = getR2PublicUrl(key, { envSource })
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const item = await res.json()
+      if (item?.id && item?.code) creations.push(item)
+    } catch (err) {
+      console.warn('[video-to-learning-r2] skip unreadable creation:', key, err?.message || err)
+    }
+  }))
+
+  creations.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
+  return { creations, count: creations.length }
+}
+
+/**
+ * Load TOÀN BỘ creation đã sao lưu trong R2 CỦA MỌI NGƯỜI DÙNG (không lọc
+ * theo uuid) — dùng cho nút "Load history from R2", giống hệt cách
+ * "Bring Any Idea to Life" làm (xem loadAllBringAnyIdeaToLifeCreationsFromR2
+ * trong bringAnyIdeaToLifeHistoryR2.js). Quét thẳng cả prefix gốc
+ * 'video-to-learning/creations/' — bên dưới có nhiều thư mục con theo uuid,
+ * nhưng listR2Keys({prefix}) đã tự liệt kê đệ quy hết bên trong nên không
+ * cần biết trước danh sách uuid nào tồn tại.
+ * @param {object} [params]
+ * @param {Record<string,string>} [params.envSource]
+ * @returns {Promise<{ creations: Array<object>, count: number }>}
+ */
+export async function loadAllVideoToLearningCreationsFromR2({ envSource = process.env } = {}) {
+  const keys = await listR2Keys({ prefix: 'video-to-learning/creations/', envSource })
   const creations = []
 
   await Promise.all(keys.filter((key) => key.endsWith('.json')).map(async (key) => {

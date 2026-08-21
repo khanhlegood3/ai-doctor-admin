@@ -46,11 +46,17 @@ export interface R2CreationRecord {
   timestamp: string;
 }
 
-export async function loadAllCreationsFromR2(uuid: string): Promise<R2CreationRecord[]> {
+/**
+ * Tải creation từ R2. Không truyền `uuid` (hoặc truyền `undefined`) sẽ tải
+ * TOÀN BỘ hệ thống (mọi người dùng) — giống hệt nút "Load history from R2"
+ * của Bring Any Idea to Life. Truyền `uuid` cụ thể nếu chỉ muốn xem lịch sử
+ * của đúng 1 người dùng.
+ */
+export async function loadAllCreationsFromR2(uuid?: string): Promise<R2CreationRecord[]> {
   const res = await fetch('/api/groq-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider: 'video-to-learning-load-r2', uuid }),
+    body: JSON.stringify(uuid ? { provider: 'video-to-learning-load-r2', uuid } : { provider: 'video-to-learning-load-r2', all: true }),
   });
   if (!res.ok) {
     const message = await res.text().catch(() => '');

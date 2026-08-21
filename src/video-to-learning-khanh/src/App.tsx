@@ -116,14 +116,16 @@ export default function App() {
       if (identity.uuid) {
         const [remote, r2Creations] = await Promise.all([
           fetchHistoryFromServer(identity.uuid),
-          loadAllCreationsFromR2(identity.uuid).catch((err) => {
+          // KHÔNG truyền uuid -> tải TOÀN BỘ hệ thống (mọi người dùng),
+          // giống hệt nút "Load history from R2" của Bring Any Idea to Life.
+          loadAllCreationsFromR2().catch((err) => {
             console.warn('[video-to-learning] loadAllCreationsFromR2 failed:', err);
             return [] as R2CreationRecord[];
           }),
         ]);
 
         const r2AsHistory = r2Creations.map((c) => ({
-          ownerUuid: identity.uuid,
+          ownerUuid: c.uuid, // giữ đúng chủ sở hữu thật của từng creation (không phải người đang xem)
           type: c.type,
           link: c.link || '',
           title: c.title ?? null,
@@ -668,17 +670,18 @@ export default function App() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Lịch sử</h3>
                   <div className="h-px flex-1 bg-slate-800"></div>
                   {/* Nút tải thủ công từ R2 — giống hệt "Load history from R2" của
-                      Bring Any Idea to Life. loadHistory() ở đây ĐÃ TỰ ĐỘNG gộp
-                      cả IndexedDB cục bộ + MongoDB + R2 mỗi khi mở tab này (xem
-                      định nghĩa loadHistory ở trên), nên nút này chủ yếu để CHỦ
-                      ĐỘNG tải lại (vd IndexedDB/MongoDB đổi trên máy khác, hoặc
-                      lần merge tự động đầu tiên bị lỗi mạng) mà không cần đổi
-                      tab qua lại. */}
+                      Bring Any Idea to Life: tải TOÀN BỘ lịch sử của MỌI người
+                      dùng trong hệ thống (không chỉ của riêng máy/trình duyệt
+                      này), xem loadAllVideoToLearningCreationsFromR2() trong
+                      videoToLearningHistoryR2.js. loadHistory() ở đây ĐÃ TỰ
+                      ĐỘNG gộp cả IndexedDB cục bộ + MongoDB (của riêng tôi) +
+                      R2 (toàn hệ thống) mỗi khi mở tab này, nên nút này chủ
+                      yếu để CHỦ ĐỘNG tải lại mà không cần đổi tab qua lại. */}
                   <button
                     type="button"
                     onClick={() => loadHistory()}
                     disabled={historyLoading}
-                    title="Tải lại toàn bộ lịch sử từ R2 (bản đầy đủ spec+code, kể cả tạo từ máy/trình duyệt khác)"
+                    title="Tải lại toàn bộ lịch sử từ R2 (của MỌI người dùng trong hệ thống, bản đầy đủ spec+code)"
                     className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition-colors hover:border-sky-400 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {historyLoading ? 'Loading R2...' : 'Load history from R2'}

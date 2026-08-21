@@ -33,7 +33,7 @@ import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCod
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
-import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
+import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { fetchFacebookClipToR2, FacebookDownloadError } from './_lib/facebookDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -397,9 +397,14 @@ export default async function handler(req, res) {
   }
 
   if (body.provider === 'video-to-learning-load-r2') {
-    console.log('[groq-proxy] (video-to-learning-load-r2) uuid:', body.uuid)
+    console.log('[groq-proxy] (video-to-learning-load-r2) uuid:', body.uuid, '| all:', body.all)
     try {
-      const payload = await loadVideoToLearningCreationsFromR2({ uuid: body.uuid })
+      // Nút "Load history from R2" muốn xem TOÀN BỘ hệ thống (giống Bring
+      // Any Idea to Life) — bỏ qua lọc theo uuid trừ khi client chủ động
+      // xin đúng 1 uuid cụ thể (body.all !== true và có uuid).
+      const payload = (body.all || !body.uuid)
+        ? await loadAllVideoToLearningCreationsFromR2()
+        : await loadVideoToLearningCreationsFromR2({ uuid: body.uuid })
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (video-to-learning-load-r2) error:', err?.message || err)
