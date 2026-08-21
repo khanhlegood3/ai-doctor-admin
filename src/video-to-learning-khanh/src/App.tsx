@@ -32,7 +32,7 @@ import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType 
 import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
 import { saveCreationToR2, loadAllCreationsFromR2, type R2CreationRecord } from './lib/history/historyR2Client';
-import { getIdentity } from './lib/identity';
+import { getIdentity, getOrCreateGuestUuid } from './lib/identity';
 import exampleHistoryData from './lib/history/examples.json';
 
 type ItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'saved-only';
@@ -97,6 +97,11 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const identity = getIdentity();
+  // uuid dùng để LƯU lên R2: identity.uuid thật (nếu đã đăng nhập) hoặc uuid
+  // ẩn danh riêng cho trình duyệt này (nếu đang duyệt dưới dạng Guest) — xem
+  // getOrCreateGuestUuid() trong lib/identity.ts. Việc TẢI R2 (loadHistory
+  // bên dưới) thì luôn lấy TOÀN HỆ THỐNG, không cần biết r2Uuid này.
+  const r2Uuid = identity.uuid || getOrCreateGuestUuid();
   const selected = selectedIndex !== null ? items[selectedIndex] : null;
 
   // --- Lịch sử: nạp từ IndexedDB ngay (nhanh), rồi đối chiếu/merge từ
@@ -112,36 +117,40 @@ export default function App() {
     try {
       const local = await getHistoryEntries(identity.uuid).catch(() => [] as HistoryEntry[]);
       const localKeys = new Set(local.map((e) => `${e.link}|${e.createdAt}`));
+
+      // R2 (TOÀN HỆ THỐNG) luôn tải được — KHÔNG phụ thuộc identity.uuid, kể
+      // cả khi đang duyệt dưới dạng Guest (chưa đăng nhập). Đây chính là bug
+      // trước đó: khối này từng nằm trong `if (identity.uuid)`, nên Guest
+      // luôn thấy "Chưa có lịch sử nào" dù R2 có dữ liệu.
+      const r2Creations = await loadAllCreationsFromR2().catch((err) => {
+        console.warn('[video-to-learning] loadAllCreationsFromR2 failed:', err);
+        return [] as R2CreationRecord[];
+      });
+      const r2AsHistory = r2Creations.map((c) => ({
+        ownerUuid: c.uuid, // giữ đúng chủ sở hữu thật của từng creation (không phải người đang xem)
+        type: c.type,
+        link: c.link || '',
+        title: c.title ?? null,
+        aiSource: c.aiSource ?? null,
+        status: 'success' as const,
+        errorMessage: null,
+        specPreview: (c.spec || '').slice(0, 500),
+        fullSpec: c.spec,
+        fullCode: c.code,
+        createdAt: c.timestamp,
+      }));
+      const r2Keys = new Set(r2AsHistory.map((e) => `${e.link}|${e.createdAt}`));
+      const r2Only = r2AsHistory.filter((e) => !localKeys.has(`${e.link}|${e.createdAt}`));
+
       let merged: any[] = local;
       if (identity.uuid) {
-        const [remote, r2Creations] = await Promise.all([
-          fetchHistoryFromServer(identity.uuid),
-          // KHÔNG truyền uuid -> tải TOÀN BỘ hệ thống (mọi người dùng),
-          // giống hệt nút "Load history from R2" của Bring Any Idea to Life.
-          loadAllCreationsFromR2().catch((err) => {
-            console.warn('[video-to-learning] loadAllCreationsFromR2 failed:', err);
-            return [] as R2CreationRecord[];
-          }),
-        ]);
-
-        const r2AsHistory = r2Creations.map((c) => ({
-          ownerUuid: c.uuid, // giữ đúng chủ sở hữu thật của từng creation (không phải người đang xem)
-          type: c.type,
-          link: c.link || '',
-          title: c.title ?? null,
-          aiSource: c.aiSource ?? null,
-          status: 'success' as const,
-          errorMessage: null,
-          specPreview: (c.spec || '').slice(0, 500),
-          fullSpec: c.spec,
-          fullCode: c.code,
-          createdAt: c.timestamp,
-        }));
-        const r2Keys = new Set(r2AsHistory.map((e) => `${e.link}|${e.createdAt}`));
-
+        // MongoDB (metadata riêng của người dùng ĐÃ ĐĂNG NHẬP) — Guest không
+        // có bản ghi ở đây nên bỏ qua, R2 ở trên đã đủ để hiển thị lịch sử.
+        const remote = await fetchHistoryFromServer(identity.uuid);
         const remoteOnly = remote.filter((r: any) => !localKeys.has(`${r.link}|${r.createdAt}`) && !r2Keys.has(`${r.link}|${r.createdAt}`));
-        const r2Only = r2AsHistory.filter((e) => !localKeys.has(`${e.link}|${e.createdAt}`));
         merged = [...local, ...remoteOnly, ...r2Only].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      } else {
+        merged = [...local, ...r2Only].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       }
       setHistoryEntries(merged);
     } finally {
@@ -213,9 +222,13 @@ export default function App() {
     // gọi saveCreationToR2 sau khi đã có html) — cho phép Reload đầy đủ dù
     // đổi máy/xoá cache, khác Mongo ở trên (chỉ specPreview). Fire-and-forget,
     // không chặn UI nếu lỗi (xem historyR2Client.ts).
-    if (identity.uuid && entry.fullCode) {
+    // Dùng r2Uuid (identity thật HOẶC uuid ẩn danh riêng cho Guest) — trước
+    // đây chỉ dùng identity.uuid nên Guest (không đăng nhập) KHÔNG BAO GIỜ
+    // được sao lưu, khiến bucket luôn trống và nút "Load history from R2"
+    // luôn hiện "Chưa có lịch sử nào".
+    if (entry.fullCode) {
       saveCreationToR2({
-        uuid: identity.uuid,
+        uuid: r2Uuid,
         id: crypto.randomUUID(),
         type: entry.type,
         link: entry.link,
