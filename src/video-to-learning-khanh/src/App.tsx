@@ -663,6 +663,26 @@ export default function App() {
           <div className="flex-1 min-h-0 relative">
             {activeTab === 'history' ? (
               <div className="absolute inset-0 overflow-auto p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Lịch sử</h3>
+                  <div className="h-px flex-1 bg-slate-800"></div>
+                  {/* Nút tải thủ công từ R2 — giống hệt "Load history from R2" của
+                      Bring Any Idea to Life. loadHistory() ở đây ĐÃ TỰ ĐỘNG gộp
+                      cả IndexedDB cục bộ + MongoDB + R2 mỗi khi mở tab này (xem
+                      định nghĩa loadHistory ở trên), nên nút này chủ yếu để CHỦ
+                      ĐỘNG tải lại (vd IndexedDB/MongoDB đổi trên máy khác, hoặc
+                      lần merge tự động đầu tiên bị lỗi mạng) mà không cần đổi
+                      tab qua lại. */}
+                  <button
+                    type="button"
+                    onClick={() => loadHistory()}
+                    disabled={historyLoading}
+                    title="Tải lại toàn bộ lịch sử từ R2 (bản đầy đủ spec+code, kể cả tạo từ máy/trình duyệt khác)"
+                    className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-300 transition-colors hover:border-sky-400 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {historyLoading ? 'Loading R2...' : 'Load history from R2'}
+                  </button>
+                </div>
                 {historyLoading ? (
                   <p className="text-slate-500 text-sm">Đang tải lịch sử...</p>
                 ) : historyEntries.length === 0 ? (
