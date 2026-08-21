@@ -18,10 +18,42 @@ export class YoutubeTranscriptError extends Error {
   }
 }
 
-export function extractYoutubeVideoId(url) {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
-  const match = url.match(regExp)
-  return match && match[2].length === 11 ? match[2] : null
+/**
+ * Trích video ID từ các dạng link YouTube phổ biến: watch?v=, youtu.be/,
+ * shorts/, embed/, live/, music.youtube.com. Dùng URL parsing (thay vì
+ * regex mong manh) — giống hệt hàm đã dùng ổn định ở kolYoutubeDownload.js.
+ *
+ * BUG THỰC TẾ đã gặp (link Shorts, vd youtube.com/shorts/HRUpX7-srVE): regex
+ * CŨ chỉ nhận diện watch?v=, youtu.be/, v/, u/\w/, embed/ — KHÔNG có
+ * "shorts/", nên mọi link Shorts đều bị coi là "không hợp lệ", rơi thẳng
+ * xuống nhánh Gemini xem-trực-tiếp-video (chậm hơn, tốn quota) thay vì dùng
+ * được đường transcript miễn phí/nhanh như link watch?v= thường — ảnh hưởng
+ * CẢ "Bring Any Idea to Life" LẪN "Video to Learning" (dùng chung hàm này),
+ * dù "Video to Learning" vẫn "chạy được" nhờ nhánh dự phòng Gemini, khiến
+ * bug bị che khuất (chậm hơn + tốn quota hơn cần thiết, không phải do dùng
+ * đường transcript nhanh/free như link thường).
+ * @param {string} rawUrl
+ * @returns {string|null}
+ */
+export function extractYoutubeVideoId(rawUrl) {
+  let u
+  try {
+    u = new URL(rawUrl)
+  } catch {
+    return null
+  }
+  const host = u.hostname.replace(/^www\./, '').replace(/^m\./, '')
+  if (host === 'youtu.be') {
+    return u.pathname.split('/').filter(Boolean)[0] || null
+  }
+  if (host === 'youtube.com' || host === 'music.youtube.com') {
+    if (u.pathname === '/watch') {
+      return u.searchParams.get('v')
+    }
+    const match = u.pathname.match(/^\/(shorts|embed|live)\/([^/?]+)/)
+    if (match) return match[2]
+  }
+  return null
 }
 
 const UA =
