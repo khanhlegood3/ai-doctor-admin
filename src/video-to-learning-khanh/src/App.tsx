@@ -27,7 +27,7 @@ import {
   SPEC_ADDENDUM,
   SPEC_FROM_VIDEO_PROMPT,
 } from './lib/prompts';
-import { getFacebookEmbedUrl, getYoutubeEmbedUrl, validateYoutubeUrl } from './lib/youtube';
+import { getFacebookEmbedUrl, getYoutubeEmbedUrl, getYouTubeVideoId, validateYoutubeUrl } from './lib/youtube';
 import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType } from './lib/linkClassifier';
 import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
@@ -69,9 +69,10 @@ const EXAMPLE_VIDEOS: ExampleVideo[] = (exampleHistoryData as ExampleVideo[]).ma
 }));
 
 function getYoutubeThumbnailUrl(url: string): string {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  const videoId = match && match[2].length === 11 ? match[2] : null;
+  // Dùng lại getYouTubeVideoId() đã sửa (hỗ trợ cả /shorts/, /embed/, /live/)
+  // thay vì regex cũ riêng ở đây — tránh lặp lại đúng bug đã gặp (link
+  // Shorts không trích được ID) cho phần thumbnail Ví dụ.
+  const videoId = getYouTubeVideoId(url);
   return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '';
 }
 
