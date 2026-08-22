@@ -22,9 +22,19 @@ const KIND_PREFIX = {
   posed: 'kol-videos/posed',
 }
 
+// Xem ghi chú đầy đủ trong bringAnyIdeaToLifeHistoryR2.js — vài MIME subtype
+// không trùng đuôi file chuẩn (vd "video/quicktime" -> ".mov").
+const MIME_SUBTYPE_TO_EXT = {
+  quicktime: 'mov',
+  'x-matroska': 'mkv',
+  'x-msvideo': 'avi',
+  mpeg: 'mpg',
+  '3gpp': '3gp',
+}
 function extFromContentType(contentType) {
   const sub = String(contentType || '').split('/')[1] || 'mp4'
-  return sub.split(';')[0]
+  const clean = sub.split(';')[0]
+  return MIME_SUBTYPE_TO_EXT[clean] || clean
 }
 
 /**

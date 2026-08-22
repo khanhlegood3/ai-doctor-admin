@@ -27,9 +27,24 @@ export class BringAnyIdeaToLifeHistoryR2Error extends Error {
   }
 }
 
+// Nhiều MIME subtype không trùng với đuôi file chuẩn (vd "video/quicktime"
+// -> phải là ".mov", không phải ".quicktime" — bug cũ từng tạo ra các object
+// R2 có đuôi ".quicktime" sai chuẩn, dù Content-Type vẫn đúng nên file vẫn
+// tải/phát được ở trình duyệt HỖ TRỢ codec, chỉ là đuôi file trông lạ).
+const MIME_SUBTYPE_TO_EXT = {
+  quicktime: 'mov',
+  'x-matroska': 'mkv',
+  'x-msvideo': 'avi',
+  mpeg: 'mpg',
+  '3gpp': '3gp',
+  'vnd.wave': 'wav',
+  wave: 'wav',
+  'svg+xml': 'svg',
+}
 function extFromMimeType(mimeType) {
   const sub = String(mimeType || '').split('/')[1] || 'png'
-  return sub.split(';')[0].split('+')[0]
+  const clean = sub.split(';')[0].split('+')[0]
+  return MIME_SUBTYPE_TO_EXT[clean] || clean
 }
 
 /**

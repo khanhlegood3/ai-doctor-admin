@@ -533,9 +533,19 @@ async function callGroqVision({ prompt, fileBase64, mimeType, envSource }) {
 //      upload sẵn, gọi callGemini với fileData:{fileUri} y hệt cách đã dùng
 //      cho link YouTube — không còn giới hạn 3MB nào áp dụng cho video nữa.
 
+// Xem ghi chú đầy đủ trong bringAnyIdeaToLifeHistoryR2.js — vài MIME subtype
+// không trùng đuôi file chuẩn (vd "video/quicktime" -> ".mov").
+const MIME_SUBTYPE_TO_EXT = {
+  quicktime: 'mov',
+  'x-matroska': 'mkv',
+  'x-msvideo': 'avi',
+  mpeg: 'mpg',
+  '3gpp': '3gp',
+}
 function extFromMimeType(mimeType) {
   const sub = String(mimeType || '').split('/')[1] || 'mp4'
-  return sub.split(';')[0]
+  const clean = sub.split(';')[0]
+  return MIME_SUBTYPE_TO_EXT[clean] || clean
 }
 
 export async function createBringAnyIdeaToLifeVideoUploadUrl({ mimeType, envSource }) {

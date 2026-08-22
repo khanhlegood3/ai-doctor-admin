@@ -333,6 +333,14 @@ ${message}`);
     const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
     const isOriginalVideo = Boolean(creation?.originalImage) && (/^video\//i.test(originalMimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation?.originalImage || ''));
     const videoPlaybackSrc = useVideoPlaybackSrc(isOriginalVideo ? creation?.originalImage : undefined);
+    // Nhiều video quay từ iPhone lưu dưới định dạng QuickTime (.mov, mimeType
+    // "video/quicktime", thường bọc codec HEVC/ProRes) — Safari phát được
+    // nhưng Chrome/Edge/Firefox trên Windows/Android hầu như KHÔNG giải mã
+    // được, khiến thẻ <video> chỉ hiện 1 khung đen trống, KHÔNG báo lỗi gì cả
+    // (rất dễ gây hiểu nhầm "app bị lỗi"/"video mất"). Bắt sự kiện onError để
+    // hiện thông báo + link tải về thay vì im lặng.
+    const [videoPlaybackError, setVideoPlaybackError] = useState(false);
+    useEffect(() => { setVideoPlaybackError(false); }, [videoPlaybackSrc]);
     const isOriginalPdf = Boolean(creation?.originalImage) && (originalMimeType === 'application/pdf' || /\.pdf(\?|$)/i.test(creation?.originalImage || ''));
     const hasOriginalSource = Boolean(creation?.originalImage || creation?.videoUrl);
     const canUploadMissingSource = Boolean(creation && !hasOriginalSource && onUploadMissingSource);
@@ -584,14 +592,35 @@ ${message}`);
                             <PdfRenderer dataUrl={creation.originalImage} />
                         ) : isOriginalVideo ? (
                             videoPlaybackSrc ? (
-                                <video
-                                    key={videoPlaybackSrc}
-                                    src={videoPlaybackSrc}
-                                    controls
-                                    playsInline
-                                    preload="metadata"
-                                    className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
-                                />
+                                videoPlaybackError ? (
+                                    <div className="flex max-w-sm flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 p-6 text-center shadow-xl">
+                                        <ArrowDownTrayIcon className="h-8 w-8 text-zinc-500" />
+                                        <h3 className="text-sm font-semibold text-zinc-200">Trình duyệt không phát được định dạng video này</h3>
+                                        <p className="text-xs leading-5 text-zinc-500">
+                                            File gốc có thể là .mov/QuickTime (thường quay từ iPhone) — chỉ Safari phát được trực tiếp. Chrome/Edge/Firefox trên Windows/Android thường không hỗ trợ. Bạn có thể tải file về máy để mở bằng trình phát khác.
+                                        </p>
+                                        <a
+                                            href={videoPlaybackSrc}
+                                            download
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-1 inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-blue-200 transition-colors hover:border-blue-400 hover:bg-blue-500/25"
+                                        >
+                                            <ArrowDownTrayIcon className="h-4 w-4" />
+                                            Tải video gốc
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <video
+                                        key={videoPlaybackSrc}
+                                        src={videoPlaybackSrc}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        onError={() => setVideoPlaybackError(true)}
+                                        className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                                    />
+                                )
                             ) : (
                                 <div className="flex flex-col items-center gap-2 text-sm text-zinc-400">
                                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-600 border-t-transparent" />
