@@ -95,6 +95,12 @@ export default function App() {
 
   const [historyEntries, setHistoryEntries] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Lỗi tải lịch sử (R2 và/hoặc luồng chung) — TRƯỚC ĐÂY bị nuốt im lặng
+  // (chỉ console.warn), khiến "Chưa có lịch sử nào" hiện ra y hệt cả khi
+  // thật sự trống LẪN khi tải thất bại (thiếu env R2 trên server, lỗi
+  // mạng, CORS, HTTP 500...) — không cách nào phân biệt được từ UI. Giờ
+  // hiện rõ lý do thật ra màn hình để tự chẩn đoán được, không cần đoán mò.
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const identity = getIdentity();
   // uuid dùng để LƯU lên R2: identity.uuid thật (nếu đã đăng nhập) hoặc uuid
@@ -114,6 +120,9 @@ export default function App() {
   // khi có R2 (xem lib/history/historyR2Client.ts + videoToLearningHistoryR2.js).
   const loadHistory = async () => {
     setHistoryLoading(true);
+    setHistoryError(null);
+    let r2Failed = false;
+    let r2FailReason = '';
     try {
       const local = await getHistoryEntries(identity.uuid).catch(() => [] as HistoryEntry[]);
       const localKeys = new Set(local.map((e) => `${e.link}|${e.createdAt}`));
@@ -122,8 +131,15 @@ export default function App() {
       // cả khi đang duyệt dưới dạng Guest (chưa đăng nhập). Đây chính là bug
       // trước đó: khối này từng nằm trong `if (identity.uuid)`, nên Guest
       // luôn thấy "Chưa có lịch sử nào" dù R2 có dữ liệu.
+      // Lỗi ở bước này (thiếu env R2 trên server, mạng lỗi, HTTP 500...)
+      // TRƯỚC ĐÂY bị nuốt hoàn toàn (chỉ console.warn) — khiến UI hiện
+      // "Chưa có lịch sử nào" y hệt trường hợp thật sự trống, không cách
+      // nào tự chẩn đoán được nguyên nhân thật. Giờ lưu lại lý do để hiện
+      // rõ ra UI bên dưới.
       const r2Creations = await loadAllCreationsFromR2().catch((err) => {
         console.warn('[video-to-learning] loadAllCreationsFromR2 failed:', err);
+        r2Failed = true;
+        r2FailReason = err?.message || String(err);
         return [] as R2CreationRecord[];
       });
       const r2AsHistory = r2Creations.map((c) => ({
@@ -153,6 +169,20 @@ export default function App() {
         merged = [...local, ...r2Only].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       }
       setHistoryEntries(merged);
+      // Chỉ hiện cảnh báo khi R2 lỗi THẬT SỰ ảnh hưởng tới kết quả hiển thị
+      // (danh sách cuối cùng trống) — R2 lỗi nhưng vẫn còn dữ liệu từ
+      // IndexedDB/MongoDB thì không cần làm phiền người dùng.
+      if (r2Failed && merged.length === 0) {
+        setHistoryError(`Không tải được lịch sử từ R2 (${r2FailReason || 'lỗi không xác định'}). Danh sách bên dưới có thể chưa đầy đủ — kiểm tra cấu hình R2 trên server hoặc thử lại.`);
+      }
+    } catch (err: any) {
+      // Bắt luôn lỗi ngoài dự kiến (vd fetchHistoryFromServer/sắp xếp ném
+      // lỗi) — TRƯỚC ĐÂY không có catch ở tầng này, nên 1 lỗi bất kỳ sẽ làm
+      // setHistoryEntries() không bao giờ chạy, historyEntries giữ nguyên
+      // mảng rỗng ban đầu -> UI hiện "Chưa có lịch sử nào" mãi mãi, kể cả
+      // khi IndexedDB/R2 thật ra có dữ liệu.
+      console.error('[video-to-learning] loadHistory failed:', err);
+      setHistoryError(`Tải lịch sử thất bại: ${err?.message || String(err)}`);
     } finally {
       setHistoryLoading(false);
     }
@@ -700,10 +730,17 @@ export default function App() {
                     {historyLoading ? 'Loading R2...' : 'Load history from R2'}
                   </button>
                 </div>
+                {historyError && (
+                  <div className="mb-3 rounded-lg border border-red-800/50 bg-red-950/30 p-3 text-xs text-red-300">
+                    {historyError}
+                  </div>
+                )}
                 {historyLoading ? (
                   <p className="text-slate-500 text-sm">Đang tải lịch sử...</p>
                 ) : historyEntries.length === 0 ? (
-                  <p className="text-slate-500 text-sm">Chưa có lịch sử nào.</p>
+                  <p className="text-slate-500 text-sm">
+                    {historyError ? 'Không hiện được lịch sử do lỗi ở trên.' : 'Chưa có lịch sử nào.'}
+                  </p>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {historyEntries.map((h, i) => (
