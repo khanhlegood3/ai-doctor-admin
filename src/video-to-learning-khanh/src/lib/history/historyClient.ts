@@ -25,15 +25,23 @@ export interface SaveHistoryPayload {
 
 export async function saveHistoryToServer(payload: SaveHistoryPayload): Promise<void> {
   try {
-    await fetch('/api/groq-proxy', {
+    const res = await fetch('/api/groq-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'video-to-learning-history', action: 'save', ...payload }),
     });
+    // fetch() không ném lỗi khi server trả HTTP lỗi (chỉ khi mất mạng) —
+    // cùng lỗi đã sửa ở saveCreationToR2 (historyR2Client.ts): phải tự kiểm
+    // tra res.ok, nếu không sẽ tưởng đã lưu MongoDB thành công dù thực ra
+    // server trả lỗi (thiếu env Mongo, v.v.).
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      console.error(`[video-to-learning] saveHistoryToServer HTTP ${res.status} (KHÔNG được lưu MongoDB):`, message);
+    }
   } catch (err) {
     // Lỗi lưu server KHÔNG được làm gián đoạn trải nghiệm chính (đã có
     // IndexedDB làm bản lưu cục bộ) — chỉ log để chẩn đoán.
-    console.warn('[video-to-learning] saveHistoryToServer failed:', err);
+    console.warn('[video-to-learning] saveHistoryToServer network error:', err);
   }
 }
 

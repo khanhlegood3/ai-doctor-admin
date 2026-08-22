@@ -24,13 +24,24 @@ export interface SaveCreationToR2Payload {
 
 export async function saveCreationToR2(payload: SaveCreationToR2Payload): Promise<void> {
   try {
-    await fetch('/api/groq-proxy', {
+    const res = await fetch('/api/groq-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'video-to-learning-save-r2', ...payload }),
     });
+    // QUAN TRỌNG: fetch() CHỈ ném lỗi khi mất mạng, KHÔNG ném lỗi khi server
+    // trả về HTTP 4xx/5xx — nên trước đây 1 lỗi lưu thật sự ở server (thiếu
+    // env R2, sai credential, v.v.) bị coi như "đã lưu xong" (item vẫn hiện
+    // "Xong" trên UI) trong khi R2 KHÔNG HỀ nhận được gì. Đây chính là lý do
+    // "Load history from R2" luôn trống trên thiết bị khác dù thiết bị tạo
+    // ra nội dung vẫn thấy đủ (nhờ IndexedDB cục bộ) — phải tự kiểm tra
+    // res.ok và log rõ lỗi thay vì chỉ dựa vào catch(network error).
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      console.error(`[video-to-learning] saveCreationToR2 HTTP ${res.status} (KHÔNG được lưu lên R2):`, message);
+    }
   } catch (err) {
-    console.warn('[video-to-learning] saveCreationToR2 failed:', err);
+    console.warn('[video-to-learning] saveCreationToR2 network error:', err);
   }
 }
 
