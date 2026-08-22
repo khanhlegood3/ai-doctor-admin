@@ -341,6 +341,53 @@ ${message}`);
     // hiện thông báo + link tải về thay vì im lặng.
     const [videoPlaybackError, setVideoPlaybackError] = useState(false);
     useEffect(() => { setVideoPlaybackError(false); }, [videoPlaybackSrc]);
+
+    // Chuyển mã sang MP4 ngay trong trình duyệt (ffmpeg.wasm) khi phát trực
+    // tiếp thất bại — xem lib/videoTranscode.ts để biết lý do làm ở client
+    // thay vì server.
+    const [isTranscoding, setIsTranscoding] = useState(false);
+    const [transcodeProgress, setTranscodeProgress] = useState(0);
+    const [transcodeError, setTranscodeError] = useState<string | null>(null);
+    const [transcodedBlobUrl, setTranscodedBlobUrl] = useState<string | null>(null);
+    const transcodedBlobUrlRef = useRef<string | null>(null);
+    useEffect(() => {
+      // Nguồn đổi (chuyển sang creation khác) -> bỏ kết quả chuyển mã cũ,
+      // thu hồi Blob URL để tránh rò rỉ bộ nhớ.
+      setTranscodedBlobUrl(null);
+      setTranscodeError(null);
+      setTranscodeProgress(0);
+      if (transcodedBlobUrlRef.current) {
+        URL.revokeObjectURL(transcodedBlobUrlRef.current);
+        transcodedBlobUrlRef.current = null;
+      }
+    }, [videoPlaybackSrc]);
+    useEffect(() => () => {
+      if (transcodedBlobUrlRef.current) URL.revokeObjectURL(transcodedBlobUrlRef.current);
+    }, []);
+
+    const handleTranscodeVideo = async () => {
+      if (!videoPlaybackSrc || isTranscoding) return;
+      setIsTranscoding(true);
+      setTranscodeError(null);
+      setTranscodeProgress(0);
+      try {
+        const { transcodeVideoToMp4 } = await import('../lib/videoTranscode');
+        const blob = await transcodeVideoToMp4(videoPlaybackSrc, {
+          onProgress: setTranscodeProgress,
+        });
+        const url = URL.createObjectURL(blob);
+        transcodedBlobUrlRef.current = url;
+        setTranscodedBlobUrl(url);
+        setVideoPlaybackError(false); // để <video> render lại với nguồn MP4 mới
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[bring-any-idea-to-life] Transcode to MP4 failed:', err);
+        setTranscodeError(message);
+      } finally {
+        setIsTranscoding(false);
+      }
+    };
+
     const isOriginalPdf = Boolean(creation?.originalImage) && (originalMimeType === 'application/pdf' || /\.pdf(\?|$)/i.test(creation?.originalImage || ''));
     const hasOriginalSource = Boolean(creation?.originalImage || creation?.videoUrl);
     const canUploadMissingSource = Boolean(creation && !hasOriginalSource && onUploadMissingSource);
@@ -592,23 +639,54 @@ ${message}`);
                             <PdfRenderer dataUrl={creation.originalImage} />
                         ) : isOriginalVideo ? (
                             videoPlaybackSrc ? (
-                                videoPlaybackError ? (
+                                transcodedBlobUrl ? (
+                                    <video
+                                        key={transcodedBlobUrl}
+                                        src={transcodedBlobUrl}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                                    />
+                                ) : videoPlaybackError ? (
                                     <div className="flex max-w-sm flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 p-6 text-center shadow-xl">
                                         <ArrowDownTrayIcon className="h-8 w-8 text-zinc-500" />
                                         <h3 className="text-sm font-semibold text-zinc-200">Trình duyệt không phát được định dạng video này</h3>
                                         <p className="text-xs leading-5 text-zinc-500">
-                                            File gốc có thể là .mov/QuickTime (thường quay từ iPhone) — chỉ Safari phát được trực tiếp. Chrome/Edge/Firefox trên Windows/Android thường không hỗ trợ. Bạn có thể tải file về máy để mở bằng trình phát khác.
+                                            File gốc có thể là .mov/QuickTime (thường quay từ iPhone) — chỉ Safari phát được trực tiếp. Chrome/Edge/Firefox trên Windows/Android thường không hỗ trợ.
                                         </p>
-                                        <a
-                                            href={videoPlaybackSrc}
-                                            download
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="mt-1 inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-blue-200 transition-colors hover:border-blue-400 hover:bg-blue-500/25"
-                                        >
-                                            <ArrowDownTrayIcon className="h-4 w-4" />
-                                            Tải video gốc
-                                        </a>
+                                        {isTranscoding ? (
+                                            <div className="mt-1 flex w-full flex-col items-center gap-2">
+                                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+                                                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${Math.round(transcodeProgress * 100)}%` }} />
+                                                </div>
+                                                <p className="text-[11px] text-zinc-500">Đang chuyển đổi sang MP4... {Math.round(transcodeProgress * 100)}% (chạy ngay trong trình duyệt, có thể mất chút thời gian)</p>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleTranscodeVideo}
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-emerald-200 transition-colors hover:border-emerald-400 hover:bg-emerald-500/25"
+                                                >
+                                                    <ArrowPathIcon className="h-4 w-4" />
+                                                    Chuyển đổi sang MP4 để xem
+                                                </button>
+                                                <a
+                                                    href={videoPlaybackSrc}
+                                                    download
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/15 px-4 py-2 text-xs font-bold uppercase tracking-wider text-blue-200 transition-colors hover:border-blue-400 hover:bg-blue-500/25"
+                                                >
+                                                    <ArrowDownTrayIcon className="h-4 w-4" />
+                                                    Tải video gốc
+                                                </a>
+                                            </div>
+                                        )}
+                                        {transcodeError && (
+                                            <p className="mt-1 text-[11px] text-red-400">Chuyển đổi thất bại: {transcodeError}. Hãy thử tải video gốc về xem bằng trình phát khác.</p>
+                                        )}
                                     </div>
                                 ) : (
                                     <video
