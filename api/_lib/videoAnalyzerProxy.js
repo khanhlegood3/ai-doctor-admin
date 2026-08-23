@@ -57,7 +57,14 @@ export class VideoAnalyzerProxyError extends Error {
 
 const GEMINI_UPLOAD_BASE = 'https://generativelanguage.googleapis.com/upload/v1beta/files'
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
-const GEMINI_MODEL = 'gemini-2.5-flash'
+// Model ID: ĐÃ ĐỔI từ 'gemini-2.5-flash' sang 'gemini-3.6-flash'.
+// gemini-2.5-flash bị Google chặn với API key/project MỚI trước cả ngày
+// shutdown chính thức (16/10/2026) — trả lỗi 404 "This model
+// models/gemini-2.5-flash is no longer available to new users." ngay khi
+// generateContent, nên tính năng Phân Tích Video luôn báo lỗi ngay bước
+// cuối (sau khi đã upload + xử lý video thành công). gemini-3.6-flash là
+// model preview hiện được Google khuyến nghị thay thế.
+const GEMINI_MODEL = 'gemini-3.6-flash'
 const R2_KEY_PREFIX = 'video-analyzer/uploads'
 
 // Khai báo function-calling GIỐNG HỆT bản gốc functions.ts của app AI Studio

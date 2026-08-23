@@ -139,7 +139,10 @@ export async function runChessChatStrategist({ parts, envSource } = {}) {
     const text = await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
       const ai = new GoogleGenAI({ apiKey })
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        // Đổi từ 'gemini-2.5-flash': model này bị Google chặn với API
+        // key/project MỚI trước ngày shutdown chính thức (404 "no longer
+        // available to new users") — cùng lỗi đã sửa ở videoAnalyzerProxy.js.
+        model: 'gemini-3.6-flash',
         contents: { parts: safeParts },
       })
       return response?.text || ''
