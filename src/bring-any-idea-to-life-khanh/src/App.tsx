@@ -35,6 +35,7 @@ const App: React.FC = () => {
       originalImage: row.imageUrl || undefined,
       mimeType: row.mimeType || null,
       videoUrl: row.videoUrl || undefined,
+      transcodedVideoUrl: row.transcodedVideoUrl || undefined,
       timestamp: new Date(row.timestamp || Date.now()),
     }));
 
@@ -46,6 +47,7 @@ const App: React.FC = () => {
         originalImage: item.originalImage,
         mimeType: item.mimeType || null,
         videoUrl: item.videoUrl,
+        transcodedVideoUrl: item.transcodedVideoUrl || null,
         timestamp: item.timestamp.toISOString(),
       });
     }
@@ -463,6 +465,27 @@ const App: React.FC = () => {
     });
   };
 
+  // Gọi từ LivePreview.tsx SAU KHI đã chuyển mã (ffmpeg.wasm, client-side)
+  // VÀ upload xong bản MP4 lên R2 — chỉ cần lưu lại thêm 1 field
+  // transcodedVideoUrl, KHÔNG đụng tới originalImage/html/... nên dùng
+  // patchCreation (partial update) thay vì putCreation (ghi đè toàn bộ) để
+  // không lỡ tay xoá mất field khác đã lưu trước đó (vd r2ImageUrl/r2JsonUrl).
+  const handleTranscodedVideoUploaded = async (creation: Creation, publicUrl: string) => {
+    setActiveCreation((prev) => (prev && prev.id === creation.id ? { ...prev, transcodedVideoUrl: publicUrl } : prev));
+    setHistory((prev) => prev.map((item) => (item.id === creation.id ? { ...item, transcodedVideoUrl: publicUrl } : item)));
+    await patchCreation(creation.id, { transcodedVideoUrl: publicUrl });
+    await saveCreationToR2({
+      id: creation.id,
+      name: creation.name,
+      html: creation.html,
+      sourceUrl: creation.originalImage && !creation.originalImage.startsWith('data:') ? creation.originalImage : undefined,
+      mimeType: creation.mimeType || undefined,
+      videoUrl: creation.videoUrl,
+      transcodedVideoUrl: publicUrl,
+      timestamp: creation.timestamp.toISOString(),
+    });
+  };
+
 
 
   const handleDeleteUploadedSource = async (creation: Creation) => {
@@ -648,6 +671,7 @@ ${message}`);
         isFocused={isFocused}
         onReset={handleReset}
         onUploadMissingSource={handleUploadMissingSource}
+        onTranscodedVideoUploaded={handleTranscodedVideoUploaded}
         onDeleteUploadedSource={handleDeleteUploadedSource}
         onRegenerateFromUploadedSource={handleRegenerateFromUploadedSource}
         onCreateFromLink={handleCreateFromLink}

@@ -12,6 +12,7 @@ export interface SaveCreationToR2Payload {
   sourceUrl?: string; // URL R2 public của file gốc upload trực tiếp từ client
   mimeType?: string;
   videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
+  transcodedVideoUrl?: string; // URL R2 vĩnh viễn của bản MP4 đã chuyển mã từ file gốc không phát trực tiếp được (xem videoTranscode.ts)
   timestamp: string; // ISO string
 }
 
@@ -46,6 +47,7 @@ export interface R2CreationRecord {
   imageUrl?: string | null;
   videoUrl?: string | null;
   mimeType?: string | null;
+  transcodedVideoUrl?: string | null;
   timestamp: string;
 }
 
@@ -91,7 +93,7 @@ async function presignSourceUpload(id: string, contentType: string, fallback: bo
 // phòng cũng lỗi (vd chưa cấu hình R2_BUCKET_NAME1, hoặc CORS chưa bật trên
 // bucket dự phòng — xem ghi chú CORS trong r2Storage.js) thì để lỗi bay lên,
 // KHÔNG lặp vô hạn.
-export async function uploadSourceFileToR2(id: string, file: File): Promise<SourceUploadUrlResult> {
+export async function uploadSourceFileToR2(id: string, file: Blob): Promise<SourceUploadUrlResult> {
   const contentType = file.type || 'application/octet-stream';
 
   const attemptUpload = async (fallback: boolean): Promise<SourceUploadUrlResult> => {
@@ -119,4 +121,16 @@ export async function uploadSourceFileToR2(id: string, file: File): Promise<Sour
       );
     }
   }
+}
+
+/**
+ * Upload bản MP4 đã chuyển mã (xem lib/videoTranscode.ts) lên R2, dùng
+ * KHÓA RIÊNG (`${creationId}-mp4`) để không đè lên file gốc (.mov) đã lưu ở
+ * khóa `creationId` — tái sử dụng luôn hạ tầng presigned-upload có sẵn
+ * (uploadSourceFileToR2), không cần thêm route backend mới.
+ */
+export async function uploadTranscodedVideoToR2(creationId: string, blob: Blob): Promise<string> {
+  const file = new Blob([blob], { type: 'video/mp4' });
+  const result = await uploadSourceFileToR2(`${creationId}-mp4`, file);
+  return result.publicUrl;
 }

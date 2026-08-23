@@ -13,6 +13,13 @@ export interface Creation {
   originalImage?: string; // Base64 data URL hoặc URL R2 của ảnh/PDF/video upload trực tiếp
   mimeType?: string | null; // MIME của originalImage khi originalImage là URL R2
   videoUrl?: string; // Link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
+  // URL R2 (vĩnh viễn) của bản MP4 đã chuyển mã từ originalImage — chỉ có
+  // khi originalImage là video không phát trực tiếp được (vd .mov/QuickTime
+  // từ iPhone) và người dùng đã bấm "Chuyển đổi sang MP4" ít nhất 1 lần (xem
+  // lib/videoTranscode.ts + LivePreview.tsx). Có field này thì ưu tiên phát
+  // TRỰC TIẾP field này thay vì originalImage — để những lần xem SAU không
+  // phải chuyển mã lại từ đầu.
+  transcodedVideoUrl?: string;
   timestamp: Date;
 }
 

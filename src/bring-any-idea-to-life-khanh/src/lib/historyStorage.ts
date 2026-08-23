@@ -27,6 +27,7 @@ export interface StoredCreation {
   r2JsonUrl?: string | null; // URL public của bản JSON đầy đủ trên R2 (điền sau khi saveCreationToR2 thành công)
   r2ImageUrl?: string | null; // URL public của ảnh/video/PDF gốc trên R2
   mimeType?: string | null; // MIME của file gốc để preview URL R2 đúng loại
+  transcodedVideoUrl?: string | null; // URL R2 vĩnh viễn của bản MP4 đã chuyển mã (xem Creation trong CreationHistory.tsx)
 }
 
 function openDB(): Promise<IDBDatabase> {

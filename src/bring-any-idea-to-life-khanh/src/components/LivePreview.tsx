@@ -68,6 +68,11 @@ interface LivePreviewProps {
   onDeleteUploadedSource?: (creation: Creation) => Promise<void>;
   onRegenerateFromUploadedSource?: (creation: Creation) => Promise<void>;
   onCreateFromLink?: (link: string) => Promise<void>;
+  // Gọi sau khi 1 video đã được chuyển mã sang MP4 (client-side, xem
+  // lib/videoTranscode.ts) VÀ upload thành công lên R2 — để App.tsx cập
+  // nhật + lưu lại transcodedVideoUrl (IndexedDB + R2 creations/<id>.json),
+  // giúp lần xem SAU không phải chuyển mã lại từ đầu.
+  onTranscodedVideoUploaded?: (creation: Creation, publicUrl: string) => Promise<void>;
 }
 
 // Add type definition for the global pdfjsLib
@@ -223,7 +228,7 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}${videoInlineFixScript}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink, onTranscodedVideoUploaded }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [showSplitView, setShowSplitView] = useState(false);
     const [isUploadingSource, setIsUploadingSource] = useState(false);
@@ -333,6 +338,11 @@ ${message}`);
     const originalMimeType = creation?.mimeType || (creation?.originalImage?.startsWith('data:') ? creation.originalImage.slice(5, creation.originalImage.indexOf(';')) : '');
     const isOriginalVideo = Boolean(creation?.originalImage) && (/^video\//i.test(originalMimeType) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(creation?.originalImage || ''));
     const videoPlaybackSrc = useVideoPlaybackSrc(isOriginalVideo ? creation?.originalImage : undefined);
+    // Nếu creation NÀY đã từng được chuyển mã + cache lên R2 ở 1 lần xem
+    // trước (transcodedVideoUrl, xem Creation trong CreationHistory.tsx),
+    // dùng thẳng bản MP4 đó — KHÔNG cần thử phát bản gốc rồi chờ lỗi mới
+    // chuyển mã lại từ đầu.
+    const cachedTranscodedUrl = creation?.transcodedVideoUrl || null;
     // Nhiều video quay từ iPhone lưu dưới định dạng QuickTime (.mov, mimeType
     // "video/quicktime", thường bọc codec HEVC/ProRes) — Safari phát được
     // nhưng Chrome/Edge/Firefox trên Windows/Android hầu như KHÔNG giải mã
@@ -350,12 +360,16 @@ ${message}`);
     const [transcodeError, setTranscodeError] = useState<string | null>(null);
     const [transcodedBlobUrl, setTranscodedBlobUrl] = useState<string | null>(null);
     const transcodedBlobUrlRef = useRef<string | null>(null);
+    // 'idle' | 'uploading' | 'done' | 'error' — chỉ để hiện gợi ý nhỏ, không
+    // chặn phát video cục bộ (upload chạy NỀN, không ai phải chờ).
+    const [cacheUploadStatus, setCacheUploadStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
     useEffect(() => {
       // Nguồn đổi (chuyển sang creation khác) -> bỏ kết quả chuyển mã cũ,
       // thu hồi Blob URL để tránh rò rỉ bộ nhớ.
       setTranscodedBlobUrl(null);
       setTranscodeError(null);
       setTranscodeProgress(0);
+      setCacheUploadStatus('idle');
       if (transcodedBlobUrlRef.current) {
         URL.revokeObjectURL(transcodedBlobUrlRef.current);
         transcodedBlobUrlRef.current = null;
@@ -379,6 +393,25 @@ ${message}`);
         transcodedBlobUrlRef.current = url;
         setTranscodedBlobUrl(url);
         setVideoPlaybackError(false); // để <video> render lại với nguồn MP4 mới
+
+        // Cache lên R2 NỀN (không chặn UI — người dùng đã xem được video rồi)
+        // để những người/lần xem SAU dùng thẳng cachedTranscodedUrl, không
+        // phải chuyển mã lại từ đầu. Chỉ làm khi có creation.id thật (không
+        // áp dụng cho preview tạm chưa lưu) và có callback từ App.tsx.
+        if (creation?.id && onTranscodedVideoUploaded) {
+          setCacheUploadStatus('uploading');
+          (async () => {
+            try {
+              const { uploadTranscodedVideoToR2 } = await import('../lib/historyR2Client');
+              const publicUrl = await uploadTranscodedVideoToR2(creation.id, blob);
+              await onTranscodedVideoUploaded(creation, publicUrl);
+              setCacheUploadStatus('done');
+            } catch (uploadErr) {
+              console.warn('[bring-any-idea-to-life] Cache bản MP4 lên R2 thất bại (không ảnh hưởng video đang xem):', uploadErr);
+              setCacheUploadStatus('error');
+            }
+          })();
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error('[bring-any-idea-to-life] Transcode to MP4 failed:', err);
@@ -638,16 +671,36 @@ ${message}`);
                         ) : isOriginalPdf && creation.originalImage?.startsWith('data:') ? (
                             <PdfRenderer dataUrl={creation.originalImage} />
                         ) : isOriginalVideo ? (
-                            videoPlaybackSrc ? (
+                            cachedTranscodedUrl ? (
+                                <video
+                                    key={cachedTranscodedUrl}
+                                    src={cachedTranscodedUrl}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                                />
+                            ) : videoPlaybackSrc ? (
                                 transcodedBlobUrl ? (
-                                    <video
-                                        key={transcodedBlobUrl}
-                                        src={transcodedBlobUrl}
-                                        controls
-                                        playsInline
-                                        preload="metadata"
-                                        className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
-                                    />
+                                    <div className="flex flex-col items-center gap-2">
+                                        <video
+                                            key={transcodedBlobUrl}
+                                            src={transcodedBlobUrl}
+                                            controls
+                                            playsInline
+                                            preload="metadata"
+                                            className="max-w-full max-h-full rounded shadow-xl border border-zinc-800/50"
+                                        />
+                                        {cacheUploadStatus === 'uploading' && (
+                                            <p className="text-[11px] text-zinc-500">Đang lưu bản MP4 lên R2 để lần sau khỏi chuyển đổi lại...</p>
+                                        )}
+                                        {cacheUploadStatus === 'done' && (
+                                            <p className="text-[11px] text-emerald-400">Đã lưu bản MP4 lên R2 — lần xem sau sẽ phát ngay, không cần chuyển đổi lại.</p>
+                                        )}
+                                        {cacheUploadStatus === 'error' && (
+                                            <p className="text-[11px] text-amber-400">Xem được nhưng chưa lưu cache lên R2 được — lần sau có thể phải chuyển đổi lại.</p>
+                                        )}
+                                    </div>
                                 ) : videoPlaybackError ? (
                                     <div className="flex max-w-sm flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/60 p-6 text-center shadow-xl">
                                         <ArrowDownTrayIcon className="h-8 w-8 text-zinc-500" />

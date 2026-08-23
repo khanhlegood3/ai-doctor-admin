@@ -56,6 +56,7 @@ function extFromMimeType(mimeType) {
  * @param {string} [params.sourceUrl] - URL R2 public của file gốc đã upload trực tiếp từ client
  * @param {string} [params.mimeType]
  * @param {string} [params.videoUrl] - link YouTube/Facebook gốc, nếu creation đến từ link video (không upload file)
+ * @param {string} [params.transcodedVideoUrl] - URL R2 public của bản MP4 đã chuyển mã từ file gốc (xem videoTranscode.ts phía client)
  * @param {string} [params.timestamp] - ISO string, mặc định là lúc gọi hàm
  * @param {Record<string,string>} [params.envSource]
  * @returns {Promise<{ jsonUrl: string, imageUrl: string|null }>}
@@ -68,6 +69,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
   sourceUrl,
   mimeType,
   videoUrl,
+  transcodedVideoUrl,
   timestamp,
   envSource = process.env,
 }) {
@@ -97,6 +99,7 @@ export async function saveBringAnyIdeaToLifeCreationToR2({
     imageUrl,
     videoUrl: videoUrl || null,
     mimeType: mimeType || null,
+    transcodedVideoUrl: transcodedVideoUrl || null,
     timestamp: timestamp || new Date().toISOString(),
   }
   const jsonBuffer = Buffer.from(JSON.stringify(creationRecord), 'utf-8')

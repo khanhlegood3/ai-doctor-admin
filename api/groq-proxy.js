@@ -297,6 +297,7 @@ export default async function handler(req, res) {
         sourceUrl: body.sourceUrl,
         mimeType: body.mimeType,
         videoUrl: body.videoUrl,
+        transcodedVideoUrl: body.transcodedVideoUrl,
         timestamp: body.timestamp,
       })
       return res.status(201).json(payload)
