@@ -14,6 +14,12 @@ interface GenerateTextOptions {
   // runPageToLearningGenerate() trong api/_lib/videoToLearningProxy.js.
   // Chỉ truyền MỘT trong hai (videoUrl HOẶC pageUrl), không truyền cả 2.
   pageUrl?: string;
+  // Transcript đã có sẵn (whisper client-side từ video upload trực tiếp,
+  // xem lib/uploadedVideo.ts) — khi truyền field này, server BỎ QUA hẳn
+  // bước lấy transcript YouTube/Facebook, dùng luôn transcript này. Chỉ
+  // truyền kèm 1 trong 2 field trên (không có ý nghĩa gì nếu không có
+  // videoUrl/pageUrl, vì bước code-gen ở lượt sau không cần videoTranscript).
+  videoTranscript?: string;
 }
 
 interface GenerateTextResult {
@@ -30,7 +36,7 @@ export async function generateText(options: GenerateTextOptions): Promise<string
 // Bản đầy đủ trả thêm `source`/`pageTitle` — dùng khi cần lưu lịch sử (biết
 // AI nào đã trả lời) thay vì chỉ cần text như generateText() cũ.
 export async function generateTextWithMeta(options: GenerateTextOptions): Promise<GenerateTextResult> {
-  const { prompt, videoUrl, pageUrl } = options;
+  const { prompt, videoUrl, pageUrl, videoTranscript } = options;
 
   const res = await fetch('/api/groq-proxy', {
     method: 'POST',
@@ -40,6 +46,7 @@ export async function generateTextWithMeta(options: GenerateTextOptions): Promis
       prompt,
       videoUrl,
       pageUrl,
+      videoTranscript,
     }),
   });
 

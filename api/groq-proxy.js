@@ -33,7 +33,7 @@ import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCod
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
-import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
+import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, createVideoToLearningSourceUploadUrl, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
 import { fetchYoutubeClipToR2, KolYoutubeDownloadError } from './_lib/kolYoutubeDownload.js'
 import { fetchFacebookClipToR2, FacebookDownloadError } from './_lib/facebookDownload.js'
 import { createKolR2UploadUrl, uploadKolBase64ToR2, KolR2UploadError } from './_lib/kolR2Upload.js'
@@ -197,6 +197,7 @@ export default async function handler(req, res) {
       const payload = await runVideoToLearningGenerate({
         prompt: body.prompt,
         videoUrl: body.videoUrl,
+        videoTranscript: body.videoTranscript,
       })
       return res.status(200).json(payload)
     } catch (err) {
@@ -387,6 +388,8 @@ export default async function handler(req, res) {
         spec: body.spec,
         code: body.code,
         aiSource: body.aiSource,
+        mimeType: body.mimeType,
+        transcodedVideoUrl: body.transcodedVideoUrl,
         timestamp: body.timestamp,
       })
       return res.status(201).json(payload)
@@ -411,6 +414,18 @@ export default async function handler(req, res) {
       console.error('[groq-proxy] (video-to-learning-load-r2) error:', err?.message || err)
       const status = err instanceof VideoToLearningHistoryR2Error ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Video to Learning R2 load error' })
+    }
+  }
+
+  if (body.provider === 'video-to-learning-source-upload-url') {
+    console.log('[groq-proxy] (video-to-learning-source-upload-url) id:', body.id, '| contentType:', body.contentType)
+    try {
+      const payload = await createVideoToLearningSourceUploadUrl({ id: body.id, mimeType: body.contentType })
+      return res.status(200).json(payload)
+    } catch (err) {
+      console.error('[groq-proxy] (video-to-learning-source-upload-url) error:', err?.message || err)
+      const status = err instanceof VideoToLearningHistoryR2Error ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'Video to Learning source upload URL error' })
     }
   }
 

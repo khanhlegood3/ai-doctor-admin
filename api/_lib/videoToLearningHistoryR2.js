@@ -26,7 +26,22 @@
 //   video-to-learning/creations/<uuid>/<id>.json
 //     - { id, uuid, type, link, title, spec, code, aiSource, timestamp }
 
-import { uploadBufferToR2, getR2PublicUrl, listR2Keys } from './r2Storage.js'
+import { uploadBufferToR2, getR2PublicUrl, listR2Keys, createR2PresignedUploadUrl, genR2Key } from './r2Storage.js'
+
+// Xem ghi chú đầy đủ trong bringAnyIdeaToLifeHistoryR2.js — vài MIME subtype
+// không trùng đuôi file chuẩn (vd "video/quicktime" -> ".mov").
+const MIME_SUBTYPE_TO_EXT = {
+  quicktime: 'mov',
+  'x-matroska': 'mkv',
+  'x-msvideo': 'avi',
+  mpeg: 'mpg',
+  '3gpp': '3gp',
+}
+function extFromMimeType(mimeType) {
+  const sub = String(mimeType || '').split('/')[1] || 'mp4'
+  const clean = sub.split(';')[0]
+  return MIME_SUBTYPE_TO_EXT[clean] || clean
+}
 
 export class VideoToLearningHistoryR2Error extends Error {
   constructor(message, status = 400) {
@@ -65,6 +80,8 @@ export async function saveVideoToLearningCreationToR2({
   spec,
   code,
   aiSource,
+  mimeType,
+  transcodedVideoUrl,
   timestamp,
   envSource = process.env,
 }) {
@@ -82,6 +99,13 @@ export async function saveVideoToLearningCreationToR2({
     spec: spec || '',
     code,
     aiSource: aiSource || null,
+    // mimeType: MIME của video gốc khi `link` là URL R2 video tự upload
+    // (type 'uploaded_video') — để biết có cần thử phát trực tiếp/chuyển mã
+    // hay không (xem videoTranscode.ts phía client). transcodedVideoUrl:
+    // URL R2 vĩnh viễn của bản MP4 đã chuyển mã (nếu người dùng từng bấm
+    // "Chuyển đổi sang MP4") — cùng kiến trúc với Bring Any Idea to Life.
+    mimeType: mimeType || null,
+    transcodedVideoUrl: transcodedVideoUrl || null,
     timestamp: timestamp || new Date().toISOString(),
   }
   const jsonBuffer = Buffer.from(JSON.stringify(creationRecord), 'utf-8')
@@ -152,4 +176,29 @@ export async function loadAllVideoToLearningCreationsFromR2({ envSource = proces
 
   creations.sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))
   return { creations, count: creations.length }
+}
+
+/**
+ * Tạo URL upload PUT trực tiếp (presigned) lên R2 cho 1 file video người
+ * dùng tự upload (tính năng "Tải video lên" — khác hẳn nhánh link YouTube/
+ * Facebook) — client PUT thẳng lên R2 bằng URL này, KHÔNG qua server (tránh
+ * giới hạn body size của Vercel Serverless Functions với file video nặng).
+ * Lưu ở khoá RIÊNG (video-to-learning/uploaded-videos/<id>.<ext>), tách hẳn
+ * khỏi video-to-learning/creations/ (chỗ lưu spec+code) — 1 video gốc có
+ * thể được nhiều creation cùng tham chiếu tới qua field `link`.
+ * @param {object} params
+ * @param {string} params.id
+ * @param {string} params.mimeType
+ * @param {Record<string,string>} [params.envSource]
+ * @returns {Promise<{ uploadUrl: string, publicUrl: string, key: string }>}
+ */
+export async function createVideoToLearningSourceUploadUrl({ id, mimeType, envSource = process.env }) {
+  if (!id) throw new VideoToLearningHistoryR2Error('Thiếu id của video upload.', 400)
+  if (!mimeType) throw new VideoToLearningHistoryR2Error('Thiếu mimeType của file upload.', 400)
+  const key = genR2Key(`video-to-learning/uploaded-videos/${id}`, extFromMimeType(mimeType))
+  try {
+    return await createR2PresignedUploadUrl({ key, contentType: mimeType, envSource })
+  } catch (err) {
+    throw new VideoToLearningHistoryR2Error(err?.message || 'Không tạo được URL upload R2 cho video.', err?.status || 502)
+  }
 }

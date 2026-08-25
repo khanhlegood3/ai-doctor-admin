@@ -152,7 +152,7 @@ ${transcript}
 // (GROQ_API_KEY* / GEMINI_API_KEY*) — chỉ dùng để quyết định NHÁNH nào được
 // thử trước, việc rotate GIỮA CÁC KEY của cùng 1 nhánh diễn ra bên trong
 // callGroq()/callGemini() (xem api/_lib/apiKeyPool.js).
-export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }) {
+export async function runVideoToLearningGenerate({ prompt, videoUrl, videoTranscript, envSource }) {
   if (!prompt) throw new VideoToLearningProxyError('Missing prompt', 400)
 
   const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
@@ -166,7 +166,7 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
   }
 
   // Bước 2: sinh code từ spec (text-only, không có videoUrl)
-  if (!videoUrl) {
+  if (!videoUrl && !videoTranscript) {
     if (hasGroq) {
       try {
         const text = await callGroq({ promptText: prompt, jsonMode: false, envSource })
@@ -179,6 +179,32 @@ export async function runVideoToLearningGenerate({ prompt, videoUrl, envSource }
       throw new VideoToLearningProxyError('Groq gặp sự cố ở tất cả các key và chưa cấu hình GEMINI_API_KEY để dự phòng.', 502)
     }
     const text = await callGemini({ promptText: prompt, envSource })
+    return { text, source: 'gemini-fallback' }
+  }
+
+  // VIDEO UPLOAD TRỰC TIẾP (không phải link YouTube/Facebook): client đã tự
+  // trích transcript qua Groq Whisper (xem lib/uploadedVideo.ts phía
+  // client — tách audio bằng ffmpeg.wasm rồi gọi /api/groq-whisper) và gửi
+  // thẳng transcript này lên, KHÔNG có videoUrl để lấy transcript kiểu
+  // YouTube/Facebook (và cũng không có URL nào Gemini có thể "xem" trực
+  // tiếp — chỉ YouTube mới hỗ trợ fileUri kiểu đó). Nên nhánh này ĐƠN GIẢN
+  // HƠN nhánh videoUrl bên dưới: luôn dùng transcript có sẵn, chỉ khác
+  // Groq/Gemini ở việc AI nào SINH SPEC từ transcript đó (Gemini vẫn dùng
+  // được vì đây chỉ là text, không cần multimodal).
+  if (videoTranscript && !videoUrl) {
+    const finalPrompt = buildTranscriptOverridePrompt(prompt, videoTranscript)
+    if (hasGroq) {
+      try {
+        const text = await callGroq({ promptText: finalPrompt, jsonMode: true, envSource })
+        return { text, source: 'groq-transcript' }
+      } catch (err) {
+        console.warn('[video-to-learning] Groq (uploaded-video transcript) failed on all keys, falling back to Gemini:', err?.message || err)
+      }
+    }
+    if (!hasGemini) {
+      throw new VideoToLearningProxyError('Groq gặp sự cố ở tất cả các key và chưa cấu hình GEMINI_API_KEY để dự phòng.', 502)
+    }
+    const text = await callGemini({ promptText: finalPrompt, envSource })
     return { text, source: 'gemini-fallback' }
   }
 

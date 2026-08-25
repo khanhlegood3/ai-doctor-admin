@@ -34,6 +34,7 @@ import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/histo
 import { saveCreationToR2, loadAllCreationsFromR2, type R2CreationRecord } from './lib/history/historyR2Client';
 import { getIdentity, getOrCreateGuestUuid } from './lib/identity';
 import exampleHistoryData from './lib/history/examples.json';
+import { UploadedVideoPreview } from './components/UploadedVideoPreview';
 
 type ItemStatus = 'pending' | 'processing' | 'done' | 'error' | 'saved-only';
 type TabKey = 'render' | 'code' | 'spec' | 'history';
@@ -51,6 +52,10 @@ interface QueueItem extends ClassifiedLink {
   imagePreviewUrl?: string;
   imageBase64?: string;
   imageMimeType?: string;
+  // Chỉ dùng cho type 'uploaded_video' (tính năng "Tải video lên" — video
+  // file thật, không phải link) — xem lib/uploadedVideo.ts.
+  videoTranscript?: string;
+  videoMimeType?: string;
 }
 
 type ExampleVideo = {
@@ -151,6 +156,7 @@ export default function App() {
         status: 'success' as const,
         errorMessage: null,
         specPreview: (c.spec || '').slice(0, 500),
+        mimeType: c.mimeType ?? null,
         fullSpec: c.spec,
         fullCode: c.code,
         createdAt: c.timestamp,
@@ -208,6 +214,8 @@ export default function App() {
     status: 'success' | 'error' | 'saved-only';
     errorMessage?: string | null;
     specPreview?: string | null;
+    // MIME của video gốc khi type = 'uploaded_video' — xem HistoryEntry.
+    mimeType?: string | null;
     // CHỈ dùng để lưu IndexedDB (nút Reload) — KHÔNG gửi lên server, xem
     // chú thích ở HistoryEntry trong lib/history/historyStorage.ts.
     fullSpec?: string | null;
@@ -224,6 +232,7 @@ export default function App() {
         status: entry.status,
         errorMessage: entry.errorMessage ?? null,
         specPreview: entry.specPreview ?? null,
+        mimeType: entry.mimeType ?? null,
         fullSpec: entry.fullSpec ?? null,
         fullCode: entry.fullCode ?? null,
       });
@@ -266,6 +275,7 @@ export default function App() {
         spec: entry.fullSpec ?? '',
         code: entry.fullCode,
         aiSource: entry.aiSource ?? null,
+        mimeType: entry.mimeType ?? undefined,
         timestamp: new Date().toISOString(),
       });
     }
@@ -314,6 +324,42 @@ export default function App() {
         const message = err instanceof Error ? err.message : 'Đã có lỗi không xác định xảy ra.';
         updateItem(index, { status: 'error', error: message });
         await persistHistory({ type: item.type, link: item.url, status: 'error', errorMessage: message });
+      }
+      return;
+    }
+
+    // "Tải video lên" — transcript đã có sẵn (Whisper client-side, xem
+    // lib/uploadedVideo.ts), nên chỉ cần bước sinh spec+code y hệt nhánh
+    // video/website bên dưới, chỉ khác truyền `videoTranscript` thay vì
+    // `videoUrl` (server dùng thẳng transcript này, xem
+    // runVideoToLearningGenerate() trong videoToLearningProxy.js).
+    if (item.type === 'uploaded_video') {
+      try {
+        const specResponse = await generateTextWithMeta({ prompt: SPEC_FROM_VIDEO_PROMPT, videoTranscript: item.videoTranscript });
+        const generatedSpec = parseJSON(specResponse.text).spec + SPEC_ADDENDUM;
+        updateItem(index, { spec: generatedSpec, aiSource: specResponse.source });
+
+        const codeResponse = await generateTextWithMeta({ prompt: generatedSpec });
+        const generatedCode = parseHTML(codeResponse.text, CODE_REGION_CLOSER);
+
+        updateItem(index, { status: 'done', code: generatedCode });
+        setIframeKey((k) => k + 1);
+
+        await persistHistory({
+          type: item.type,
+          link: item.url,
+          title: item.pageTitle ?? null,
+          aiSource: specResponse.source ?? null,
+          status: 'success',
+          specPreview: generatedSpec.slice(0, 500),
+          mimeType: item.videoMimeType ?? null,
+          fullSpec: generatedSpec,
+          fullCode: generatedCode,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Đã có lỗi không xác định xảy ra.';
+        updateItem(index, { status: 'error', error: message });
+        await persistHistory({ type: item.type, link: item.url, status: 'error', errorMessage: message, mimeType: item.videoMimeType ?? null });
       }
       return;
     }
@@ -430,6 +476,67 @@ export default function App() {
     if (file) handleImageFile(file);
   };
 
+  // Trạng thái tiến độ cho "Tải video lên" — hiển thị RIÊNG (không dùng
+  // ItemStatus/STATUS_LABEL chung của hàng đợi) vì quá trình này có nhiều
+  // bước con (tách audio -> Whisper -> upload R2) diễn ra TRƯỚC khi item
+  // thật sự vào hàng đợi xử lý AI.
+  const [videoUploadStage, setVideoUploadStage] = useState<string | null>(null);
+
+  // Upload 1 file video -> trích transcript (Whisper) + upload video gốc
+  // lên R2 (lib/uploadedVideo.ts) -> tạo 1 QueueItem type 'uploaded_video'
+  // rồi chạy qua hàng đợi như các loại khác (xem nhánh
+  // `item.type === 'uploaded_video'` trong processItem() bên trên).
+  const handleVideoFile = async (file: File) => {
+    if (isBusy || videoUploadStage) return;
+    if (!file.type.startsWith('video/')) {
+      alert('Vui lòng chọn 1 file video (MP4, MOV, WebM...).');
+      return;
+    }
+    const id = crypto.randomUUID();
+    try {
+      const { processUploadedVideo } = await import('./lib/uploadedVideo');
+      const result = await processUploadedVideo(id, file, (p) => {
+        if (p.stage === 'extracting-audio') {
+          setVideoUploadStage(`Đang tách âm thanh... ${Math.round((p.ratio ?? 0) * 100)}%`);
+        } else if (p.stage === 'transcribing') {
+          setVideoUploadStage('Đang nhận diện lời nói (Whisper)...');
+        } else if (p.stage === 'uploading-video') {
+          setVideoUploadStage('Đang tải video lên...');
+        }
+      });
+      setVideoUploadStage(null);
+
+      const item: QueueItem = {
+        raw: file.name,
+        url: result.publicUrl,
+        type: 'uploaded_video',
+        status: 'pending',
+        pageTitle: file.name,
+        videoTranscript: result.transcript,
+        videoMimeType: result.mimeType,
+      };
+      setItems([item]);
+      setSelectedIndex(0);
+      setActiveTab('render');
+      await runQueue([item]);
+    } catch (err) {
+      setVideoUploadStage(null);
+      alert(err instanceof Error ? err.message : 'Không xử lý được video đã tải lên.');
+    }
+  };
+
+  const handleVideoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) handleVideoFile(file);
+  };
+
+  const handleVideoDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleVideoFile(file);
+  };
+
   const buildMockExampleItem = (example: ExampleVideo): QueueItem => ({
     raw: example.url,
     url: example.url,
@@ -504,6 +611,7 @@ export default function App() {
             : null,
       aiSource: entry.aiSource ?? null,
       pageTitle: entry.title ?? null,
+      videoMimeType: entry.mimeType ?? undefined,
     };
 
     setItems((prev) => [reloadedItem, ...prev]);
@@ -582,6 +690,38 @@ export default function App() {
               accept="image/*"
               disabled={isBusy}
               onChange={handleImageInputChange}
+              className="hidden"
+            />
+          </label>
+
+          {/* "Tải video lên" — thay vì dán link YouTube/Facebook, người dùng
+              kéo-thả hoặc chọn 1 file video từ máy. AI lấy nội dung qua
+              transcript tự nhận diện bằng Groq Whisper (audio tách bằng
+              ffmpeg.wasm ngay trong trình duyệt) thay vì phụ đề có sẵn của
+              YouTube/Facebook — xem lib/uploadedVideo.ts. */}
+          <label
+            htmlFor="video-upload"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleVideoDrop}
+            className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
+              isBusy || videoUploadStage
+                ? 'border-slate-800 opacity-50 cursor-not-allowed'
+                : 'border-slate-700 hover:border-sky-500 cursor-pointer'
+            }`}
+          >
+            <span className="text-2xl">📹</span>
+            <span className="text-sm text-slate-300">
+              {videoUploadStage || 'Kéo-thả video vào đây, hoặc bấm để chọn video'}
+            </span>
+            {!videoUploadStage && (
+              <span className="text-xs text-slate-500">Không cần link YouTube/Facebook — dùng file video từ máy (MP4, MOV...)</span>
+            )}
+            <input
+              id="video-upload"
+              type="file"
+              accept="video/*"
+              disabled={isBusy || Boolean(videoUploadStage)}
+              onChange={handleVideoInputChange}
               className="hidden"
             />
           </label>
@@ -680,6 +820,9 @@ export default function App() {
 
         {/* Right column: generated content + history */}
         <div className="flex flex-col min-h-[70vh] rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+          {selected?.type === 'uploaded_video' && (
+            <UploadedVideoPreview videoUrl={selected.url} mimeType={selected.videoMimeType} />
+          )}
           <div className="flex border-b border-slate-800 px-2">
             {(
               [

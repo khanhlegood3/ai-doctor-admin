@@ -18,7 +18,11 @@ import { getYouTubeVideoId } from './youtube';
 // (xem tính năng "Ảnh → Sketch tương tác", chuyển thể từ image-to-code.zip,
 // dùng chung pipeline hàng đợi/lịch sử với các loại link khác — xem
 // lib/imageToCode.ts + api/_lib/imageToCodeProxy.js).
-export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website' | 'image';
+// 'uploaded_video' — CŨNG được tạo thủ công (không qua classifyLinkList()),
+// khi người dùng upload trực tiếp 1 file video từ máy (khác nhánh 'website'/
+// 'youtube_video'/'facebook_video' vốn chỉ là LINK, không có file thật) —
+// xem lib/uploadedVideo.ts.
+export type LinkType = 'youtube_video' | 'youtube_short' | 'youtube_channel' | 'facebook_video' | 'website' | 'image' | 'uploaded_video';
 
 export interface ClassifiedLink {
   raw: string;
@@ -124,4 +128,5 @@ export const LINK_TYPE_LABELS: Record<LinkType, { vi: string; en: string; icon: 
   facebook_video: { vi: 'Video Facebook', en: 'Facebook video', icon: '📘' },
   website: { vi: 'Trang web', en: 'Website', icon: '🌐' },
   image: { vi: 'Ảnh → Sketch', en: 'Image → Sketch', icon: '🖼️' },
+  uploaded_video: { vi: 'Video tải lên', en: 'Uploaded video', icon: '📹' },
 };

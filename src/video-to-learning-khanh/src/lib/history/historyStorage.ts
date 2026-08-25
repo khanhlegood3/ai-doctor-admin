@@ -36,6 +36,10 @@ export interface HistoryEntry {
   status: 'success' | 'error' | 'saved-only';
   errorMessage?: string | null;
   specPreview?: string | null;
+  // MIME của video gốc khi type = 'uploaded_video' (link là URL R2 video tự
+  // upload) — để biết cần kiểm tra khả năng phát trực tiếp/chuyển mã hay
+  // không (xem lib/videoTranscode.ts).
+  mimeType?: string | null;
   // Nội dung ĐẦY ĐỦ (không cắt ngắn) — CHỈ lưu ở đây (IndexedDB cục bộ),
   // KHÔNG gửi lên server/Mongo (server chỉ nhận specPreview đã cắt ngắn, xem
   // historyClient.ts) để giữ document Mongo gọn. Dùng cho nút "Reload" ở

@@ -19,6 +19,8 @@ export interface SaveCreationToR2Payload {
   spec: string;
   code: string;
   aiSource?: string | null;
+  mimeType?: string | null;
+  transcodedVideoUrl?: string | null;
   timestamp: string; // ISO string
 }
 
@@ -54,6 +56,8 @@ export interface R2CreationRecord {
   spec: string;
   code: string;
   aiSource: string | null;
+  mimeType?: string | null;
+  transcodedVideoUrl?: string | null;
   timestamp: string;
 }
 
