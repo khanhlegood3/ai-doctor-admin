@@ -18,9 +18,20 @@ import React, { useEffect, useRef, useState } from 'react';
 interface UploadedVideoPreviewProps {
   videoUrl: string;
   mimeType?: string | null;
+  // id ổn định của video này trên R2 (HistoryEntry.r2Id / QueueItem.videoUploadId)
+  // — cần để upload bản MP4 đã chuyển mã vào ĐÚNG chỗ (xem lib/uploadedVideo.ts).
+  // Không có (undefined) thì tính năng cache bị bỏ qua, chỉ chuyển mã tạm
+  // trong phiên xem hiện tại (giống hành vi ban đầu).
+  uploadId?: string;
+  // URL R2 vĩnh viễn của bản MP4 ĐÃ chuyển mã từ TRƯỚC (lần xem trước) —
+  // có thì phát THẲNG luôn, không cần thử phát bản gốc/chuyển mã lại.
+  cachedTranscodedUrl?: string | null;
+  // Gọi sau khi chuyển mã MỚI xong + upload cache lên R2 thành công, để
+  // App.tsx lưu lại (IndexedDB + R2 creation JSON) cho lần xem sau.
+  onCached?: (transcodedVideoUrl: string) => Promise<void>;
 }
 
-export const UploadedVideoPreview: React.FC<UploadedVideoPreviewProps> = ({ videoUrl, mimeType }) => {
+export const UploadedVideoPreview: React.FC<UploadedVideoPreviewProps> = ({ videoUrl, mimeType, uploadId, cachedTranscodedUrl, onCached }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [playbackError, setPlaybackError] = useState(false);
   const [isTranscoding, setIsTranscoding] = useState(false);
@@ -28,12 +39,14 @@ export const UploadedVideoPreview: React.FC<UploadedVideoPreviewProps> = ({ vide
   const [transcodeError, setTranscodeError] = useState<string | null>(null);
   const [transcodedBlobUrl, setTranscodedBlobUrl] = useState<string | null>(null);
   const transcodedBlobUrlRef = useRef<string | null>(null);
+  const [cacheStatus, setCacheStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
 
   useEffect(() => {
     setPlaybackError(false);
     setTranscodeError(null);
     setTranscodeProgress(0);
     setTranscodedBlobUrl(null);
+    setCacheStatus('idle');
     if (transcodedBlobUrlRef.current) {
       URL.revokeObjectURL(transcodedBlobUrlRef.current);
       transcodedBlobUrlRef.current = null;
@@ -55,6 +68,23 @@ export const UploadedVideoPreview: React.FC<UploadedVideoPreviewProps> = ({ vide
       transcodedBlobUrlRef.current = url;
       setTranscodedBlobUrl(url);
       setPlaybackError(false);
+
+      // Cache lên R2 CHẠY NỀN (không chặn việc xem video vừa chuyển mã) —
+      // chỉ khi có uploadId (biết chỗ để lưu) và callback từ App.tsx.
+      if (uploadId && onCached) {
+        setCacheStatus('uploading');
+        (async () => {
+          try {
+            const { uploadTranscodedMp4ToR2 } = await import('../lib/uploadedVideo');
+            const publicUrl = await uploadTranscodedMp4ToR2(uploadId, blob);
+            await onCached(publicUrl);
+            setCacheStatus('done');
+          } catch (cacheErr) {
+            console.warn('[video-to-learning] Cache bản MP4 lên R2 thất bại (không ảnh hưởng video đang xem):', cacheErr);
+            setCacheStatus('error');
+          }
+        })();
+      }
     } catch (err) {
       setTranscodeError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -85,8 +115,15 @@ export const UploadedVideoPreview: React.FC<UploadedVideoPreviewProps> = ({ vide
         </button>
       </div>
 
-      {transcodedBlobUrl ? (
-        <video key={transcodedBlobUrl} src={transcodedBlobUrl} controls playsInline preload="metadata" className="max-h-64 w-full rounded" />
+      {cachedTranscodedUrl ? (
+        <video key={cachedTranscodedUrl} src={cachedTranscodedUrl} controls playsInline preload="metadata" className="max-h-64 w-full rounded" />
+      ) : transcodedBlobUrl ? (
+        <div className="flex flex-col items-center gap-1.5">
+          <video key={transcodedBlobUrl} src={transcodedBlobUrl} controls playsInline preload="metadata" className="max-h-64 w-full rounded" />
+          {cacheStatus === 'uploading' && <p className="text-[11px] text-slate-500">Đang lưu bản MP4 lên R2 để lần sau khỏi chuyển đổi lại...</p>}
+          {cacheStatus === 'done' && <p className="text-[11px] text-emerald-400">Đã lưu — lần xem sau sẽ phát ngay, không cần chuyển đổi lại.</p>}
+          {cacheStatus === 'error' && <p className="text-[11px] text-amber-400">Xem được nhưng chưa lưu cache lên R2 — lần sau có thể phải chuyển đổi lại.</p>}
+        </div>
       ) : playbackError ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-700 bg-slate-950/60 p-4 text-center">
           <p className="text-xs text-slate-400">

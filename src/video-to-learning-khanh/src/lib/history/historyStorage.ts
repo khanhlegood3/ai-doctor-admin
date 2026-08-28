@@ -40,6 +40,18 @@ export interface HistoryEntry {
   // upload) — để biết cần kiểm tra khả năng phát trực tiếp/chuyển mã hay
   // không (xem lib/videoTranscode.ts).
   mimeType?: string | null;
+  // URL R2 vĩnh viễn của bản MP4 đã chuyển mã từ video gốc (nếu người dùng
+  // từng bấm "Chuyển đổi sang MP4" — xem components/UploadedVideoPreview.tsx).
+  transcodedVideoUrl?: string | null;
+  // id ỔN ĐỊNH dùng khi lưu creation này lên R2 (video-to-learning/creations/
+  // <uuid>/<r2Id>.json) VÀ khi lưu file video gốc/đã chuyển mã (video-to-
+  // learning/uploaded-videos/<r2Id>[-mp4].<ext>) — CHỈ có khi type =
+  // 'uploaded_video'. Nhờ id ổn định này mà updateHistoryEntryByR2Id() bên
+  // dưới + việc gọi lại saveCreationToR2 với CÙNG id (App.tsx) có thể "vá"
+  // thêm transcodedVideoUrl vào 1 record đã lưu trước đó, thay vì phải tạo
+  // record mới mỗi lần (loại 'website'/'youtube_video'/... không cần việc
+  // này nên KHÔNG có field này).
+  r2Id?: string | null;
   // Nội dung ĐẦY ĐỦ (không cắt ngắn) — CHỈ lưu ở đây (IndexedDB cục bộ),
   // KHÔNG gửi lên server/Mongo (server chỉ nhận specPreview đã cắt ngắn, xem
   // historyClient.ts) để giữ document Mongo gọn. Dùng cho nút "Reload" ở
@@ -92,6 +104,32 @@ export async function getHistoryEntries(ownerUuid: string | null): Promise<Histo
       resolve(filtered);
     };
     req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Tìm entry cục bộ theo `r2Id` (id ổn định dùng khi lưu creation lên R2 —
+ * xem HistoryEntry.r2Id) và vá thêm `patch` vào (vd transcodedVideoUrl sau
+ * khi chuyển mã xong) — dùng bởi UploadedVideoPreview.tsx qua App.tsx. Nếu
+ * có NHIỀU entry cùng r2Id (không nên xảy ra, nhưng phòng hờ), vá TẤT CẢ.
+ */
+export async function updateHistoryEntryByR2Id(r2Id: string, patch: Partial<HistoryEntry>): Promise<void> {
+  const db = await openDB();
+  const all: HistoryEntry[] = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => resolve((req.result as HistoryEntry[]) || []);
+    req.onerror = () => reject(req.error);
+  });
+  const matches = all.filter((r) => r.r2Id === r2Id);
+  if (matches.length === 0) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    matches.forEach((row) => store.put({ ...row, ...patch }));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 

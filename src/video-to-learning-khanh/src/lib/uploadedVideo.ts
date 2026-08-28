@@ -91,3 +91,15 @@ export async function processUploadedVideo(
   const [transcript, publicUrl] = await Promise.all([transcriptPromise, uploadPromise]);
   return { transcript, publicUrl, mimeType: file.type || 'video/mp4' };
 }
+
+/**
+ * Upload bản MP4 đã chuyển mã (client-side, xem lib/videoTranscode.ts) lên
+ * R2, dùng KHOÁ RIÊNG (`${uploadId}-mp4`) để không đè lên video gốc đã lưu
+ * ở khoá `uploadId` — gọi từ components/UploadedVideoPreview.tsx sau khi
+ * chuyển mã thành công, để cache lại cho lần xem SAU không phải chuyển mã
+ * lại từ đầu (xem App.tsx: handleTranscodedVideoCached).
+ */
+export async function uploadTranscodedMp4ToR2(uploadId: string, blob: Blob): Promise<string> {
+  const file = new File([blob], `${uploadId}-mp4.mp4`, { type: 'video/mp4' });
+  return uploadVideoFileToR2(`${uploadId}-mp4`, file);
+}

@@ -29,7 +29,7 @@ import {
 } from './lib/prompts';
 import { getFacebookEmbedUrl, getYoutubeEmbedUrl, getYouTubeVideoId, validateYoutubeUrl } from './lib/youtube';
 import { classifyLinkList, LINK_TYPE_LABELS, type ClassifiedLink, type LinkType } from './lib/linkClassifier';
-import { addHistoryEntry, getHistoryEntries, type HistoryEntry } from './lib/history/historyStorage';
+import { addHistoryEntry, getHistoryEntries, updateHistoryEntryByR2Id, type HistoryEntry } from './lib/history/historyStorage';
 import { saveHistoryToServer, fetchHistoryFromServer } from './lib/history/historyClient';
 import { saveCreationToR2, loadAllCreationsFromR2, type R2CreationRecord } from './lib/history/historyR2Client';
 import { getIdentity, getOrCreateGuestUuid } from './lib/identity';
@@ -56,6 +56,13 @@ interface QueueItem extends ClassifiedLink {
   // file thật, không phải link) — xem lib/uploadedVideo.ts.
   videoTranscript?: string;
   videoMimeType?: string;
+  // id ỔN ĐỊNH của video này trên R2 (video-to-learning/uploaded-videos/
+  // <videoUploadId>[-mp4].<ext> + video-to-learning/creations/<uuid>/
+  // <videoUploadId>.json) — xem HistoryEntry.r2Id trong historyStorage.ts.
+  videoUploadId?: string;
+  // URL R2 vĩnh viễn của bản MP4 đã chuyển mã TỪ TRƯỚC (nếu có, khi nạp lại
+  // từ lịch sử) — xem components/UploadedVideoPreview.tsx.
+  transcodedVideoUrl?: string | null;
 }
 
 type ExampleVideo = {
@@ -157,6 +164,8 @@ export default function App() {
         errorMessage: null,
         specPreview: (c.spec || '').slice(0, 500),
         mimeType: c.mimeType ?? null,
+        transcodedVideoUrl: c.transcodedVideoUrl ?? null,
+        r2Id: c.id,
         fullSpec: c.spec,
         fullCode: c.code,
         createdAt: c.timestamp,
@@ -216,11 +225,19 @@ export default function App() {
     specPreview?: string | null;
     // MIME của video gốc khi type = 'uploaded_video' — xem HistoryEntry.
     mimeType?: string | null;
+    // id ỔN ĐỊNH — CHỈ truyền cho type 'uploaded_video' (videoUploadId của
+    // QueueItem), để có thể "vá" thêm transcodedVideoUrl vào record NÀY ở 1
+    // lượt sau (xem handleTranscodedVideoCached bên dưới) thay vì luôn tạo
+    // record R2 mới mỗi lần gọi persistHistory. Không truyền -> tự sinh
+    // random như trước (các type khác không cần "vá" lại nên không quan
+    // trọng id có ổn định hay không).
+    id?: string;
     // CHỈ dùng để lưu IndexedDB (nút Reload) — KHÔNG gửi lên server, xem
     // chú thích ở HistoryEntry trong lib/history/historyStorage.ts.
     fullSpec?: string | null;
     fullCode?: string | null;
   }) => {
+    const stableId = entry.id || crypto.randomUUID();
     // Lưu cục bộ trước (luôn thành công, không phụ thuộc mạng)...
     try {
       await addHistoryEntry({
@@ -233,6 +250,7 @@ export default function App() {
         errorMessage: entry.errorMessage ?? null,
         specPreview: entry.specPreview ?? null,
         mimeType: entry.mimeType ?? null,
+        r2Id: entry.id ? stableId : null,
         fullSpec: entry.fullSpec ?? null,
         fullCode: entry.fullCode ?? null,
       });
@@ -268,7 +286,7 @@ export default function App() {
     if (entry.fullCode) {
       saveCreationToR2({
         uuid: r2Uuid,
-        id: crypto.randomUUID(),
+        id: stableId,
         type: entry.type,
         link: entry.link,
         title: entry.title ?? null,
@@ -283,6 +301,38 @@ export default function App() {
 
   const updateItem = (index: number, patch: Partial<QueueItem>) => {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  };
+
+  // Gọi từ UploadedVideoPreview.tsx SAU KHI đã chuyển mã (ffmpeg.wasm,
+  // client-side) VÀ upload xong bản MP4 lên R2 — lưu lại transcodedVideoUrl
+  // vào CẢ IndexedDB (qua r2Id) lẫn R2 creation JSON (gọi lại saveCreationToR2
+  // với CÙNG id — xem persistHistory ở trên) để lần xem SAU dùng thẳng, khỏi
+  // chuyển mã lại. Chỉ áp dụng khi item hiện đang chọn là 'uploaded_video'
+  // VÀ có videoUploadId (id ổn định) — không có thì bỏ qua (không cache được).
+  const handleTranscodedVideoCached = async (publicUrl: string) => {
+    if (!selected || selected.type !== 'uploaded_video' || !selected.videoUploadId || selectedIndex === null) return;
+    const uploadId = selected.videoUploadId;
+    updateItem(selectedIndex, { transcodedVideoUrl: publicUrl });
+
+    await updateHistoryEntryByR2Id(uploadId, { transcodedVideoUrl: publicUrl }).catch((err) =>
+      console.warn('[video-to-learning] updateHistoryEntryByR2Id failed:', err),
+    );
+
+    if (selected.code) {
+      await saveCreationToR2({
+        uuid: r2Uuid,
+        id: uploadId,
+        type: selected.type,
+        link: selected.url,
+        title: selected.pageTitle ?? null,
+        spec: selected.spec ?? '',
+        code: selected.code,
+        aiSource: selected.aiSource ?? null,
+        mimeType: selected.videoMimeType ?? undefined,
+        transcodedVideoUrl: publicUrl,
+        timestamp: new Date().toISOString(),
+      });
+    }
   };
 
   // Xử lý 1 item trong hàng đợi: video/short -> pipeline transcript+Groq cũ,
@@ -353,13 +403,14 @@ export default function App() {
           status: 'success',
           specPreview: generatedSpec.slice(0, 500),
           mimeType: item.videoMimeType ?? null,
+          id: item.videoUploadId,
           fullSpec: generatedSpec,
           fullCode: generatedCode,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Đã có lỗi không xác định xảy ra.';
         updateItem(index, { status: 'error', error: message });
-        await persistHistory({ type: item.type, link: item.url, status: 'error', errorMessage: message, mimeType: item.videoMimeType ?? null });
+        await persistHistory({ type: item.type, link: item.url, status: 'error', errorMessage: message, mimeType: item.videoMimeType ?? null, id: item.videoUploadId });
       }
       return;
     }
@@ -514,6 +565,7 @@ export default function App() {
         pageTitle: file.name,
         videoTranscript: result.transcript,
         videoMimeType: result.mimeType,
+        videoUploadId: id,
       };
       setItems([item]);
       setSelectedIndex(0);
@@ -612,6 +664,8 @@ export default function App() {
       aiSource: entry.aiSource ?? null,
       pageTitle: entry.title ?? null,
       videoMimeType: entry.mimeType ?? undefined,
+      videoUploadId: entry.r2Id ?? undefined,
+      transcodedVideoUrl: entry.transcodedVideoUrl ?? null,
     };
 
     setItems((prev) => [reloadedItem, ...prev]);
@@ -821,7 +875,13 @@ export default function App() {
         {/* Right column: generated content + history */}
         <div className="flex flex-col min-h-[70vh] rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
           {selected?.type === 'uploaded_video' && (
-            <UploadedVideoPreview videoUrl={selected.url} mimeType={selected.videoMimeType} />
+            <UploadedVideoPreview
+              videoUrl={selected.url}
+              mimeType={selected.videoMimeType}
+              uploadId={selected.videoUploadId}
+              cachedTranscodedUrl={selected.transcodedVideoUrl}
+              onCached={handleTranscodedVideoCached}
+            />
           )}
           <div className="flex border-b border-slate-800 px-2">
             {(
