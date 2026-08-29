@@ -12,6 +12,49 @@ serverless Node. Backend này dùng gói `mediapipe` (Python) — được hỗ 
 tốt để chạy suy luận (inference) trên server, tự tải ảnh/frame do client
 gửi lên qua HTTP.
 
+## Admin dashboard (test API + đo lường + tính tiền)
+
+Trang tĩnh tại `mediapipe-api/admin/index.html` — deploy cùng dự án, không
+cần build gì thêm. Sau khi deploy, mở:
+
+```
+https://<your-domain>/admin/
+```
+
+3 tab:
+- **Test kết nối** — dán API key, chọn ảnh, gọi thử từng endpoint, xem JSON trả về.
+- **Dashboard đo lường & tính tiền** — nhập Admin Secret, xem bảng usage
+  theo từng API key (chia theo endpoint) + tổng số tiền ước tính
+  (`total_requests × PRICE_PER_CALL_USD`).
+- **Quản lý API key** — thêm/xoá key cho khách ngay trên UI, không cần vào
+  Upstash console nữa (endpoint `POST/DELETE /api/admin-keys`).
+
+Cần thêm biến môi trường:
+- `ADMIN_SECRET` — mật khẩu riêng cho dashboard (khác hẳn API key của khách).
+- `PRICE_PER_CALL_USD` — giá mỗi lượt gọi để tính tiền ước tính (mặc định `0.001`).
+
+⚠️ Trang admin này **không có màn hình đăng nhập thật** (chỉ nhập secret vào
+form). Đủ dùng nội bộ, nhưng nếu public domain thì nên thêm Vercel
+Password Protection (Pro plan) hoặc giới hạn theo IP để tránh người ngoài
+mò vào form nhập secret.
+
+## Domain miễn phí
+
+Có 2 lựa chọn, đều **miễn phí phía Vercel** (không tính phí thêm domain):
+
+1. **Domain phụ tự động của Vercel** — mỗi project luôn có sẵn 1 domain
+   dạng `<ten-project>.vercel.app`, dùng ngay không cần cấu hình gì. App
+   chính của bạn cũng từng chạy kiểu này (`hienmaunhanvan.vercel.app`
+   trước khi đổi sang domain riêng — thấy trong `src/lib/siteUrl.js`).
+2. **Subdomain riêng trên domain đã có** (`hienmaunhanvan.com`) — vì bạn
+   đã sở hữu domain này rồi nên tạo `api.hienmaunhanvan.com` cũng miễn phí:
+   - Vercel project settings → Domains → thêm `api.hienmaunhanvan.com`.
+   - Vào nơi quản lý DNS của `hienmaunhanvan.com` (Cloudflare/Namecheap/...),
+     thêm bản ghi `CNAME api → cname.vercel-dns.com` (Vercel sẽ hiện đúng
+     giá trị cần thêm ngay trong bước trên).
+   - Đợi DNS lan truyền (thường vài phút tới ~1 giờ) là xong, hoàn toàn
+     không phát sinh chi phí ngoài phí duy trì domain bạn đã trả sẵn.
+
 ## Deploy
 
 1. Trên Vercel: **New Project** → chọn repo này → **Root Directory**:
@@ -21,6 +64,8 @@ gửi lên qua HTTP.
    - `UPSTASH_REDIS_REST_TOKEN`
    (Tạo free database tại https://upstash.com — chọn Redis → REST API,
    copy 2 giá trị trên vào Vercel.)
+   - `ADMIN_SECRET` — mật khẩu cho trang `/admin` (bịa 1 chuỗi dài, ngẫu nhiên).
+   - `PRICE_PER_CALL_USD` (tuỳ chọn) — giá mỗi lượt gọi, mặc định `0.001`.
 3. Deploy. Lần gọi API đầu tiên cho mỗi endpoint sẽ hơi chậm (cold start
    tải model `.task` từ Google về `/tmp`, ~vài MB–chục MB mỗi model);
    các lần sau trong cùng execution environment sẽ nhanh vì đã cache.

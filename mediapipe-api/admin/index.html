@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MediaPipe API — Admin</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0f14; color:#e6edf3; }
+  header { padding:16px 24px; border-bottom:1px solid #1f2937; display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  nav { display:flex; gap:4px; padding:12px 24px 0; }
+  nav button { background:none; border:none; color:#8b949e; padding:10px 16px; cursor:pointer; border-bottom:2px solid transparent; font-size:14px; }
+  nav button.active { color:#e6edf3; border-color:#3fb950; }
+  main { padding:24px; max-width:1100px; margin:0 auto; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  .card { background:#161b22; border:1px solid #1f2937; border-radius:10px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:12px; color:#8b949e; margin-bottom:4px; margin-top:12px; }
+  input, select { width:100%; padding:8px 10px; background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#e6edf3; font-size:14px; }
+  button.btn { margin-top:16px; padding:9px 16px; background:#238636; border:none; border-radius:6px; color:white; font-size:14px; cursor:pointer; }
+  button.btn.secondary { background:#21262d; border:1px solid #30363d; }
+  button.btn.danger { background:#da3633; }
+  pre { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:340px; font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:12px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #1f2937; }
+  th { color:#8b949e; font-weight:500; }
+  .bar { height:6px; background:#238636; border-radius:3px; }
+  .barTrack { background:#21262d; border-radius:3px; }
+  .stat { display:inline-block; margin-right:32px; }
+  .stat .n { font-size:22px; font-weight:600; }
+  .stat .l { font-size:12px; color:#8b949e; }
+  .row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:180px; }
+  .muted { color:#8b949e; font-size:12px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:100px; background:#1f2937; font-size:11px; margin-left:8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧠 MediaPipe API — Admin</h1>
+  <span class="muted" id="originLabel"></span>
+</header>
+
+<nav>
+  <button class="tabBtn active" data-tab="test">Test kết nối</button>
+  <button class="tabBtn" data-tab="dashboard">Dashboard đo lường & tính tiền</button>
+  <button class="tabBtn" data-tab="keys">Quản lý API key</button>
+</nav>
+
+<main>
+
+  <!-- TEST TAB -->
+  <section class="panel active" id="panel-test">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Base URL (mặc định = domain hiện tại)</label>
+          <input id="baseUrl" placeholder="https://your-project.vercel.app" />
+        </div>
+        <div>
+          <label>API Key (X-API-Key)</label>
+          <input id="apiKey" placeholder="sk_..." />
+        </div>
+        <div>
+          <label>Endpoint</label>
+          <select id="endpoint">
+            <option value="pose">pose</option>
+            <option value="hand">hand</option>
+            <option value="face">face</option>
+            <option value="gesture">gesture</option>
+          </select>
+        </div>
+      </div>
+      <label>Ảnh test</label>
+      <input id="imageFile" type="file" accept="image/*" />
+      <button class="btn" id="runBtn">▶ Gọi API</button>
+      <button class="btn secondary" id="pingBtn">Kiểm tra kết nối (usage)</button>
+      <p class="muted" id="testStatus"></p>
+    </div>
+    <div class="card">
+      <label>Kết quả</label>
+      <pre id="result">Chưa có kết quả.</pre>
+    </div>
+  </section>
+
+  <!-- DASHBOARD TAB -->
+  <section class="panel" id="panel-dashboard">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Base URL</label>
+          <input id="dashBaseUrl" placeholder="https://your-project.vercel.app" />
+        </div>
+        <div>
+          <label>Admin Secret (X-Admin-Secret)</label>
+          <input id="adminSecret" type="password" placeholder="admin secret" />
+        </div>
+        <div>
+          <label>Tháng (YYYY-MM, để trống = tháng này)</label>
+          <input id="monthInput" placeholder="2026-08" />
+        </div>
+      </div>
+      <button class="btn" id="loadDashBtn">↻ Tải dữ liệu</button>
+      <p class="muted" id="dashStatus"></p>
+    </div>
+
+    <div class="card" id="statsCard" style="display:none">
+      <div class="stat"><div class="n" id="statKeys">0</div><div class="l">API keys</div></div>
+      <div class="stat"><div class="n" id="statCalls">0</div><div class="l">Tổng lượt gọi</div></div>
+      <div class="stat"><div class="n" id="statCost">$0</div><div class="l">Ước tính tiền phải thu</div></div>
+      <div class="stat"><div class="n" id="statPrice">$0</div><div class="l">Giá / lượt gọi</div></div>
+    </div>
+
+    <div class="card" id="tableCard" style="display:none">
+      <table>
+        <thead><tr><th>API Key</th><th>Pose</th><th>Hand</th><th>Face</th><th>Gesture</th><th>Tổng</th><th>Ước tính $</th><th></th></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- KEYS TAB -->
+  <section class="panel" id="panel-keys">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Base URL</label>
+          <input id="keysBaseUrl" placeholder="https://your-project.vercel.app" />
+        </div>
+        <div>
+          <label>Admin Secret</label>
+          <input id="keysAdminSecret" type="password" placeholder="admin secret" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>API key mới cho khách (đặt tiền tố sk_...)</label>
+          <input id="newKey" placeholder="sk_khach_abc123" />
+        </div>
+      </div>
+      <button class="btn" id="addKeyBtn">+ Thêm key</button>
+      <button class="btn secondary" id="loadKeysBtn">↻ Tải danh sách</button>
+      <p class="muted" id="keysStatus"></p>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>API Key</th><th></th></tr></thead>
+        <tbody id="keysBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+document.getElementById('originLabel').textContent = location.origin;
+
+// tabs
+document.querySelectorAll('.tabBtn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tabBtn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  };
+});
+
+// persist small conveniences locally (this is your own deployed page, not a Claude artifact)
+const persisted = ['baseUrl','apiKey','dashBaseUrl','adminSecret','keysBaseUrl','keysAdminSecret'];
+persisted.forEach(id => {
+  const el = $(id);
+  const saved = localStorage.getItem('mp_admin_' + id);
+  if (saved) el.value = saved;
+  el.addEventListener('change', () => localStorage.setItem('mp_admin_' + id, el.value));
+});
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+// ---- Test tab ----
+$('runBtn').onclick = async () => {
+  const base = $('baseUrl').value.trim() || location.origin;
+  const key = $('apiKey').value.trim();
+  const endpoint = $('endpoint').value;
+  const file = $('imageFile').files[0];
+  if (!key) return $('testStatus').textContent = 'Nhập API key trước.';
+  if (!file) return $('testStatus').textContent = 'Chọn ảnh test trước.';
+  $('testStatus').textContent = 'Đang gọi ' + endpoint + '...';
+  $('result').textContent = '';
+  try {
+    const b64 = await fileToBase64(file);
+    const t0 = performance.now();
+    const res = await fetch(base + '/api/' + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body: JSON.stringify({ image: b64 }),
+    });
+    const ms = Math.round(performance.now() - t0);
+    const data = await res.json();
+    $('testStatus').textContent = res.ok
+      ? `✓ Thành công (${res.status}) — ${ms}ms`
+      : `✗ Lỗi (${res.status}) — ${ms}ms`;
+    $('result').textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    $('testStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
+  }
+};
+
+$('pingBtn').onclick = async () => {
+  const base = $('baseUrl').value.trim() || location.origin;
+  const key = $('apiKey').value.trim();
+  if (!key) return $('testStatus').textContent = 'Nhập API key trước.';
+  $('testStatus').textContent = 'Đang kiểm tra...';
+  try {
+    const res = await fetch(base + '/api/usage', { headers: { 'X-API-Key': key } });
+    const data = await res.json();
+    $('testStatus').textContent = res.ok ? '✓ Kết nối OK, key hợp lệ' : '✗ Key không hợp lệ hoặc lỗi server';
+    $('result').textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    $('testStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
+  }
+};
+
+// ---- Dashboard tab ----
+$('loadDashBtn').onclick = async () => {
+  const base = $('dashBaseUrl').value.trim() || location.origin;
+  const secret = $('adminSecret').value.trim();
+  const month = $('monthInput').value.trim();
+  if (!secret) return $('dashStatus').textContent = 'Nhập admin secret trước.';
+  $('dashStatus').textContent = 'Đang tải...';
+  try {
+    const url = base + '/api/admin-overview' + (month ? '?month=' + encodeURIComponent(month) : '');
+    const res = await fetch(url, { headers: { 'X-Admin-Secret': secret } });
+    const data = await res.json();
+    if (!res.ok) { $('dashStatus').textContent = '✗ ' + (data.error || 'Lỗi'); return; }
+    $('dashStatus').textContent = 'Đã tải — tháng ' + data.month;
+    $('statsCard').style.display = 'block';
+    $('tableCard').style.display = 'block';
+    $('statKeys').textContent = data.total_keys;
+    $('statCalls').textContent = data.total_requests;
+    $('statCost').textContent = '$' + data.total_estimated_cost_usd;
+    $('statPrice').textContent = '$' + data.price_per_call_usd;
+
+    const maxReq = Math.max(1, ...data.keys.map(k => k.total_requests));
+    $('tableBody').innerHTML = data.keys.map(k => `
+      <tr>
+        <td>${maskKey(k.api_key)}<br/>
+          <div class="barTrack" style="width:120px"><div class="bar" style="width:${(k.total_requests / maxReq * 100).toFixed(0)}%"></div></div>
+        </td>
+        <td>${k.by_endpoint.pose || 0}</td>
+        <td>${k.by_endpoint.hand || 0}</td>
+        <td>${k.by_endpoint.face || 0}</td>
+        <td>${k.by_endpoint.gesture || 0}</td>
+        <td><b>${k.total_requests}</b></td>
+        <td>$${k.estimated_cost_usd}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="7" class="muted">Chưa có key nào / chưa có usage.</td></tr>';
+  } catch (e) {
+    $('dashStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
+  }
+};
+
+function maskKey(k) {
+  if (k.length <= 8) return k;
+  return k.slice(0, 6) + '…' + k.slice(-4);
+}
+
+// ---- Keys tab ----
+$('loadKeysBtn').onclick = async () => {
+  const base = $('keysBaseUrl').value.trim() || location.origin;
+  const secret = $('keysAdminSecret').value.trim();
+  if (!secret) return $('keysStatus').textContent = 'Nhập admin secret trước.';
+  $('keysStatus').textContent = 'Đang tải...';
+  try {
+    const res = await fetch(base + '/api/admin-keys', { headers: { 'X-Admin-Secret': secret } });
+    const data = await res.json();
+    if (!res.ok) { $('keysStatus').textContent = '✗ ' + (data.error || 'Lỗi'); return; }
+    $('keysStatus').textContent = data.keys.length + ' key.';
+    $('keysBody').innerHTML = data.keys.map(k => `
+      <tr><td>${k}</td><td><button class="btn danger" data-key="${k}">Xoá</button></td></tr>
+    `).join('') || '<tr><td colspan="2" class="muted">Chưa có key nào.</td></tr>';
+    $('keysBody').querySelectorAll('button[data-key]').forEach(btn => {
+      btn.onclick = async () => {
+        await fetch(base + '/api/admin-keys', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
+          body: JSON.stringify({ api_key: btn.dataset.key }),
+        });
+        $('loadKeysBtn').click();
+      };
+    });
+  } catch (e) {
+    $('keysStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
+  }
+};
+
+$('addKeyBtn').onclick = async () => {
+  const base = $('keysBaseUrl').value.trim() || location.origin;
+  const secret = $('keysAdminSecret').value.trim();
+  const newKey = $('newKey').value.trim();
+  if (!secret) return $('keysStatus').textContent = 'Nhập admin secret trước.';
+  if (!newKey) return $('keysStatus').textContent = 'Nhập giá trị key mới trước.';
+  $('keysStatus').textContent = 'Đang thêm...';
+  try {
+    const res = await fetch(base + '/api/admin-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
+      body: JSON.stringify({ api_key: newKey }),
+    });
+    const data = await res.json();
+    $('keysStatus').textContent = res.ok ? '✓ Đã thêm ' + data.added : '✗ ' + (data.error || 'Lỗi');
+    $('newKey').value = '';
+    $('loadKeysBtn').click();
+  } catch (e) {
+    $('keysStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
+  }
+};
+</script>
+</body>
+</html>
