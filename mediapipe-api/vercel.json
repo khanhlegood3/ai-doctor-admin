@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/*.py": {
+      "memory": 2048,
+      "maxDuration": 60
+    }
+  }
+}
