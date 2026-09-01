@@ -107,6 +107,7 @@ hoặc (video / nhiều frame, tối đa 30 frame/request):
 | `POST /api/face`    | 478 điểm khuôn mặt + blendshapes (biểu cảm) |
 | `POST /api/gesture` | Cử chỉ tay được nhận diện (vd: Thumb_Up, Victory...) |
 | `GET /api/usage`    | Số lượt đã dùng trong tháng (theo API key) |
+| `GET /api/health`   | Trạng thái hệ thống (Redis, env var) — **không cần API key**, dùng để debug lúc mới deploy |
 
 Ví dụ gọi:
 
