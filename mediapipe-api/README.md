@@ -12,31 +12,37 @@ serverless Node. Backend này dùng gói `mediapipe` (Python) — được hỗ 
 tốt để chạy suy luận (inference) trên server, tự tải ảnh/frame do client
 gửi lên qua HTTP.
 
-## Admin dashboard (test API + đo lường + tính tiền)
+## Admin dashboard (đăng nhập bằng mật khẩu, có session)
 
-Trang tĩnh tại `mediapipe-api/admin/index.html` — deploy cùng dự án, không
-cần build gì thêm. Sau khi deploy, mở:
+Trang tại `/admin` giờ có **đăng nhập thật** thay vì form nhập secret trần:
 
-```
-https://<your-domain>/admin/
-```
+- `GET /admin` chưa đăng nhập → hiện form nhập mật khẩu (chính là
+  `ADMIN_SECRET`).
+- Đăng nhập đúng → set cookie `HttpOnly` + `Secure` + `SameSite=Strict`
+  (ký bằng HMAC-SHA256, không dùng dependency ngoài), sống 12 tiếng, rồi
+  chuyển vào dashboard.
+- Vào dashboard rồi thì các ô "Admin Secret" ở tab Dashboard/Keys tự điền
+  sẵn (server đã biết bạn đăng nhập đúng nên không bắt gõ lại).
+- `GET /admin?logout=1` — xoá cookie, có nút "Đăng xuất" trên góc phải header.
+- Trang dashboard **không còn là file tĩnh** (`admin/index.html` cũ đã bị
+  xoá) — nó chỉ tồn tại dưới dạng chuỗi HTML render server-side trong
+  `api/_lib/admin_page_html.py`, chỉ trả về sau khi cookie hợp lệ, nên
+  không ai truy cập trực tiếp bypass đăng nhập được.
 
-3 tab:
-- **Test kết nối** — dán API key, chọn ảnh, gọi thử từng endpoint, xem JSON trả về.
-- **Dashboard đo lường & tính tiền** — nhập Admin Secret, xem bảng usage
-  theo từng API key (chia theo endpoint) + tổng số tiền ước tính
-  (`total_requests × PRICE_PER_CALL_USD`).
-- **Quản lý API key** — thêm/xoá key cho khách ngay trên UI, không cần vào
-  Upstash console nữa (endpoint `POST/DELETE /api/admin-keys`).
+3 tab bên trong vẫn như cũ:
+- **Test kết nối** — kiểm tra hệ thống (`/api/health`, không cần đăng nhập
+  admin), test API + overlay landmarks.
+- **Dashboard đo lường & tính tiền**.
+- **Quản lý API key** (kèm nhãn khách hàng).
 
 Cần thêm biến môi trường:
 - `ADMIN_SECRET` — mật khẩu riêng cho dashboard (khác hẳn API key của khách).
 - `PRICE_PER_CALL_USD` — giá mỗi lượt gọi để tính tiền ước tính (mặc định `0.001`).
 
-⚠️ Trang admin này **không có màn hình đăng nhập thật** (chỉ nhập secret vào
-form). Đủ dùng nội bộ, nhưng nếu public domain thì nên thêm Vercel
-Password Protection (Pro plan) hoặc giới hạn theo IP để tránh người ngoài
-mò vào form nhập secret.
+⚠️ Trang admin giờ đã yêu cầu đăng nhập bằng `ADMIN_SECRET` trước khi vào
+được bất kỳ tab nào (cookie ký HMAC, `HttpOnly`/`Secure`, sống 12h) — không
+còn phải tự bật thêm Vercel Password Protection nữa. Muốn đăng xuất sớm
+hơn 12h thì vào `/admin?logout=1`.
 
 ## Domain miễn phí
 
@@ -137,8 +143,8 @@ curl -X POST https://<your-domain>/api/pose \
 - Rate limit theo phút có thể bật qua `RATE_LIMIT_PER_MINUTE`, nhưng đây là
   giới hạn "best effort" (đếm theo cửa sổ 1 phút cố định, không phải sliding
   window chính xác tuyệt đối) — đủ để chặn spam thô, chưa phải chống DDoS.
-- Trang `/admin` chưa có màn đăng nhập thật, chỉ nhập secret vào form mỗi
-  lần — nên hạn chế chia sẻ đường link nếu không cần thiết.
+- Session đăng nhập admin sống 12h rồi tự hết hạn (hoặc bấm "Đăng xuất").
+  Không có tài khoản nhiều người dùng — chỉ 1 mật khẩu chung (`ADMIN_SECRET`).
 - Thu tiền vẫn là **thủ công**: dashboard chỉ cho số liệu + ước tính $,
   chưa tự trừ tiền/xuất hoá đơn. Khi cần tự động, nối Stripe Metered
   Billing như mô tả ở trên.
