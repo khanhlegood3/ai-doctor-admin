@@ -35,6 +35,10 @@
   .row > div { flex:1; min-width:180px; }
   .muted { color:#8b949e; font-size:12px; }
   .pill { display:inline-block; padding:2px 8px; border-radius:100px; background:#1f2937; font-size:11px; margin-left:8px; }
+  .status-item { display:inline-flex; align-items:center; gap:6px; margin-right:20px; margin-top:6px; font-size:13px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dot.ok { background:#3fb950; }
+  .dot.bad { background:#da3633; }
 </style>
 </head>
 <body>
@@ -54,6 +58,17 @@
 
   <!-- TEST TAB -->
   <section class="panel active" id="panel-test">
+    <div class="card">
+      <div class="row" style="align-items:center">
+        <div>
+          <label>Trạng thái hệ thống (không cần API key)</label>
+          <div id="healthGrid" class="muted">Bấm "Kiểm tra" để xem Redis, env var đã cấu hình đúng chưa.</div>
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn secondary" id="healthBtn">🩺 Kiểm tra hệ thống</button>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="row">
         <div>
@@ -308,6 +323,25 @@ $('imageFile').addEventListener('change', async () => {
   drawBaseImage();
   $('overlayHint').textContent = 'Đã tải ảnh xem trước. Bấm "Gọi API" để vẽ overlay.';
 });
+
+// ---- Health check (no API key needed) ----
+$('healthBtn').onclick = async () => {
+  const base = $('baseUrl').value.trim() || location.origin;
+  $('healthGrid').textContent = 'Đang kiểm tra...';
+  try {
+    const res = await fetch(base + '/api/health');
+    const d = await res.json();
+    const item = (ok, label) => `<span class="status-item"><span class="dot ${ok ? 'ok' : 'bad'}"></span>${label}</span>`;
+    $('healthGrid').innerHTML =
+      item(d.redis_connected, 'Redis kết nối được') +
+      item(d.upstash_env_vars_set, 'Env var Upstash đã set') +
+      item(d.admin_secret_set, 'ADMIN_SECRET đã set') +
+      item(d.ready, d.ready ? 'Sẵn sàng dùng' : 'Chưa sẵn sàng — kiểm tra lại env var') +
+      `<span class="status-item muted">Giá/lượt: $${d.price_per_call_usd} · Rate limit: ${d.rate_limit_per_minute || 'không giới hạn'}</span>`;
+  } catch (e) {
+    $('healthGrid').textContent = '✗ Không gọi được /api/health: ' + e.message;
+  }
+};
 
 // ---- Test tab ----
 $('runBtn').onclick = async () => {
