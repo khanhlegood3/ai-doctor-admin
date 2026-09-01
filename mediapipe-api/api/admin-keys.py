@@ -2,7 +2,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from _lib.admin import check_admin_secret, list_all_keys
-from _lib.auth import ApiError, _redis_call
+from _lib.auth import ApiError, _redis_call, remove_key_label, set_key_label
 from _lib.base_handler import CORS_HEADERS
 
 
@@ -34,7 +34,10 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             check_admin_secret(self.headers)
-            self._send_json(200, {"keys": list_all_keys()})
+            from _lib.auth import get_key_labels
+            labels = get_key_labels()
+            keys = list_all_keys()
+            self._send_json(200, {"keys": [{"api_key": k, "label": labels.get(k, "")} for k in keys]})
         except ApiError as e:
             self._send_json(e.status, {"error": e.message})
         except Exception:
@@ -45,11 +48,14 @@ class handler(BaseHTTPRequestHandler):
             check_admin_secret(self.headers)
             body = self._read_body()
             key = (body.get("api_key") or "").strip()
+            label = (body.get("label") or "").strip()
             if not key:
                 self._send_json(400, {"error": "'api_key' is required"})
                 return
             _redis_call("SADD", "mediapipe:keys", key)
-            self._send_json(200, {"added": key})
+            if label:
+                set_key_label(key, label)
+            self._send_json(200, {"added": key, "label": label})
         except ApiError as e:
             self._send_json(e.status, {"error": e.message})
         except Exception:
@@ -64,6 +70,7 @@ class handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "'api_key' is required"})
                 return
             _redis_call("SREM", "mediapipe:keys", key)
+            remove_key_label(key)
             self._send_json(200, {"removed": key})
         except ApiError as e:
             self._send_json(e.status, {"error": e.message})

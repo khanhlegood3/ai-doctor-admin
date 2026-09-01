@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from _lib.admin import check_admin_secret, list_all_keys, mget, scan_usage_keys
-from _lib.auth import ApiError
+from _lib.auth import ApiError, get_key_labels
 from _lib.base_handler import CORS_HEADERS
 
 PRICE_PER_CALL_USD = float(os.environ.get("PRICE_PER_CALL_USD", "0.001"))
@@ -18,6 +18,7 @@ def _month_str(month):
 
 def build_overview(month):
     keys = list_all_keys()
+    labels = get_key_labels()
     rows = []
     total_calls = 0
 
@@ -30,6 +31,7 @@ def build_overview(month):
 
         rows.append({
             "api_key": key,
+            "label": labels.get(key, ""),
             "total_requests": total,
             "by_endpoint": by_endpoint,
             "estimated_cost_usd": round(total * PRICE_PER_CALL_USD, 4),

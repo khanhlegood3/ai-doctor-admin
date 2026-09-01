@@ -66,6 +66,22 @@ def check_api_key(headers):
     return key
 
 
+def check_rate_limit(key):
+    """Sliding-ish per-minute limit: INCR a counter bucketed by the current
+    minute, set to expire in 60s the first time it's touched. Configurable
+    via RATE_LIMIT_PER_MINUTE (0 or unset = no limit)."""
+    limit = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "0") or "0")
+    if limit <= 0:
+        return
+    bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+    redis_key = f"mediapipe:ratelimit:{key}:{bucket}"
+    count = _redis_call("INCR", redis_key).get("result", 0)
+    if count == 1:
+        _redis_call("EXPIRE", redis_key, "60")
+    if count > limit:
+        raise ApiError(429, f"Rate limit exceeded ({limit} requests/minute). Try again shortly.")
+
+
 def record_usage(key, endpoint, increment=1):
     """Increments the monthly usage counter for this key. Best-effort — a
     metering failure should never block the actual API response, so callers
@@ -87,3 +103,19 @@ def get_usage(key, month=None):
         "total_requests": int(total.get("result") or 0),
         "by_endpoint": per_endpoint,
     }
+
+
+def set_key_label(key, label):
+    """Human-readable name for who this key belongs to (e.g. 'Công ty ABC'),
+    shown in the admin dashboard so you know who to invoice."""
+    _redis_call("HSET", "mediapipe:key_labels", key, label)
+
+
+def get_key_labels():
+    result = _redis_call("HGETALL", "mediapipe:key_labels")
+    flat = result.get("result") or []
+    return dict(zip(flat[0::2], flat[1::2]))
+
+
+def remove_key_label(key):
+    _redis_call("HDEL", "mediapipe:key_labels", key)

@@ -8,7 +8,7 @@ import json
 import traceback
 from http.server import BaseHTTPRequestHandler
 
-from _lib.auth import ApiError, check_api_key, record_usage
+from _lib.auth import ApiError, check_api_key, check_rate_limit, record_usage
 from _lib.imaging import BadRequest, parse_images_from_body
 
 CORS_HEADERS = {
@@ -39,6 +39,7 @@ def make_handler(endpoint_name, process_fn):
         def do_POST(self):
             try:
                 api_key = check_api_key(self.headers)
+                check_rate_limit(api_key)
 
                 length = int(self.headers.get("Content-Length", 0))
                 raw_body = self.rfile.read(length).decode("utf-8") if length else "{}"

@@ -66,6 +66,8 @@ Có 2 lựa chọn, đều **miễn phí phía Vercel** (không tính phí thêm
    copy 2 giá trị trên vào Vercel.)
    - `ADMIN_SECRET` — mật khẩu cho trang `/admin` (bịa 1 chuỗi dài, ngẫu nhiên).
    - `PRICE_PER_CALL_USD` (tuỳ chọn) — giá mỗi lượt gọi, mặc định `0.001`.
+   - `RATE_LIMIT_PER_MINUTE` (tuỳ chọn) — giới hạn request/phút mỗi API key,
+     mặc định `0` (không giới hạn). Đặt ví dụ `60` để chặn spam/abuse.
 3. Deploy. Lần gọi API đầu tiên cho mỗi endpoint sẽ hơi chậm (cold start
    tải model `.task` từ Google về `/tmp`, ~vài MB–chục MB mỗi model);
    các lần sau trong cùng execution environment sẽ nhanh vì đã cache.
@@ -131,5 +133,11 @@ curl -X POST https://<your-domain>/api/pose \
 - Mỗi request tối đa 30 frame (batch/video) — tránh timeout function.
 - `maxDuration: 60s` trong `vercel.json` — cần gói Vercel Pro trở lên nếu
   muốn hơn 10s (Hobby plan giới hạn 10s/function).
-- Chưa có rate limiting theo giây/phút, chỉ đếm theo tháng — nên thêm nếu
-  lo bị spam.
+- Rate limit theo phút có thể bật qua `RATE_LIMIT_PER_MINUTE`, nhưng đây là
+  giới hạn "best effort" (đếm theo cửa sổ 1 phút cố định, không phải sliding
+  window chính xác tuyệt đối) — đủ để chặn spam thô, chưa phải chống DDoS.
+- Trang `/admin` chưa có màn đăng nhập thật, chỉ nhập secret vào form mỗi
+  lần — nên hạn chế chia sẻ đường link nếu không cần thiết.
+- Thu tiền vẫn là **thủ công**: dashboard chỉ cho số liệu + ước tính $,
+  chưa tự trừ tiền/xuất hoá đơn. Khi cần tự động, nối Stripe Metered
+  Billing như mô tả ở trên.

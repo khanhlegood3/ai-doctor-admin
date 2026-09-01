@@ -116,7 +116,7 @@
 
     <div class="card" id="tableCard" style="display:none">
       <table>
-        <thead><tr><th>API Key</th><th>Pose</th><th>Hand</th><th>Face</th><th>Gesture</th><th>Tổng</th><th>Ước tính $</th><th></th></tr></thead>
+        <thead><tr><th>API Key</th><th>Nhãn</th><th>Pose</th><th>Hand</th><th>Face</th><th>Gesture</th><th>Tổng</th><th>Ước tính $</th></tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
     </div>
@@ -140,6 +140,10 @@
           <label>API key mới cho khách (đặt tiền tố sk_...)</label>
           <input id="newKey" placeholder="sk_khach_abc123" />
         </div>
+        <div>
+          <label>Nhãn / Tên khách (để biết ai là ai khi tính tiền)</label>
+          <input id="newKeyLabel" placeholder="Công ty ABC" />
+        </div>
       </div>
       <button class="btn" id="addKeyBtn">+ Thêm key</button>
       <button class="btn secondary" id="loadKeysBtn">↻ Tải danh sách</button>
@@ -147,7 +151,7 @@
     </div>
     <div class="card">
       <table>
-        <thead><tr><th>API Key</th><th></th></tr></thead>
+        <thead><tr><th>API Key</th><th>Nhãn</th><th></th></tr></thead>
         <tbody id="keysBody"></tbody>
       </table>
     </div>
@@ -257,6 +261,7 @@ $('loadDashBtn').onclick = async () => {
         <td>${maskKey(k.api_key)}<br/>
           <div class="barTrack" style="width:120px"><div class="bar" style="width:${(k.total_requests / maxReq * 100).toFixed(0)}%"></div></div>
         </td>
+        <td>${k.label || '<span class="muted">—</span>'}</td>
         <td>${k.by_endpoint.pose || 0}</td>
         <td>${k.by_endpoint.hand || 0}</td>
         <td>${k.by_endpoint.face || 0}</td>
@@ -264,7 +269,7 @@ $('loadDashBtn').onclick = async () => {
         <td><b>${k.total_requests}</b></td>
         <td>$${k.estimated_cost_usd}</td>
       </tr>
-    `).join('') || '<tr><td colspan="7" class="muted">Chưa có key nào / chưa có usage.</td></tr>';
+    `).join('') || '<tr><td colspan="8" class="muted">Chưa có key nào / chưa có usage.</td></tr>';
   } catch (e) {
     $('dashStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
   }
@@ -287,8 +292,8 @@ $('loadKeysBtn').onclick = async () => {
     if (!res.ok) { $('keysStatus').textContent = '✗ ' + (data.error || 'Lỗi'); return; }
     $('keysStatus').textContent = data.keys.length + ' key.';
     $('keysBody').innerHTML = data.keys.map(k => `
-      <tr><td>${k}</td><td><button class="btn danger" data-key="${k}">Xoá</button></td></tr>
-    `).join('') || '<tr><td colspan="2" class="muted">Chưa có key nào.</td></tr>';
+      <tr><td>${k.api_key}</td><td>${k.label || '<span class="muted">—</span>'}</td><td><button class="btn danger" data-key="${k.api_key}">Xoá</button></td></tr>
+    `).join('') || '<tr><td colspan="3" class="muted">Chưa có key nào.</td></tr>';
     $('keysBody').querySelectorAll('button[data-key]').forEach(btn => {
       btn.onclick = async () => {
         await fetch(base + '/api/admin-keys', {
@@ -308,6 +313,7 @@ $('addKeyBtn').onclick = async () => {
   const base = $('keysBaseUrl').value.trim() || location.origin;
   const secret = $('keysAdminSecret').value.trim();
   const newKey = $('newKey').value.trim();
+  const label = $('newKeyLabel').value.trim();
   if (!secret) return $('keysStatus').textContent = 'Nhập admin secret trước.';
   if (!newKey) return $('keysStatus').textContent = 'Nhập giá trị key mới trước.';
   $('keysStatus').textContent = 'Đang thêm...';
@@ -315,11 +321,12 @@ $('addKeyBtn').onclick = async () => {
     const res = await fetch(base + '/api/admin-keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
-      body: JSON.stringify({ api_key: newKey }),
+      body: JSON.stringify({ api_key: newKey, label }),
     });
     const data = await res.json();
     $('keysStatus').textContent = res.ok ? '✓ Đã thêm ' + data.added : '✗ ' + (data.error || 'Lỗi');
     $('newKey').value = '';
+    $('newKeyLabel').value = '';
     $('loadKeysBtn').click();
   } catch (e) {
     $('keysStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
