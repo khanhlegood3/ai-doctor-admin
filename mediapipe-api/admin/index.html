@@ -81,7 +81,12 @@
       <p class="muted" id="testStatus"></p>
     </div>
     <div class="card">
-      <label>Kết quả</label>
+      <label>Overlay landmarks</label>
+      <canvas id="overlayCanvas" style="max-width:100%; background:#0d1117; border:1px solid #30363d; border-radius:6px; display:block;"></canvas>
+      <p class="muted" id="overlayHint">Chọn ảnh rồi bấm "Gọi API" để xem overlay.</p>
+    </div>
+    <div class="card">
+      <label>Kết quả (JSON thô)</label>
       <pre id="result">Chưa có kết quả.</pre>
     </div>
   </section>
@@ -191,6 +196,119 @@ function fileToBase64(file) {
   });
 }
 
+function loadImageEl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ---- Overlay drawing (landmarks are normalized 0..1 coords from the API) ----
+const POSE_CONNECTIONS = [
+  [11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],
+  [27,29],[28,30],[29,31],[30,32],[27,31],[28,32],
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+];
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],[0,17],
+];
+
+let currentImageEl = null; // last loaded <img> for the selected file
+
+function drawBaseImage() {
+  const canvas = $('overlayCanvas');
+  if (!currentImageEl) return null;
+  const maxW = 560;
+  const scale = Math.min(1, maxW / currentImageEl.naturalWidth);
+  canvas.width = currentImageEl.naturalWidth * scale;
+  canvas.height = currentImageEl.naturalHeight * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(currentImageEl, 0, 0, canvas.width, canvas.height);
+  return ctx;
+}
+
+function drawPoints(ctx, points, color, radius) {
+  ctx.fillStyle = color;
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawConnections(ctx, points, connections, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  connections.forEach(([a, b]) => {
+    if (!points[a] || !points[b]) return;
+    ctx.beginPath();
+    ctx.moveTo(points[a].x * ctx.canvas.width, points[a].y * ctx.canvas.height);
+    ctx.lineTo(points[b].x * ctx.canvas.width, points[b].y * ctx.canvas.height);
+    ctx.stroke();
+  });
+}
+
+function renderOverlay(endpoint, data) {
+  const ctx = drawBaseImage();
+  if (!ctx) return;
+  const frame = data.results && data.results[0]; // preview only overlays the first frame
+  if (!frame) { $('overlayHint').textContent = 'Không có kết quả để vẽ overlay.'; return; }
+
+  if (endpoint === 'pose') {
+    const poses = frame.poses || [];
+    poses.forEach(pts => {
+      drawConnections(ctx, pts, POSE_CONNECTIONS, '#3fb950');
+      drawPoints(ctx, pts, '#f0883e', 3);
+    });
+    $('overlayHint').textContent = poses.length ? `${poses.length} pose(s) phát hiện được.` : 'Không phát hiện pose nào.';
+
+  } else if (endpoint === 'hand') {
+    const hands = frame.hands || [];
+    hands.forEach(h => {
+      drawConnections(ctx, h.landmarks, HAND_CONNECTIONS, '#58a6ff');
+      drawPoints(ctx, h.landmarks, '#f0883e', 3);
+    });
+    $('overlayHint').textContent = hands.length
+      ? hands.map(h => h.handedness).join(', ') + ' — ' + hands.length + ' tay phát hiện được.'
+      : 'Không phát hiện tay nào.';
+
+  } else if (endpoint === 'face') {
+    const faces = frame.faces || [];
+    faces.forEach(f => drawPoints(ctx, f.landmarks, '#d2a8ff', 1.2));
+    $('overlayHint').textContent = faces.length ? `${faces.length} khuôn mặt phát hiện được.` : 'Không phát hiện khuôn mặt nào.';
+
+  } else if (endpoint === 'gesture') {
+    const hands = frame.hands || [];
+    ctx.font = 'bold 16px sans-serif';
+    hands.forEach((h, i) => {
+      const label = `${h.handedness || '?'}: ${h.gesture || 'Không rõ'} (${h.score ? (h.score * 100).toFixed(0) + '%' : '—'})`;
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(8, 8 + i * 26, ctx.measureText(label).width + 12, 22);
+      ctx.fillStyle = '#3fb950';
+      ctx.fillText(label, 14, 24 + i * 26);
+    });
+    $('overlayHint').textContent = hands.length
+      ? 'Endpoint gesture không trả toạ độ điểm, chỉ nhãn cử chỉ — hiển thị dạng chữ.'
+      : 'Không phát hiện tay nào.';
+  }
+}
+
+$('imageFile').addEventListener('change', async () => {
+  const file = $('imageFile').files[0];
+  if (!file) return;
+  currentImageEl = await loadImageEl(file);
+  drawBaseImage();
+  $('overlayHint').textContent = 'Đã tải ảnh xem trước. Bấm "Gọi API" để vẽ overlay.';
+});
+
 // ---- Test tab ----
 $('runBtn').onclick = async () => {
   const base = $('baseUrl').value.trim() || location.origin;
@@ -215,6 +333,7 @@ $('runBtn').onclick = async () => {
       ? `✓ Thành công (${res.status}) — ${ms}ms`
       : `✗ Lỗi (${res.status}) — ${ms}ms`;
     $('result').textContent = JSON.stringify(data, null, 2);
+    if (res.ok) renderOverlay(endpoint, data);
   } catch (e) {
     $('testStatus').textContent = '✗ Lỗi kết nối: ' + e.message;
   }
