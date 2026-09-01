@@ -114,6 +114,7 @@ hoặc (video / nhiều frame, tối đa 30 frame/request):
 | `POST /api/gesture` | Cử chỉ tay được nhận diện (vd: Thumb_Up, Victory...) |
 | `GET /api/usage`    | Số lượt đã dùng trong tháng (theo API key) |
 | `GET /api/health`   | Trạng thái hệ thống (Redis, env var) — **không cần API key**, dùng để debug lúc mới deploy |
+| `POST /api/admin-stripe-sync` | Báo usage lên Stripe cho các key có gắn Stripe Customer ID (admin, hoặc tự động qua cron) |
 
 Ví dụ gọi:
 
@@ -126,14 +127,56 @@ curl -X POST https://<your-domain>/api/pose \
 
 ## Tính phí — hiện tại vs bước tiếp theo
 
-- **Hiện tại:** mỗi request thành công tăng counter trong Redis
-  (`mediapipe:usage:<key>:<YYYY-MM>`), xem qua `GET /api/usage`. Đây là
-  "đếm", chưa tự động thu tiền.
-- **Bước tiếp theo (khi có khách thật):** thêm 1 cron job (Vercel Cron)
-  chạy cuối ngày, đọc counter từ Redis rồi báo cáo lên Stripe Metered
-  Billing để tự động xuất hoá đơn theo mức giá bạn đặt (vd: $0.001/lượt
-  gọi). Chưa làm phần này vì cần bạn có tài khoản Stripe + quyết bậc giá
-  trước.
+- **Đo lượng dùng:** mỗi request thành công tăng counter trong Redis
+  (`mediapipe:usage:<key>:<YYYY-MM>`), xem qua `GET /api/usage` hoặc tab
+  Dashboard.
+- **Thu tiền tự động qua Stripe** — đã làm xong phần báo cáo usage, còn 1
+  bước thủ công 1 lần trong Stripe Dashboard cho mỗi khách mới (chi tiết
+  bên dưới).
+
+### Thiết lập Stripe (làm 1 lần)
+
+1. Tạo tài khoản Stripe (nếu chưa có) tại https://dashboard.stripe.com.
+2. **Billing → Meters** → tạo 1 meter mới, đặt tên event = giá trị bạn sẽ
+   set cho env var `STRIPE_METER_EVENT_NAME` (mặc định `mediapipe_api_calls`,
+   để mặc định cũng được, chỉ cần khớp).
+3. **Product catalog** → tạo 1 Price kiểu "Metered" gắn vào meter vừa tạo,
+   đặt giá tiền/1 lượt gọi tại đây (đây mới là giá **thật sự bị trừ tiền**,
+   khác với `PRICE_PER_CALL_USD` — biến đó chỉ để dashboard tự ước tính,
+   không liên quan tới Stripe).
+4. **Developers → API keys** → copy Secret key, set vào env var
+   `STRIPE_SECRET_KEY` trên Vercel.
+
+Với mỗi khách hàng mới:
+5. Tạo Stripe Customer cho họ (Dashboard hoặc qua Payment Link/Checkout) và
+   **subscribe họ vào Price ở bước 3** (bắt buộc — chưa subscribe thì dù
+   báo usage lên Stripe cũng không tính tiền được). Cách nhanh nhất: tạo 1
+   Payment Link cho Price đó, gửi khách hàng tự nhập thẻ.
+6. Copy **Customer ID** (`cus_...`) của họ, dán vào ô "Stripe Customer ID"
+   khi thêm key ở tab **Quản lý API key** trong admin dashboard.
+
+Sau đó hệ thống tự lo phần còn lại:
+- **Tự động (cron):** `vercel.json` đã cấu hình chạy `/api/admin-stripe-sync`
+  mỗi ngày lúc 3h sáng UTC — đọc số lượt dùng trong tháng của từng key có
+  gắn Stripe Customer ID, báo phần **chênh lệch** (delta) lên Stripe, Stripe
+  tự tính tiền & xuất hoá đơn theo chu kỳ subscription của khách.
+- **Thủ công / test ngay:** nút "💳 Đồng bộ lên Stripe" ở tab Dashboard,
+  đồng bộ ngay lập tức, không cần đợi cron.
+
+Cần thêm biến môi trường cho phần này:
+- `STRIPE_SECRET_KEY` — secret key từ bước 4.
+- `STRIPE_METER_EVENT_NAME` (tuỳ chọn) — mặc định `mediapipe_api_calls`,
+  phải khớp với tên event của meter ở bước 2.
+- `CRON_SECRET` (khuyến nghị) — Vercel tự thêm header xác thực cho cron job
+  khi biến này được set (Vercel docs: Cron Jobs → Securing cron jobs).
+  Không set thì cron vẫn chạy được (endpoint tự chấp nhận), nhưng nên set
+  để tránh người ngoài gọi endpoint sync tuỳ ý (dù họ vẫn cần biết được
+  URL và endpoint cũng an toàn nhờ mỗi request idempotent — không double-bill).
+
+⚠️ **Lưu ý quan trọng:** hệ thống **không tự tạo Stripe Customer/Subscription**
+— bạn vẫn phải làm bước 5 thủ công mỗi khách mới (thu thẻ qua Payment
+Link/Checkout của Stripe). Việc tự động hoá hoàn toàn bước đó (tự sinh
+Payment Link khi thêm key) có thể làm sau nếu cần.
 
 ## Giới hạn hiện tại (cần biết trước khi bán)
 

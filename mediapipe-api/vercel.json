@@ -8,5 +8,8 @@
   "rewrites": [
     { "source": "/admin", "destination": "/api/admin-page" },
     { "source": "/admin/", "destination": "/api/admin-page" }
+  ],
+  "crons": [
+    { "path": "/api/admin-stripe-sync", "schedule": "0 3 * * *" }
   ]
 }

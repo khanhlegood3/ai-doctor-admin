@@ -119,3 +119,30 @@ def get_key_labels():
 
 def remove_key_label(key):
     _redis_call("HDEL", "mediapipe:key_labels", key)
+
+
+def set_key_stripe_customer(key, customer_id):
+    """Links an API key to a Stripe Customer ID so usage can be reported
+    for automatic metered billing."""
+    _redis_call("HSET", "mediapipe:key_stripe_customer", key, customer_id)
+
+
+def get_key_stripe_customers():
+    result = _redis_call("HGETALL", "mediapipe:key_stripe_customer")
+    flat = result.get("result") or []
+    return dict(zip(flat[0::2], flat[1::2]))
+
+
+def remove_key_stripe_customer(key):
+    _redis_call("HDEL", "mediapipe:key_stripe_customer", key)
+
+
+def get_synced_count(key, month):
+    """How much usage has already been reported to Stripe for this key/month
+    (so we only ever report the delta, never double-bill)."""
+    result = _redis_call("GET", f"mediapipe:stripe_synced:{key}:{month}")
+    return int(result.get("result") or 0)
+
+
+def set_synced_count(key, month, count):
+    _redis_call("SET", f"mediapipe:stripe_synced:{key}:{month}", count)

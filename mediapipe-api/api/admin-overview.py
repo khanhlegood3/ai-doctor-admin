@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 from _lib.admin import check_admin_secret, list_all_keys, mget, scan_usage_keys
-from _lib.auth import ApiError, get_key_labels
+from _lib.auth import ApiError, get_key_labels, get_key_stripe_customers, get_synced_count
 from _lib.base_handler import CORS_HEADERS
 
 PRICE_PER_CALL_USD = float(os.environ.get("PRICE_PER_CALL_USD", "0.001"))
@@ -19,6 +19,7 @@ def _month_str(month):
 def build_overview(month):
     keys = list_all_keys()
     labels = get_key_labels()
+    stripe_customers = get_key_stripe_customers()
     rows = []
     total_calls = 0
 
@@ -28,6 +29,7 @@ def build_overview(month):
         values = mget([total_key] + per_ep_keys)
         total = int(values[0] or 0) if values else 0
         by_endpoint = {ep: int(values[i + 1] or 0) for i, ep in enumerate(ENDPOINTS)} if values else {}
+        stripe_customer_id = stripe_customers.get(key, "")
 
         rows.append({
             "api_key": key,
@@ -35,6 +37,8 @@ def build_overview(month):
             "total_requests": total,
             "by_endpoint": by_endpoint,
             "estimated_cost_usd": round(total * PRICE_PER_CALL_USD, 4),
+            "stripe_customer_id": stripe_customer_id,
+            "stripe_synced_count": get_synced_count(key, month) if stripe_customer_id else None,
         })
         total_calls += total
 
