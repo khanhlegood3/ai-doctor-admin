@@ -1,21 +1,21 @@
 """
-Minimal signed-cookie session for gating the /admin dashboard page.
+Minimal signed-cookie sessions (stdlib only, no extra deps).
 
-Not a general-purpose auth system — just enough to require the admin
-password once and remember it in an HttpOnly cookie for a while, instead
-of re-typing it into a plain form every visit with zero access control on
-the page itself.
-
-Token format:  <expiry_unix_ts>.<hex hmac-sha256 of expiry, keyed by ADMIN_SECRET>
-No user data is stored in the token, so there's nothing to leak besides
-the expiry.
+Two independent session types share this module:
+  - Admin session (COOKIE_NAME) — gates the whole /admin dashboard.
+  - User session (USER_COOKIE_NAME) — lets a signed-up end user check
+    their own approval status / API key at /account, signed with a
+    separate secret (USER_SESSION_SECRET) so it's not the same trust
+    boundary as the admin password.
 """
+import base64
 import hashlib
 import hmac
 import os
 import time
 
 COOKIE_NAME = "mp_admin_session"
+USER_COOKIE_NAME = "mp_user_session"
 SESSION_SECONDS = 12 * 60 * 60  # 12h
 
 
@@ -62,3 +62,39 @@ def parse_cookies(cookie_header):
             k, v = part.strip().split("=", 1)
             cookies[k] = v
     return cookies
+
+
+# ---- User sessions (separate secret/trust boundary from admin) ----
+
+def _user_secret():
+    val = os.environ.get("USER_SESSION_SECRET") or os.environ.get("ADMIN_SECRET") or ""
+    return val.encode("utf-8")
+
+
+def create_user_token(email):
+    expiry = int(time.time()) + SESSION_SECONDS
+    email_b64 = base64.urlsafe_b64encode(email.encode("utf-8")).decode("ascii").rstrip("=")
+    payload = f"{email_b64}.{expiry}"
+    sig = hmac.new(_user_secret(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+
+def verify_user_token(token):
+    if not token or token.count(".") != 2:
+        return None
+    email_b64, expiry_str, sig = token.split(".")
+    try:
+        expiry = int(expiry_str)
+    except ValueError:
+        return None
+    if time.time() > expiry:
+        return None
+    payload = f"{email_b64}.{expiry_str}"
+    expected = hmac.new(_user_secret(), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return None
+    padded = email_b64 + "=" * (-len(email_b64) % 4)
+    try:
+        return base64.urlsafe_b64decode(padded).decode("utf-8")
+    except Exception:
+        return None

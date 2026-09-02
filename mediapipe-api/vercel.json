@@ -7,7 +7,9 @@
   },
   "rewrites": [
     { "source": "/admin", "destination": "/api/admin-page" },
-    { "source": "/admin/", "destination": "/api/admin-page" }
+    { "source": "/admin/", "destination": "/api/admin-page" },
+    { "source": "/signup", "destination": "/signup/index.html" },
+    { "source": "/account", "destination": "/account/index.html" }
   ],
   "crons": [
     { "path": "/api/admin-stripe-sync", "schedule": "0 3 * * *" }

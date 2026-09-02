@@ -61,6 +61,55 @@ Có 2 lựa chọn, đều **miễn phí phía Vercel** (không tính phí thêm
    - Đợi DNS lan truyền (thường vài phút tới ~1 giờ) là xong, hoàn toàn
      không phát sinh chi phí ngoài phí duy trì domain bạn đã trả sẵn.
 
+## Đăng ký tài khoản tự phục vụ (email + mật khẩu) + admin duyệt quyền
+
+Khách hàng không cần bạn tự tay tạo API key nữa — họ tự đăng ký, bạn chỉ
+việc bấm duyệt:
+
+1. **`/signup`** — trang công khai, khách nhập email + mật khẩu → tạo tài
+   khoản trạng thái `pending` (chờ duyệt). Admin nhận thông báo qua email
+   (nếu đã cấu hình SMTP — xem bên dưới).
+2. **Tab "Người dùng chờ duyệt"** trong `/admin` — danh sách toàn bộ tài
+   khoản đăng ký, có badge đỏ đếm số đang chờ. Bấm **Duyệt** →hệ thống tự
+   sinh API key, đăng ký luôn vào hệ thống (dùng gọi API được ngay), gắn
+   nhãn = email, và gửi email báo API key cho khách (nếu SMTP đã cấu
+   hình). Bấm **Từ chối** → tài khoản chuyển trạng thái `rejected`, không
+   có quyền gì.
+3. **`/account`** — khách tự đăng nhập lại bằng email/mật khẩu đã đăng ký
+   để xem trạng thái (chờ duyệt / đã duyệt / bị từ chối) và lấy lại API
+   key bất cứ lúc nào, khỏi phải nhắn bạn xin lại.
+
+### Cấu hình email thông báo (tuỳ chọn nhưng nên bật)
+
+Không bắt buộc — nếu không set, hệ thống vẫn hoạt động bình thường, chỉ
+là bạn phải tự vào tab "Người dùng chờ duyệt" để kiểm tra thay vì được
+báo qua email. Dùng SMTP chuẩn (stdlib Python, không cần thư viện ngoài)
+— ví dụ nhanh nhất là **Gmail App Password**:
+
+1. Bật 2FA cho Gmail, tạo App Password tại
+   https://myaccount.google.com/apppasswords.
+2. Set env var trên Vercel:
+   - `SMTP_HOST=smtp.gmail.com`
+   - `SMTP_PORT=587`
+   - `SMTP_USER=<email gmail của bạn>`
+   - `SMTP_PASSWORD=<app password 16 ký tự>`
+   - `ADMIN_NOTIFY_EMAIL=<email bạn muốn nhận thông báo đăng ký mới>`
+
+Dùng nhà cung cấp SMTP khác (Resend, SendGrid, Mailgun...) đều được, chỉ
+cần đổi 4 biến `SMTP_*` cho đúng thông tin họ cấp.
+
+### Biến môi trường thêm cho phần này
+- `USER_SESSION_SECRET` (khuyến nghị set riêng, không bắt buộc — nếu bỏ
+  trống sẽ dùng chung `ADMIN_SECRET`) — ký session cho trang `/account`,
+  tách biệt khỏi session admin.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `ADMIN_NOTIFY_EMAIL`
+  — như trên.
+
+⚠️ **Giới hạn hiện tại:** chưa có xác minh email (ai cũng đăng ký được
+bằng email bất kỳ, kể cả email không phải của họ) và chưa có "quên mật
+khẩu". Đủ dùng cho quy mô nhỏ/thử nghiệm; nếu bán rộng rãi nên thêm xác
+minh email qua link kích hoạt sau.
+
 ## Deploy
 
 1. Trên Vercel: **New Project** → chọn repo này → **Root Directory**:
@@ -115,6 +164,10 @@ hoặc (video / nhiều frame, tối đa 30 frame/request):
 | `GET /api/usage`    | Số lượt đã dùng trong tháng (theo API key) |
 | `GET /api/health`   | Trạng thái hệ thống (Redis, env var) — **không cần API key**, dùng để debug lúc mới deploy |
 | `POST /api/admin-stripe-sync` | Báo usage lên Stripe cho các key có gắn Stripe Customer ID (admin, hoặc tự động qua cron) |
+| `POST /api/signup`  | Đăng ký tài khoản mới (công khai) — email + mật khẩu, trạng thái `pending` |
+| `POST /api/login`   | Đăng nhập tài khoản đã đăng ký (công khai) — trả session cookie |
+| `GET /api/account`  | Xem trạng thái tài khoản + API key (cần đã đăng nhập qua `/api/login`) |
+| `GET/POST /api/admin-users` | Danh sách đăng ký + duyệt/từ chối (admin) |
 
 Ví dụ gọi:
 

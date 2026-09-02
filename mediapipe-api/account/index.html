@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tài khoản MediaPipe API</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         font-family:-apple-system, Segoe UI, Roboto, sans-serif; background:#0b0f14; color:#e6edf3; padding:16px; }
+  .card { background:#161b22; border:1px solid #1f2937; border-radius:10px; padding:28px; width:380px; max-width:100%; }
+  h1 { font-size:18px; margin:0 0 20px; }
+  label { display:block; font-size:12px; color:#8b949e; margin-bottom:6px; margin-top:14px; }
+  input { width:100%; padding:9px 10px; background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#e6edf3; font-size:14px; }
+  button { margin-top:20px; width:100%; padding:10px; background:#238636; border:none; border-radius:6px; color:white; font-size:14px; cursor:pointer; }
+  .err { color:#f85149; font-size:13px; margin-top:12px; }
+  .footer { margin-top:18px; font-size:12px; color:#8b949e; text-align:center; }
+  .footer a { color:#58a6ff; text-decoration:none; }
+  .pill { display:inline-block; padding:3px 10px; border-radius:100px; font-size:12px; margin-bottom:16px; }
+  .pill.pending { background:#3a2e1f; color:#f0883e; }
+  .pill.approved { background:#122a1a; color:#3fb950; }
+  .pill.rejected { background:#3a1f1f; color:#f85149; }
+  .row { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
+  .keybox { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:10px; font-size:13px; word-break:break-all; margin-top:8px; }
+  .logout { color:#8b949e; font-size:12px; text-decoration:none; float:right; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div class="card" id="loginCard">
+    <h1>🧠 Tài khoản MediaPipe API</h1>
+    <label>Email</label>
+    <input type="email" id="email" required />
+    <label>Mật khẩu</label>
+    <input type="password" id="password" required />
+    <button id="loginBtn">Đăng nhập</button>
+    <div id="loginMsg" class="err"></div>
+    <div class="footer">Chưa có tài khoản? <a href="/signup">Đăng ký</a></div>
+  </div>
+
+  <div class="card" id="statusCard" style="display:none">
+    <span class="logout" id="logoutBtn">Đăng xuất</span>
+    <h1>Trạng thái tài khoản</h1>
+    <div id="statusPill"></div>
+    <div id="statusBody"></div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+async function loadAccount() {
+  try {
+    const res = await fetch('/api/account');
+    if (!res.ok) return false;
+    const d = await res.json();
+    renderStatus(d);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function renderStatus(d) {
+  $('loginCard').style.display = 'none';
+  $('statusCard').style.display = 'block';
+
+  const labels = { pending: 'Đang chờ duyệt', approved: 'Đã duyệt', rejected: 'Bị từ chối' };
+  $('statusPill').innerHTML = `<span class="pill ${d.status}">${labels[d.status] || d.status}</span>`;
+
+  let html = `<div class="row"><span>Email</span><b>${d.email}</b></div>`;
+  if (d.status === 'pending') {
+    html += `<p style="color:#8b949e; font-size:13px">Tài khoản của bạn đang chờ admin duyệt. Quay lại trang này sau để kiểm tra.</p>`;
+  } else if (d.status === 'approved') {
+    html += `<label>API Key của bạn</label><div class="keybox">${d.api_key}</div>
+      <p style="color:#8b949e; font-size:13px; margin-top:10px">Dùng key này trong header <code>X-API-Key</code> khi gọi API.</p>`;
+  } else if (d.status === 'rejected') {
+    html += `<p style="color:#8b949e; font-size:13px">Đăng ký của bạn chưa được duyệt. Liên hệ admin nếu cần hỗ trợ.</p>`;
+  }
+  $('statusBody').innerHTML = html;
+}
+
+$('loginBtn').onclick = async () => {
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  $('loginMsg').textContent = '';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      $('loginMsg').textContent = data.error || 'Đăng nhập thất bại.';
+      return;
+    }
+    await loadAccount();
+  } catch (e) {
+    $('loginMsg').textContent = 'Lỗi kết nối: ' + e.message;
+  }
+};
+
+$('logoutBtn').onclick = async () => {
+  await fetch('/api/account?logout=1');
+  location.reload();
+};
+
+// Try to restore an existing session on page load
+loadAccount();
+</script>
+</body>
+</html>

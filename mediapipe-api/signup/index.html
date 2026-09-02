@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Đăng ký dùng MediaPipe API</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         font-family:-apple-system, Segoe UI, Roboto, sans-serif; background:#0b0f14; color:#e6edf3; padding:16px; }
+  .card { background:#161b22; border:1px solid #1f2937; border-radius:10px; padding:28px; width:360px; max-width:100%; }
+  h1 { font-size:18px; margin:0 0 6px; }
+  p.sub { color:#8b949e; font-size:13px; margin:0 0 20px; }
+  label { display:block; font-size:12px; color:#8b949e; margin-bottom:6px; margin-top:14px; }
+  input { width:100%; padding:9px 10px; background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#e6edf3; font-size:14px; }
+  button { margin-top:20px; width:100%; padding:10px; background:#238636; border:none; border-radius:6px; color:white; font-size:14px; cursor:pointer; }
+  button:disabled { opacity:0.6; cursor:default; }
+  .err { color:#f85149; font-size:13px; margin-top:12px; }
+  .ok { color:#3fb950; font-size:13px; margin-top:12px; }
+  .footer { margin-top:18px; font-size:12px; color:#8b949e; text-align:center; }
+  .footer a { color:#58a6ff; text-decoration:none; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧠 Đăng ký dùng MediaPipe API</h1>
+    <p class="sub">Tạo tài khoản bằng email + mật khẩu. Sau khi đăng ký, tài khoản sẽ được admin duyệt trước khi có thể dùng API.</p>
+
+    <form id="signupForm">
+      <label>Email</label>
+      <input type="email" id="email" required />
+      <label>Mật khẩu (tối thiểu 8 ký tự)</label>
+      <input type="password" id="password" required minlength="8" />
+      <label>Nhập lại mật khẩu</label>
+      <input type="password" id="password2" required minlength="8" />
+      <button type="submit" id="submitBtn">Đăng ký</button>
+      <div id="msg"></div>
+    </form>
+
+    <div class="footer">Đã có tài khoản? <a href="/account">Xem trạng thái tài khoản</a></div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+$('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  const password2 = $('password2').value;
+  const msg = $('msg');
+  msg.className = '';
+  msg.textContent = '';
+
+  if (password !== password2) {
+    msg.className = 'err';
+    msg.textContent = 'Mật khẩu nhập lại không khớp.';
+    return;
+  }
+
+  $('submitBtn').disabled = true;
+  $('submitBtn').textContent = 'Đang gửi...';
+
+  try {
+    const res = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      msg.className = 'err';
+      msg.textContent = data.error || 'Có lỗi xảy ra.';
+      $('submitBtn').disabled = false;
+      $('submitBtn').textContent = 'Đăng ký';
+      return;
+    }
+    msg.className = 'ok';
+    msg.textContent = data.message || 'Đăng ký thành công, đang chờ duyệt.';
+    $('signupForm').querySelectorAll('input').forEach(i => i.disabled = true);
+    $('submitBtn').textContent = 'Đã gửi đăng ký';
+  } catch (err) {
+    msg.className = 'err';
+    msg.textContent = 'Lỗi kết nối: ' + err.message;
+    $('submitBtn').disabled = false;
+    $('submitBtn').textContent = 'Đăng ký';
+  }
+});
+</script>
+</body>
+</html>
