@@ -28,6 +28,7 @@
 
 import { withApiKeyRotation, isRotatableApiError, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
 import { GoogleGenAI } from '@google/genai'
+import { GROQ_VISION_MODEL as SHARED_GROQ_VISION_MODEL } from './groqModels.js'
 
 export class ImageToCodeProxyError extends Error {
   constructor(message, status = 500) {
@@ -38,7 +39,7 @@ export class ImageToCodeProxyError extends Error {
 }
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (giống bringAnyIdeaToLifeProxy.js)
+const GROQ_VISION_MODEL = SHARED_GROQ_VISION_MODEL // model vision MIỄN PHÍ hiện hành của Groq (xem api/_lib/groqModels.js)
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
 const timeoutMs = 55_000 // thấp hơn maxDuration 120s của api/groq-proxy.js (xem vercel.json)
 const maxRetriesPerKey = 2
