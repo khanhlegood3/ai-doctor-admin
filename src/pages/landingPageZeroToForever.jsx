@@ -808,7 +808,7 @@ export default function LandingPageZeroToForever({
   const openQRModal = () => setShowQRModal(true)
 
   return (
-    <div className={`antialiased overflow-x-hidden font-sans ${isDark ? 'dark' : ''}`}>
+    <div className={`antialiased font-sans ${isDark ? 'dark' : ''}`}>
       <div className="bg-[#F2F4F8] dark:bg-[#0a0e1a] text-[#333] dark:text-gray-200 transition-colors duration-300">
       <style>{`
         .zofo-hero-section {
@@ -887,7 +887,7 @@ export default function LandingPageZeroToForever({
             <div className="container mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10 items-center">
               {/* Hero Left */}
               <div className="text-white space-y-6">
-                <h1 className="text-6xl md:text-8xl font-black leading-tight tracking-tight">
+                <h1 className="text-5xl sm:text-6xl md:text-8xl font-black leading-tight tracking-tight">
                   Zero to <br />
                   <span className="text-[#00C2FF] zofo-text-glow-cyan">Forever</span>
                 </h1>
