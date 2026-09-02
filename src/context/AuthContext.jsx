@@ -763,6 +763,34 @@ export function AuthProvider({ children }) {
     return id
   }
 
+  // ── Gửi/gửi lại yêu cầu dùng API trả phí — dùng từ màn Profile, cho tài
+  // khoản THẬT đã tồn tại (khác với lúc Đăng ký, xem loginWithEmail ở trên,
+  // nơi checkbox chỉ hỏi 1 lần lúc tạo tài khoản). Cho phép gọi lại kể cả khi
+  // trạng thái hiện tại là 'rejected' (gửi yêu cầu lại) — chỉ chặn khi đã
+  // 'approved' hoặc đang 'pending' rồi (tránh spam yêu cầu trùng).
+  const requestApiAccess = async () => {
+    if (!user?.uuid || user.isAnonymous) throw new Error('Cần có tài khoản thật (không phải khách) để dùng tính năng này.')
+    if (user.apiAccessStatus === 'approved') throw new Error('Tài khoản của bạn đã được duyệt dùng API trả phí rồi.')
+    if (user.apiAccessStatus === 'pending') throw new Error('Yêu cầu của bạn đang chờ Admin duyệt.')
+    const secret = getOrCreateProfileSecret(user.uuid)
+    if (!secret) throw new Error('Không tạo được khoá sở hữu trên thiết bị này (thử tắt chế độ duyệt web riêng tư).')
+    const res = await fetch('/api/user-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uuid: user.uuid, name: user.name || 'User', secret, email: user.email, apiAccessRequest: true }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.error || 'Không gửi được yêu cầu.')
+
+    if (user.email) {
+      const users = getUsers()
+      if (users[user.email]) { users[user.email].apiAccessStatus = 'pending'; saveUsers(users) }
+    }
+    setUser(u => (u ? { ...u, apiAccessStatus: 'pending' } : u))
+    return 'pending'
+  }
+
+
   const getAllUsers = () => Object.values(getUsers()).map(u => ({ ...u, isAdmin: u.email === ADMIN_EMAIL, ...enrichRoleFields(u) }))
 
   // ── Quản trị Vai trò (Sub-Admin) & Gói thành viên (VIP Pro) ─────────────
@@ -795,7 +823,7 @@ export function AuthProvider({ children }) {
       needsProfileSetup, dismissProfileSetup,
       loginWithGoogle, loginWithApple, loginWithEmail, loginAnonymous,
       logout, updateProfile, linkProvider, unlinkProvider, deleteAccount,
-      updateUserId,
+      updateUserId, requestApiAccess,
       getAllUsers,
       setUserRole, setUserMembership,
     }}>

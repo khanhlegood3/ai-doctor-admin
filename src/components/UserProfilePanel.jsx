@@ -510,8 +510,74 @@ function UserIdSettingsCard({ user, updateUserId, isDark, vi, border, surface2, 
   )
 }
 
+// ─── Thẻ yêu cầu dùng API trả phí (paid API) ───────────────────────────────
+// Cho phép user gửi/gửi lại yêu cầu ngay từ trang Profile — không chỉ lúc
+// Đăng ký (xem checkbox ở LoginPage.jsx). Trạng thái (none/pending/approved/
+// rejected) đọc từ user.apiAccessStatus, được AuthContext tự đồng bộ ngược
+// từ server (uuid -> apiAccessStatus) mỗi khi đang 'pending'.
+function ApiAccessRequestCard({ user, requestApiAccess, vi, border, surface2, text2, text3, accent = '#6b3fd4', accentBorder = 'rgba(107,63,212,0.35)', accentSoft = 'rgba(107,63,212,0.08)' }) {
+  const status = user?.apiAccessStatus || 'none'
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  const handleRequest = async () => {
+    setSending(true); setError('')
+    try {
+      await requestApiAccess()
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2200)
+    } catch (e) {
+      setError(e?.message || (vi ? 'Không gửi được yêu cầu.' : 'Could not send request.'))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ border: `1px solid ${accentBorder}`, borderRadius: 16, padding: 16, background: accentSoft }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: accent, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+        🔑 {vi ? 'API Trả Phí' : 'Paid API'}
+      </div>
+
+      {status === 'approved' && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#2d8a5e', lineHeight: 1.5 }}>
+          ✓ {vi ? 'Tài khoản của bạn đã được duyệt sử dụng các tính năng API trả phí.' : 'Your account has been approved to use paid-API features.'}
+        </div>
+      )}
+
+      {status === 'pending' && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#ff9800', lineHeight: 1.5 }}>
+          ⏳ {vi ? 'Yêu cầu của bạn đang chờ Admin duyệt.' : 'Your request is pending Admin approval.'}
+        </div>
+      )}
+
+      {(status === 'none' || status === 'rejected') && (
+        <>
+          <div style={{ fontSize: 12, color: text3, lineHeight: 1.5, marginBottom: 10 }}>
+            {status === 'rejected'
+              ? (vi ? 'Yêu cầu trước đó đã bị từ chối. Bạn có thể gửi lại yêu cầu để Admin xem xét lại.' : 'Your previous request was rejected. You can send it again for Admin to review.')
+              : (vi ? 'Bạn chưa đăng ký dùng các tính năng gọi API trả phí. Gửi yêu cầu để Admin cấp quyền.' : "You haven't requested paid-API features yet. Send a request for Admin to grant access.")}
+          </div>
+          {error && <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,82,82,0.28)', background: 'rgba(255,82,82,0.08)', color: '#ff5252', fontSize: 11, lineHeight: 1.5 }}>{error}</div>}
+          <button
+            type="button"
+            onClick={handleRequest}
+            disabled={sending}
+            style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: 'none', background: accent, color: '#fff', fontWeight: 800, cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, opacity: sending ? 0.6 : 1 }}
+          >
+            {sending ? '...' : (status === 'rejected' ? (vi ? 'Gửi lại yêu cầu' : 'Send request again') : (vi ? 'Gửi yêu cầu dùng API trả phí' : 'Request paid-API access'))}
+          </button>
+        </>
+      )}
+
+      {success && <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: '#00e676' }}>✓ {vi ? 'Đã gửi yêu cầu — chờ Admin duyệt.' : 'Request sent — waiting for Admin approval.'}</div>}
+    </div>
+  )
+}
+
 export default function UserProfilePanel() {
-  const { user, updateProfile, loginWithGoogle, loginWithApple, linkProvider, unlinkProvider, logout, deleteAccount, updateUserId } = useAuth()
+  const { user, updateProfile, loginWithGoogle, loginWithApple, linkProvider, unlinkProvider, logout, deleteAccount, updateUserId, requestApiAccess } = useAuth()
   const { theme, lang, t } = useApp()
   const isDark = theme === 'dark'
   const vi = lang === 'vi'
@@ -788,6 +854,15 @@ export default function UserProfilePanel() {
               user={user} updateUserId={updateUserId} isDark={isDark} vi={vi}
               border={border} surface2={surface2} text={text} text2={text2} text3={text3}
               accent={providerMeta.color} accentBorder={providerMeta.border} accentSoft={providerMeta.soft}
+            />
+
+            {/* Yêu cầu dùng API trả phí — chỉ hiện cho tài khoản THẬT (không
+                phải khách), vì Admin cần email/uuid gắn với 1 tài khoản cụ
+                thể để duyệt (xem checkbox tương ứng ở LoginPage.jsx lúc đăng
+                ký, và ApiAccessRequestsPanel.jsx ở phía Admin). */}
+            <ApiAccessRequestCard
+              user={user} requestApiAccess={requestApiAccess} vi={vi}
+              border={border} surface2={surface2} text2={text2} text3={text3}
             />
 
             {/* Level progress bar — always shown, null defaults to 0 */}
