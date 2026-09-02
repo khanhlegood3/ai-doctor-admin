@@ -65,9 +65,12 @@ const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/;
 //  1. User đăng ký (email/password) và tick "muốn dùng API trả phí" ->
 //     client POST { uuid, name, secret, apiAccessRequest: true, email } ->
 //     xác thực bằng đúng cơ chế secret sở hữu uuid đã có sẵn ở trên (KHÔNG
-//     cần thêm auth mới) -> set apiAccessStatus = 'pending'.
+//     cần thêm auth mới) -> set apiAccessStatus = 'pending' -> báo admin
+//     qua Telegram nếu đã cấu hình TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID
+//     (best-effort, xem notifyAdminNewApiAccessRequest bên dưới).
 //  2. Admin (trang Quản Trị) GET ?adminApiAccessList=1 kèm header
-//     x-admin-secret để xem danh sách đang chờ.
+//     x-admin-secret để xem danh sách đang chờ (vẫn xem được kể cả khi
+//     chưa cấu hình Telegram — panel tự làm mới).
 //  3. Admin POST { action: 'decideApiAccess', uuid, decision, adminSecret }
 //     để duyệt/từ chối -> set apiAccessStatus = 'approved' | 'rejected'.
 // ADMIN_API_SECRET là biến môi trường server-only (không tiền tố VITE_, nên
@@ -79,6 +82,37 @@ const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/;
 function isValidAdminSecret(secret) {
   const expected = process.env.ADMIN_API_SECRET;
   return !!expected && !!secret && secret === expected;
+}
+
+// Báo admin ngay khi có yêu cầu dùng API trả phí mới (best-effort — lỗi ở
+// đây KHÔNG được làm hỏng response chính, vì đây chỉ là tiện ích thông
+// báo, không phải nghiệp vụ cốt lõi). Dùng Telegram Bot API vì: (1) không
+// cần thêm npm dependency (chỉ 1 lần fetch), (2) push thẳng vào điện thoại
+// admin theo thời gian thực, khác hẳn cách "pull" hiện có (admin phải tự
+// mở panel Quản Trị mới thấy). Không set TELEGRAM_BOT_TOKEN/CHAT_ID thì
+// bỏ qua im lặng — app vẫn hoạt động bình thường, chỉ là không có thông
+// báo chủ động.
+async function notifyAdminNewApiAccessRequest({ name, email, uuid }) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+
+  const text =
+    `🔔 Yêu cầu dùng API trả phí mới\n` +
+    `Tên: ${name || 'Không tên'}\n` +
+    (email ? `Email: ${email}\n` : '') +
+    `UUID: ${uuid}\n\n` +
+    `Vào trang Quản Trị → "Yêu Cầu Dùng API Trả Phí" để duyệt.`;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (err) {
+    console.warn('[api/user-profile] notifyAdminNewApiAccessRequest failed:', err?.message);
+  }
 }
 
 function hashSecret(secret) {
@@ -251,6 +285,13 @@ export default async function handler(req, res) {
         }
         throw err;
       }
+
+      // Chỉ báo admin khi đây là lần ĐẦU TIÊN chuyển sang pending (không báo
+      // lại mỗi lần AuthContext tự đồng bộ/gọi lại request đã pending sẵn).
+      if (setFields.apiAccessStatus === 'pending' && existing?.apiAccessStatus !== 'pending') {
+        notifyAdminNewApiAccessRequest({ name, email, uuid }).catch(() => {});
+      }
+
       return res.status(200).json({ ok: true, apiAccessStatus: setFields.apiAccessStatus || existing?.apiAccessStatus || 'none' });
     }
 
