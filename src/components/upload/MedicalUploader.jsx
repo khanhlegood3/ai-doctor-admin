@@ -16,7 +16,7 @@ import {
 import { notifyUpload } from '../../hooks/useMedicalData.js'
 import { buildImageConvertedInBodyRecord, parseInBodyCsv, recordsToInBodyCsv, summarizeInBodyRecords } from '../../lib/inbodyCsv.js'
 import { convertInBodyImageToCsv, fileToBase64Promise } from '../../lib/inbodyImageConvert.js'
-import { useTTS } from '../../lib/groqAiClient.js'
+import { useTTS, GROQ_TEXT_MODEL, GROQ_VISION_MODEL } from '../../lib/groqAiClient.js'
 import { isHeicFile, ensureBrowserSafeImage } from '../../lib/heicConvert.js'
 import { loadPdfJs } from '../../lib/pdfjsLoader.js'
 
@@ -908,7 +908,7 @@ export default function MedicalUploader({ patientId, onSelectImage }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
+            model: GROQ_TEXT_MODEL,
             max_tokens: 1024,
             messages: [
               { role: 'system', content: systemMsg },
@@ -973,7 +973,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
         : { base64: record.base64Data, mimeType: record.mimeType }
 
       const body = {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         stream: true,
         messages: [{
@@ -1101,7 +1101,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+              model: GROQ_VISION_MODEL,
               max_tokens: 2048,
               messages: [
                 { role: 'system', content: lang === 'vi'
@@ -1125,7 +1125,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            model: GROQ_VISION_MODEL,
             max_tokens: 2048,
             messages: [
               { role: 'system', content: lang === 'vi'
@@ -1180,7 +1180,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
       const res = await fetch('/api/groq-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1024, messages }),
+        body: JSON.stringify({ model: GROQ_TEXT_MODEL, max_tokens: 1024, messages }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(`Groq ${res.status}: ${data?.error?.message || JSON.stringify(data)}`)
@@ -1192,7 +1192,7 @@ Trả lời bằng tiếng Việt, ngắn gọn và rõ ràng. Nhắc nhở đâ
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          model: GROQ_VISION_MODEL,
           max_tokens: 1024,
           messages: [
             { role: 'system', content: systemMsg },

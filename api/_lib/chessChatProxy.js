@@ -18,7 +18,7 @@
 //      Token sống ngắn hạn (mặc định 30 phút, dùng 1 lần), CHỈ dùng được cho
 //      Live API — không phải API key đầy đủ. Giống hệt pattern đã dùng cho
 //      Vision Sync (xem visionSyncProxy.js::createVisionSyncLiveToken).
-//   2. `pieceImage` — sinh chân dung quân cờ (model gemini-2.5-flash-image,
+//   2. `pieceImage` — sinh chân dung quân cờ (model gemini-3.1-flash-image,
 //      REST models.generateContent, KHÔNG phải Live API). Ephemeral token
 //      KHÔNG áp dụng được cho nhánh này (chỉ Live API mới hỗ trợ) — nên proxy
 //      toàn bộ qua backend: client gửi prompt, server gọi Gemini bằng key
@@ -94,7 +94,7 @@ export async function runChessChatPieceImage({ prompt, envSource } = {}) {
     const base64ImageBytes = await withApiKeyRotation('GEMINI_API_KEY', async (apiKey) => {
       const ai = new GoogleGenAI({ apiKey })
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3.1-flash-image',
         contents: { parts: [{ text: prompt }] },
         config: { responseModalities: [Modality.IMAGE] },
       })

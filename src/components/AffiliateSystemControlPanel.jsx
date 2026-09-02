@@ -78,7 +78,7 @@ const QUIZ_QUESTIONS = [
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || ""; 
 const callGeminiAPI = async (prompt) => {
   if (!apiKey) return "Vui lòng cấu hình VITE_GEMINI_API_KEY trong file .env";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
   const payload = { contents: [{ parts: [{ text: prompt }] }] };
   const delays = [1000, 2000, 4000, 8000, 16000];
   

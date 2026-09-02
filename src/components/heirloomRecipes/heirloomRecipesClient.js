@@ -19,8 +19,9 @@
 
 import { generateComicImage } from '../comicHero/geminiComicClient.js'
 import { CATEGORIES } from '../../lib/heirloomRecipesStorage.js'
+import { GROQ_TEXT_MODEL } from '../../lib/groqAiClient.js'
 
-const MODEL = 'llama-3.3-70b-versatile'
+const MODEL = GROQ_TEXT_MODEL
 
 async function callGroqJSON(messages, { temperature = 0.6, maxTokens = 700 } = {}) {
   const res = await fetch('/api/groq-proxy', {

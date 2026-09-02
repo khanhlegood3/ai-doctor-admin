@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext'
 import NavButtons from './NavButtons.jsx'
 import { isHeicFile, convertHeicToJpeg } from '../lib/heicConvert.js'
 import { loadPdfJs } from '../lib/pdfjsLoader.js'
+import { GROQ_VISION_MODEL } from '../lib/groqAiClient.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const OCR_MODES = [
@@ -218,7 +219,7 @@ export default function DocumentOCRPanel({ onNext, nextLabel, onPrev, prevLabel 
       method: 'POST', signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: GROQ_VISION_MODEL,
         max_tokens: 2048,
         messages: [
           {

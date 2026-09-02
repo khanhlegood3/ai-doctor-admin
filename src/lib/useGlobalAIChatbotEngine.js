@@ -7,7 +7,7 @@
 // trang nào cũng được lưu vào đúng 1 nơi và nơi còn lại sẽ thấy ngay khi mở lại.
 
 import { useEffect, useRef, useState } from 'react'
-import { callGroqChat, useVoiceInput, useTTS } from './groqAiClient.js'
+import { callGroqChat, useVoiceInput, useTTS, GROQ_VISION_MODEL } from './groqAiClient.js'
 import { getDeterministicFallbackReply } from './huggingFaceTransformersChat.js'
 import { getGlobalChatHistory, saveGlobalChatHistory, ownerKeyOf, GLOBAL_CHATBOT_SYNC_EVENT } from './globalChatbotStorage.js'
 import { extractPdfTextForInBody, pdfPageToImageForInBody } from './inbodyImageConvert.js'
@@ -303,7 +303,7 @@ export function useGlobalAIChatbotEngine({ userKey, activePanelLabel, isVi, onMe
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                model: GROQ_VISION_MODEL,
                 max_tokens: 1024,
                 messages: [
                   { role: 'system', content: systemPrompt },

@@ -25,6 +25,7 @@
 // ngay cho client.
 
 import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL } from './groqModels.js'
 
 export class VibeTrackingProxyError extends Error {
   constructor(message, status = 500) {
@@ -48,7 +49,7 @@ async function callGroqJSON({ systemInstruction, prompt, envSource }) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_TEXT_MODEL,
           messages,
           response_format: { type: 'json_object' },
           temperature: 0.4,

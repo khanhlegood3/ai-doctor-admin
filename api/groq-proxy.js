@@ -4,7 +4,8 @@
 // Groq is FREE — no credit card needed. Get your key at: https://console.groq.com
 // Add to Vercel env as: GROQ_API_KEY
 //
-// Model used: llama-3.3-70b-versatile
+// Model used: xem api/_lib/groqModels.js (GROQ_TEXT_MODEL) — client gửi lên
+// qua body.model, proxy này chỉ forward nguyên văn.
 // Free limits: 14,400 requests/day, 500,000 tokens/minute — very generous.
 //
 // --- CHIA SẺ SLOT VỚI TÍNH NĂNG "TẠO GAME BẰNG AVATAR CỦA TÔI" ---
@@ -613,7 +614,8 @@ export default async function handler(req, res) {
 
   // --- Nhánh One Shot Arcade (ảnh: Pollinations ẩn danh | lời villain: Groq) ---
   // Mô tả ngoại hình từ ảnh KHÔNG đi qua nhánh này — client gọi thẳng nhánh
-  // Groq mặc định bên dưới với model vision 'meta-llama/llama-4-scout-17b-16e-instruct'
+  // Groq mặc định bên dưới với model vision (xem GROQ_VISION_MODEL trong
+  // api/_lib/groqModels.js)
   // (giống FullDocumentSummarizationPanel.jsx), xem api/_lib/arcadeSprite.js.
   if (body.provider === 'arcade-sprite') {
     console.log('[groq-proxy] (arcade-sprite) action:', body.action)

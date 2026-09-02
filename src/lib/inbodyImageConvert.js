@@ -13,6 +13,7 @@
 
 import { buildImageConvertedInBodyRecord, parseInBodyCsv, recordsToInBodyCsv } from './inbodyCsv.js'
 import { loadPdfJs } from './pdfjsLoader.js'
+import { GROQ_TEXT_MODEL, GROQ_VISION_MODEL } from './groqAiClient.js'
 
 // ── System prompt for full metrics extraction (JSON) ──────────────────────────
 export const INBODY_OCR_SYSTEM_PROMPT = `Bạn là chuyên gia phân tích kết quả InBody (máy đo thành phần cơ thể).
@@ -120,7 +121,7 @@ export async function extractDateFromInBodyImage(base64Image, mediaType) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: GROQ_VISION_MODEL,
         max_tokens: 64,
         messages: [
           { role: 'system', content: DATE_EXTRACT_PROMPT },
@@ -179,7 +180,7 @@ export async function analyzeInBodyWithAI(base64Image, mediaType, file = null, p
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_TEXT_MODEL,
           max_tokens: 1024,
           messages: [
             { role: 'system', content: INBODY_OCR_SYSTEM_PROMPT },
@@ -203,7 +204,7 @@ export async function analyzeInBodyWithAI(base64Image, mediaType, file = null, p
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: GROQ_VISION_MODEL,
       max_tokens: 1024,
       messages: [
         { role: 'system', content: INBODY_OCR_SYSTEM_PROMPT },

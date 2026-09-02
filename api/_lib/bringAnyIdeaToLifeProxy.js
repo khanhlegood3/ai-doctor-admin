@@ -50,6 +50,7 @@ import { withApiKeyRotation, withApiKeyRacingThenRotation, getApiKeyByLabel, isR
 import { fetchImageAsBase64, ImageUrlFetchError } from './imageUrlFetch.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { isFacebookVideoUrl, resolveFacebookVideo, FacebookVideoError } from './facebookVideo.js'
+import { GROQ_VISION_MODEL as SHARED_GROQ_VISION_MODEL } from './groqModels.js'
 import { fetchYoutubeTranscript, YoutubeTranscriptError } from './youtubeTranscript.js'
 import { fetchFacebookTranscript, FacebookTranscriptError } from './facebookTranscript.js'
 import { createR2PresignedUploadUrl, genR2Key } from './r2Storage.js'
@@ -63,7 +64,7 @@ export class BringAnyIdeaToLifeProxyError extends Error {
 }
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-const GROQ_VISION_MODEL = 'qwen/qwen3.6-27b' // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file)
+const GROQ_VISION_MODEL = SHARED_GROQ_VISION_MODEL // model vision MIỄN PHÍ hiện hành của Groq (xem ghi chú đầu file, và api/_lib/groqModels.js)
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash còn free tier thật, dùng làm dự phòng khi Groq lỗi
 // Ngưỡng transcript "đủ dùng" — giống hệt MIN_TRANSCRIPT_CHARS của
 // videoToLearningProxy.js (video không phụ đề hoặc phụ đề quá ngắn thì

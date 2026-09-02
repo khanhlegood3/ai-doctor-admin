@@ -66,15 +66,16 @@
 //   - Nhánh ẢNH không cần API key nào (gọi ẩn danh tới Pollinations).
 
 import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL } from './groqModels.js'
 
 const POLLINATIONS_IMAGE_BASE_URL = 'https://image.pollinations.ai'
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 
-// Model text: dùng Groq "llama-3.3-70b-versatile" — cùng model đang dùng
-// cho chatbot chính (xem api/groq-proxy.js), miễn phí thật (14.400
-// request/ngày), hỗ trợ response_format json_object. Model ảnh: "flux" —
-// gọi ẩn danh (xem ghi chú ở trên) nên thật sự $0, không cần Pollen.
-const TEXT_MODEL = 'llama-3.3-70b-versatile'
+// Model text: xem GROQ_TEXT_MODEL trong groqModels.js — cùng model đang dùng
+// cho chatbot chính (xem api/groq-proxy.js), hỗ trợ response_format
+// json_object. Model ảnh: "flux" — gọi ẩn danh (xem ghi chú ở trên) nên
+// thật sự $0, không cần Pollen.
+const TEXT_MODEL = GROQ_TEXT_MODEL
 const IMAGE_MODEL = 'flux'
 
 export class GeminiComicError extends Error {

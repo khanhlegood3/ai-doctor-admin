@@ -9,7 +9,7 @@
 // đúng chiến lược đã dùng cho Comic Hero:
 //
 //   - Mô tả ngoại hình từ ảnh: KHÔNG làm ở đây — client gọi thẳng nhánh Groq
-//     mặc định (model 'meta-llama/llama-4-scout-17b-16e-instruct', vision)
+//     mặc định (model vision, xem GROQ_VISION_MODEL trong groqModels.js)
 //     giống hệt FullDocumentSummarizationPanel.jsx / MedicalUploader.jsx,
 //     không cần thêm code backend nào.
 //   - Sinh ẢNH sprite/scene: model 'flux' trên Pollinations, gọi ẨN DANH
@@ -18,7 +18,7 @@
 //     thuần (không nhận ảnh tham chiếu), sprite sinh ra dựa trên MÔ TẢ chữ
 //     (từ bước vision ở trên), không giữ nguyên khuôn mặt thật 1:1 như bản
 //     Gemini gốc — đây là đánh đổi đã biết trước, không phải lỗi.
-//   - Lời thoại villain (taunt): dùng Groq text, model llama-3.3-70b-versatile
+//   - Lời thoại villain (taunt): dùng Groq text (xem GROQ_TEXT_MODEL trong groqModels.js)
 //     (cùng model chatbot chính), ngắn gọn 1 câu, đọc được qua
 //     /api/google-tts?tl=vi (đã có sẵn trong dự án).
 //
@@ -27,11 +27,12 @@
 // Functions ở đầu api/groq-proxy.js).
 
 import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL } from './groqModels.js'
 
 const POLLINATIONS_IMAGE_BASE_URL = 'https://image.pollinations.ai'
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const IMAGE_REFERRER_DOMAIN = 'hienmaunhanvan.com'
-const TEXT_MODEL = 'llama-3.3-70b-versatile'
+const TEXT_MODEL = GROQ_TEXT_MODEL
 const IMAGE_MODEL = 'flux'
 
 export class ArcadeSpriteError extends Error {

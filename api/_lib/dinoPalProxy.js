@@ -19,9 +19,10 @@
 //     gọi Groq thật, không cần deploy lên Vercel mới test được.
 
 import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL } from './groqModels.js'
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-const TEXT_MODEL = 'llama-3.3-70b-versatile'
+const TEXT_MODEL = GROQ_TEXT_MODEL
 
 export class DinoPalProxyError extends Error {
   constructor(message, status = 500) {

@@ -533,13 +533,7 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
           style={s.input} type="password" placeholder="••••••••"
           value={password} onChange={e => setPassword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
-          {...(mode === 'register' ? { minLength: 8 } : {})}
         />
-        {mode === 'register' && (
-          <p style={{ fontSize: 11.5, margin: '2px 0 0', color: isDark ? 'rgba(232,240,248,0.5)' : '#888' }}>
-            Tối thiểu 8 ký tự.
-          </p>
-        )}
 
         {mode === 'register' && (
           <label style={{

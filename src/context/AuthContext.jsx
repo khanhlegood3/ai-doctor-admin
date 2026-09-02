@@ -541,57 +541,16 @@ export function AuthProvider({ children }) {
 
   // wantsApiAccess: true khi user tick "Tôi muốn dùng API trả phí" ở form
   // Đăng ký (LoginPage.jsx) — gửi yêu cầu lên server ngay sau khi tạo tài
-  // khoản để Admin (có thể ở 1 thiết bị khác) thấy và duyệt.
-  //
-  // Mật khẩu giờ được ĐĂNG KÝ + KIỂM TRA Ở SERVER (xem api/user-profile.js —
-  // action 'loginWithPassword' + field password khi POST tạo/đồng bộ hồ sơ),
-  // không còn chỉ so sánh plaintext cục bộ như trước. Vẫn giữ tương thích
-  // với tài khoản tạo TRƯỚC thay đổi này (chỉ tồn tại trong localStorage,
-  // server chưa từng biết) — xem nhánh "Login" bên dưới.
+  // khoản để Admin (có thể ở 1 thiết bị khác) thấy và duyệt. Best-effort:
+  // lỗi mạng ở bước này không chặn việc tạo tài khoản.
   const loginWithEmail = async (email, password, name = null, wantsApiAccess = false) => {
     const users = getUsers()
     if (name) {
       // Register
       if (users[email]) throw new Error('Email đã tồn tại. Vui lòng đăng nhập.')
-      const uuid = await resolveUUIDForNewAccount()
-      const secret = getOrCreateProfileSecret(uuid)
-
-      // Đăng ký hash mật khẩu ở server TRƯỚC khi lưu local — nếu server đã
-      // có email này (vd đăng ký từ thiết bị khác trước đó) thì CHẶN LUÔN ở
-      // đây, không tạo thêm 1 tài khoản local trùng email vô nghĩa.
-      if (secret) {
-        let res = null
-        try {
-          res = await fetch('/api/user-profile', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uuid, name, secret, email, password,
-              ...(wantsApiAccess ? { apiAccessRequest: true } : {}),
-            }),
-          })
-        } catch (err) {
-          // Lỗi MẠNG (offline, DNS...) — không chặn đăng ký, best-effort,
-          // sẽ tự "migrate" mật khẩu lên server ở lần đăng nhập sau.
-          console.warn('[loginWithEmail] Không gọi được server để đăng ký mật khẩu (offline?) — tiếp tục tạo tài khoản cục bộ:', err?.message)
-        }
-        if (res && !res.ok) {
-          const data = await res.json().catch(() => ({}))
-          // 4xx = lỗi do DỮ LIỆU người dùng nhập (email trùng, mật khẩu quá
-          // ngắn...) -> PHẢI chặn đăng ký ở đây, không được âm thầm bỏ qua
-          // rồi tạo tài khoản cục bộ với dữ liệu server sẽ không bao giờ
-          // chấp nhận (gây lệch local/server vĩnh viễn).
-          if (res.status >= 400 && res.status < 500) {
-            throw new Error(data.error || 'Đăng ký thất bại — vui lòng kiểm tra lại thông tin.')
-          }
-          // 5xx (lỗi tạm thời phía server) -> không chặn, best-effort.
-          console.warn('[loginWithEmail] Đăng ký mật khẩu server thất bại tạm thời (không chặn tạo tài khoản cục bộ):', data.error || res.status)
-        }
-      }
-
       const u = {
         email, name,
-        uuid,
+        uuid: await resolveUUIDForNewAccount(),
         given_name: name.split(' ').pop(),
         family_name: name.split(' ').slice(0, -1).join(' '),
         password,
@@ -608,77 +567,27 @@ export function AuthProvider({ children }) {
       users[email] = u
       saveUsers(users)
       setNeedsProfileSetup(true)
+      if (wantsApiAccess) {
+        const secret = getOrCreateProfileSecret(u.uuid)
+        if (secret) {
+          fetch('/api/user-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid: u.uuid, name: u.name, secret, email: u.email, apiAccessRequest: true }),
+          }).catch(() => { /* ignore — người dùng vẫn xem được trạng thái "Đang chờ duyệt" cục bộ, sẽ tự đồng bộ lại lần đăng nhập sau */ })
+        }
+      }
       return _finalize(u)
     } else {
-      // Login — ưu tiên xác thực qua SERVER trước (cho phép đăng nhập từ 1
-      // thiết bị MỚI, chưa từng lưu tài khoản này trong localStorage). Nếu
-      // server không xác nhận được (tài khoản tạo TRƯỚC khi có xác thực
-      // server, hoặc mất mạng), fallback về so sánh cục bộ như trước, kèm
-      // "migrate" ngầm mật khẩu lên server để lần sau không cần fallback nữa.
-      let serverAuth = null
-      try {
-        const res = await fetch('/api/user-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'loginWithPassword', email, password }),
-        })
-        if (res.ok) serverAuth = await res.json()
-      } catch (err) {
-        console.warn('[loginWithEmail] Không gọi được server để đăng nhập (offline?) — thử fallback cục bộ:', err?.message)
-      }
-
+      // Login
       let u = users[email]
-
-      if (serverAuth?.ok) {
-        // Server xác nhận đúng mật khẩu -> tin server, merge với bản ghi cục
-        // bộ nếu có (giữ lại patients/records/avatar... chỉ có ở local),
-        // hoặc dựng 1 bản ghi tối thiểu nếu đây là lần đầu đăng nhập trên
-        // thiết bị này (trước đây trường hợp này KHÔNG login được).
-        u = u
-          ? { ...u, uuid: serverAuth.uuid || u.uuid, apiAccessStatus: serverAuth.apiAccessStatus || u.apiAccessStatus, userId: serverAuth.userId || u.userId }
-          : {
-              email, name: serverAuth.name || email.split('@')[0],
-              uuid: serverAuth.uuid,
-              given_name: '', family_name: '',
-              password: null, // KHÔNG lưu plaintext cục bộ nữa cho tài khoản xác thực qua server
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(serverAuth.name || email)}&background=6b3fd4&color=fff&size=128&bold=true&rounded=true`,
-              googleAvatar: null,
-              provider: 'email',
-              specialty: '', phone: '',
-              profileComplete: !!serverAuth.name,
-              apiAccessStatus: serverAuth.apiAccessStatus || 'none',
-              userId: serverAuth.userId || null,
-              patients: [], records: [],
-              createdAt: new Date().toISOString(),
-            }
-        users[email] = u
-        saveUsers(users)
-        return _finalize(u)
-      }
-
-      // Fallback cục bộ (tài khoản tạo trước khi có xác thực server, hoặc
-      // đang offline lúc server không xác nhận được).
-      if (!u) throw new Error('Sai email hoặc mật khẩu, hoặc tài khoản không tồn tại.')
-      if (u.password !== password) throw new Error('Sai email hoặc mật khẩu, hoặc tài khoản không tồn tại.')
+      if (!u) throw new Error('Tài khoản không tồn tại')
+      if (u.password !== password) throw new Error('Sai mật khẩu')
       if (!u.uuid) {
         u = { ...u, uuid: generateAnonUUID() } // backfill for accounts created before uuid existed
+        users[email] = u
+        saveUsers(users)
       }
-      users[email] = u
-      saveUsers(users)
-
-      // "Migrate" ngầm: tài khoản này đăng nhập cục bộ thành công nhưng
-      // server chưa hề biết mật khẩu (chưa từng POST kèm password trước
-      // đây) -> đăng ký lại lên server luôn, để lần đăng nhập sau (kể cả từ
-      // thiết bị khác) dùng được server auth thay vì phải fallback nữa.
-      const secret = getOrCreateProfileSecret(u.uuid)
-      if (secret) {
-        fetch('/api/user-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uuid: u.uuid, name: u.name, secret, email, password }),
-        }).catch(() => { /* best-effort, thử lại ở lần đăng nhập kế tiếp */ })
-      }
-
       return _finalize(u)
     }
   }

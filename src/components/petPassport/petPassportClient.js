@@ -23,7 +23,7 @@
 //     nhập thêm nếu có) — không giữ nguyên khuôn mặt thú cưng thật 100%.
 //   - Đây là đánh đổi có chủ đích để giữ tính năng $0, không cần API key
 //     Gemini trả phí (đúng tinh thần "giống công nghệ trang comic").
-export const MODEL_IMAGE_GEN_NAME = 'gemini-3-pro-image-preview'
+export const MODEL_IMAGE_GEN_NAME = 'gemini-3-pro-image'
 
 async function callProxy(payload) {
   const res = await fetch('/api/groq-proxy', {

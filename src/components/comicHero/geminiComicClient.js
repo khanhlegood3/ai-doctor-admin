@@ -7,7 +7,7 @@
 // Vercel giới hạn 12 Serverless Functions; endpoint định tuyến dựa vào
 // field `provider: 'gemini-comic'` trong body (xem api/groq-proxy.js).
 
-const MODEL_V3 = 'gemini-3-pro-image-preview'
+const MODEL_V3 = 'gemini-3-pro-image'
 export const MODEL_IMAGE_GEN_NAME = MODEL_V3
 export const MODEL_TEXT_NAME = MODEL_V3
 

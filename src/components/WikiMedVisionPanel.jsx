@@ -6,6 +6,7 @@ import {
   getMessagesForDay,
   saveMessagesForDay,
 } from '../lib/wikiMedVisionChatStorage'
+import { GROQ_TEXT_MODEL } from '../lib/groqAiClient.js'
 
 // ─── Wikipedia preview modal context ─────────────────────────────────────────
 // Lets any tile (in SearchTab or AgentTab) open the same in-page iframe popup
@@ -20,7 +21,7 @@ const PIXELRAG_BASE  = 'https://api.pixelrag.ai'  // search endpoint
 const PIXELRAG_TILES = 'https://pixelrag.ai/api'   // tile image endpoint
 
 // ─── Groq config ─────────────────────────────────────────────────────────────
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
+const GROQ_MODEL = GROQ_TEXT_MODEL
 
 // ─── Groq Whisper STT hook ────────────────────────────────────────────────────
 // Records audio via MediaRecorder, sends to /api/groq-whisper, returns transcript.

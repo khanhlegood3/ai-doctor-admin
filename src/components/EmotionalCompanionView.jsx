@@ -7,7 +7,7 @@ import {
   saveGlobalChatHistory,
   ownerKeyOf,
 } from '../lib/globalChatbotStorage.js'
-import { callGroqChat, useVoiceInput, useTTS } from '../lib/groqAiClient.js'
+import { callGroqChat, useVoiceInput, useTTS, GROQ_VISION_MODEL } from '../lib/groqAiClient.js'
 import { MAX_FILES } from '../lib/useGlobalAIChatbotEngine.js'
 import { extractPdfTextForInBody, pdfPageToImageForInBody } from '../lib/inbodyImageConvert.js'
 
@@ -215,7 +215,7 @@ export default function EmotionalCompanionView({ onOpenStressRelief, onOpenInBod
           const res = await fetch('/api/groq-proxy', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'meta-llama/llama-4-scout-17b-16e-instruct', max_tokens: 1024,
+              model: GROQ_VISION_MODEL, max_tokens: 1024,
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: [

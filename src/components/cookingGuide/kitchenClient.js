@@ -18,8 +18,9 @@
 // phí), thay vì viết lại một đường gọi ảnh riêng.
 
 import { generateComicImage } from '../comicHero/geminiComicClient.js'
+import { GROQ_TEXT_MODEL } from '../../lib/groqAiClient.js'
 
-const MODEL = 'llama-3.3-70b-versatile'
+const MODEL = GROQ_TEXT_MODEL
 
 async function callGroqJSON(messages, { temperature = 0.7, maxTokens = 300 } = {}) {
   const res = await fetch('/api/groq-proxy', {

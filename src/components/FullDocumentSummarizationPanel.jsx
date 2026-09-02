@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext'
 import NavButtons from './NavButtons.jsx'
 import { isHeicFile, convertHeicToJpeg } from '../lib/heicConvert.js'
 import { loadPdfJs } from '../lib/pdfjsLoader.js'
+import { GROQ_TEXT_MODEL, GROQ_VISION_MODEL } from '../lib/groqAiClient.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CHUNK_SIZE = 4 // pages per chunk (mirrors rag-lab sequential chunking)
@@ -238,7 +239,7 @@ export default function FullDocumentSummarizationPanel({ onNext, nextLabel, onPr
       const res = await fetch('/api/groq-proxy', {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 1024, messages }),
+        body: JSON.stringify({ model: GROQ_TEXT_MODEL, max_tokens: 1024, messages }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(`Groq ${res.status}: ${data?.error?.message || JSON.stringify(data)}`)
@@ -251,7 +252,7 @@ export default function FullDocumentSummarizationPanel({ onNext, nextLabel, onPr
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          model: GROQ_VISION_MODEL,
           max_tokens: 1024,
           messages: [
             { role: 'system', content: systemMsg },

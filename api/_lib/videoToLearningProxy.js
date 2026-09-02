@@ -32,6 +32,7 @@ import { fetchFacebookTranscript, FacebookTranscriptError } from './facebookTran
 import { isFacebookVideoUrl, resolveFacebookVideo } from './facebookVideo.js'
 import { fetchWebpageText, WebpageTextError } from './webpageText.js'
 import { withApiKeyRotation, toRotatableHttpError, countApiKeyPool } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL as SHARED_GROQ_TEXT_MODEL } from './groqModels.js'
 
 export class VideoToLearningProxyError extends Error {
   constructor(message, status = 500) {
@@ -42,7 +43,7 @@ export class VideoToLearningProxyError extends Error {
 }
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-const GROQ_TEXT_MODEL = 'llama-3.3-70b-versatile'
+const GROQ_TEXT_MODEL = SHARED_GROQ_TEXT_MODEL
 const GEMINI_MODEL = 'gemini-3.6-flash' // model Flash mới nhất còn free tier thật
 const MIN_TRANSCRIPT_CHARS = 200 // dưới ngưỡng này coi là "nội dung không đủ"
 const GEMINI_TIMEOUT_MS = 110_000

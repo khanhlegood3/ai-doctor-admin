@@ -29,6 +29,7 @@
 
 import { GoogleGenAI } from '@google/genai'
 import { withApiKeyRotation, toRotatableHttpError } from './apiKeyPool.js'
+import { GROQ_TEXT_MODEL } from './groqModels.js'
 
 export class VisionSyncProxyError extends Error {
   constructor(message, status = 500) {
@@ -52,7 +53,7 @@ export async function runVisionSyncVibe({ objects, emotion, envSource } = {}) {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_TEXT_MODEL,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 20,
           temperature: 0.9,
