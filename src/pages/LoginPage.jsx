@@ -21,6 +21,10 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  // Tick khi đăng ký nếu muốn dùng các tính năng gọi API trả phí — gửi yêu
+  // cầu cho Admin duyệt ngay sau khi tạo tài khoản (xem loginWithEmail trong
+  // AuthContext.jsx).
+  const [wantsApiAccess, setWantsApiAccess] = useState(false)
 
   // ─── UUID / tên người giới thiệu (Referrer) — trang này là nơi HỨNG link
   // giới thiệu (?ref=<uuid>&refName=<tên>, xem App.jsx) trước khi tài khoản
@@ -154,7 +158,7 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
     // giờ chỉ có thể đặt SAU khi đã có tài khoản, từ màn Profile
     // (xem UserIdSettingsCard trong UserProfilePanel.jsx), và chỉ được lưu
     // đúng 1 lần duy nhất.
-    handle(() => loginWithEmail(email, password, mode === 'register' ? name : null))
+    handle(() => loginWithEmail(email, password, mode === 'register' ? name : null, mode === 'register' ? wantsApiAccess : false))
   }
 
   const s = {
@@ -530,6 +534,26 @@ export default function LoginPage({ onSuccess, onBack, initialMode = 'login', on
           value={password} onChange={e => setPassword(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleEmailSubmit()}
         />
+
+        {mode === 'register' && (
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 14, marginTop: 2,
+            fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer',
+            color: isDark ? 'rgba(232,240,248,0.75)' : '#444',
+          }}>
+            <input
+              type="checkbox"
+              checked={wantsApiAccess}
+              onChange={e => setWantsApiAccess(e.target.checked)}
+              style={{ marginTop: 2, flexShrink: 0, width: 15, height: 15, cursor: 'pointer' }}
+            />
+            <span>
+              {lang === 'vi'
+                ? 'Tôi muốn sử dụng các tính năng gọi API trả phí — gửi yêu cầu để Admin cấp quyền sau khi đăng ký.'
+                : 'I want to use paid-API features — send a request for Admin to grant access after signup.'}
+            </span>
+          </label>
+        )}
 
         {error && <div style={s.error}>{error}</div>}
 

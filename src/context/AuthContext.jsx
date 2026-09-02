@@ -332,6 +332,32 @@ export function AuthProvider({ children }) {
       .catch(() => { /* ignore */ })
   }, [user?.uuid, user?.userId])
 
+  // ─── Đồng bộ NGƯỢC trạng thái duyệt API trả phí từ server ─────────────────
+  // Admin duyệt/từ chối trên /api/user-profile (có thể ở 1 THIẾT BỊ KHÁC với
+  // thiết bị của user, vì role/membership hiện tại chỉ lưu localStorage cục
+  // bộ) — nên user cần tự "hỏi lại" server mỗi lần mở app để nhận đúng trạng
+  // thái mới nhất, chừng nào còn đang ở trạng thái 'pending' cục bộ.
+  const apiAccessReconcileRef = useRef('')
+  useEffect(() => {
+    const uuid = user?.uuid
+    if (!uuid || user?.isAnonymous) return
+    if (user?.apiAccessStatus !== 'pending') return
+    if (apiAccessReconcileRef.current === uuid) return
+    apiAccessReconcileRef.current = uuid
+    fetch(`/api/user-profile?uuid=${encodeURIComponent(uuid)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        const status = data?.apiAccessStatus
+        if (!status || status === user?.apiAccessStatus) return
+        setUser(u => (u && u.uuid === uuid) ? { ...u, apiAccessStatus: status } : u)
+        if (user?.email) {
+          const users = getUsers()
+          if (users[user.email]) { users[user.email].apiAccessStatus = status; saveUsers(users) }
+        }
+      })
+      .catch(() => { /* ignore — thử lại ở lần mở app kế tiếp */ })
+  }, [user?.uuid, user?.apiAccessStatus, user?.isAnonymous, user?.email])
+
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
     const enriched = { ...u, isAdmin: u.email === ADMIN_EMAIL, ...enrichRoleFields(u) }
@@ -513,7 +539,11 @@ export function AuthProvider({ children }) {
     return _upsertOAuth(profile)
   }
 
-  const loginWithEmail = async (email, password, name = null) => {
+  // wantsApiAccess: true khi user tick "Tôi muốn dùng API trả phí" ở form
+  // Đăng ký (LoginPage.jsx) — gửi yêu cầu lên server ngay sau khi tạo tài
+  // khoản để Admin (có thể ở 1 thiết bị khác) thấy và duyệt. Best-effort:
+  // lỗi mạng ở bước này không chặn việc tạo tài khoản.
+  const loginWithEmail = async (email, password, name = null, wantsApiAccess = false) => {
     const users = getUsers()
     if (name) {
       // Register
@@ -530,12 +560,23 @@ export function AuthProvider({ children }) {
         specialty: '',
         phone: '',
         profileComplete: false,
+        apiAccessStatus: wantsApiAccess ? 'pending' : 'none',
         patients: [], records: [],
         createdAt: new Date().toISOString(),
       }
       users[email] = u
       saveUsers(users)
       setNeedsProfileSetup(true)
+      if (wantsApiAccess) {
+        const secret = getOrCreateProfileSecret(u.uuid)
+        if (secret) {
+          fetch('/api/user-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid: u.uuid, name: u.name, secret, email: u.email, apiAccessRequest: true }),
+          }).catch(() => { /* ignore — người dùng vẫn xem được trạng thái "Đang chờ duyệt" cục bộ, sẽ tự đồng bộ lại lần đăng nhập sau */ })
+        }
+      }
       return _finalize(u)
     } else {
       // Login

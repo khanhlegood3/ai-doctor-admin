@@ -147,6 +147,7 @@ export default function Sidebar({ active, onNavigate, openSignal = 0, mobileOpen
     { id: 'admin', label: t('adminPanel'), step: '★', icon: '🛡️' },
     { id: 'affiliateAdmin', label: t('admin_affiliateAdmin'), step: 'AFF', icon: '🤝' },
     { id: 'roleMembershipAdmin', label: t('admin_roleMembershipAdmin'), step: 'ROLE', icon: '🛂' },
+    { id: 'apiAccessAdmin', label: t('admin_apiAccessAdmin'), step: 'APIKEY', icon: '🔑' },
     { id: 'moralisPlaygroundAdmin', label: t('admin_moralisPlaygroundAdmin'), step: 'MORALIS', icon: '🧪' },
     { id: 'affiliateWebhookAdmin', label: t('admin_affiliateWebhookAdmin'), step: 'WEBHOOK', icon: '🔗' },
     { id: 'create3DVideoFrom2D', label: t('admin_create3DVideoFrom2D'), step: '3D2D', icon: '🎥' },

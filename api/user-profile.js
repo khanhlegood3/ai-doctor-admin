@@ -34,7 +34,9 @@
 //                                     vận hành theo UUID, User ID chỉ là bí danh công khai để chia
 //                                     sẻ an toàn/dễ đọc hơn.)
 //   GET  ?checkUserId=<id>       -> { available: boolean, reason?: 'invalid_format'|'taken' }
-//   POST { uuid, name, secret, verified, userId? } -> { ok: true }
+//   GET  ?adminApiAccessList=1 (header x-admin-secret) -> { requests: [...] } (chờ duyệt API trả phí)
+//   POST { uuid, name, secret, verified, userId?, email?, apiAccessRequest? } -> { ok: true, apiAccessStatus }
+//   POST { action: 'decideApiAccess', uuid, decision: 'approve'|'reject', adminSecret } -> { ok: true }
 //     - uuid CHƯA có trong kho: tạo mới, lưu hash(secret) làm "khoá sở hữu".
 //     - uuid ĐÃ có: chỉ chấp nhận cập nhật nếu hash(secret) khớp khoá đã lưu
 //       -> trả 403 nếu không khớp (ai đó đang cố sửa tên cho UUID không phải
@@ -52,6 +54,32 @@ import { connectToDatabase } from './_lib/mongodb.js';
 
 const COLLECTION = 'user_profiles';
 const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/;
+
+// ─── Quyền dùng API trả phí (paid_api) ─────────────────────────────────────
+// Vercel Hobby giới hạn 12 Serverless Functions (đã dùng hết — xem ghi chú
+// trong api/_lib/aiChatbotControlProxy.js), nên tính năng này được GHÉP vào
+// đúng endpoint /api/user-profile thay vì tạo file api/*.js mới, tái sử dụng
+// luôn kết nối Mongo + collection user_profiles đã có (đã keyed theo uuid).
+//
+// Luồng:
+//  1. User đăng ký (email/password) và tick "muốn dùng API trả phí" ->
+//     client POST { uuid, name, secret, apiAccessRequest: true, email } ->
+//     xác thực bằng đúng cơ chế secret sở hữu uuid đã có sẵn ở trên (KHÔNG
+//     cần thêm auth mới) -> set apiAccessStatus = 'pending'.
+//  2. Admin (trang Quản Trị) GET ?adminApiAccessList=1 kèm header
+//     x-admin-secret để xem danh sách đang chờ.
+//  3. Admin POST { action: 'decideApiAccess', uuid, decision, adminSecret }
+//     để duyệt/từ chối -> set apiAccessStatus = 'approved' | 'rejected'.
+// ADMIN_API_SECRET là biến môi trường server-only (không tiền tố VITE_, nên
+// không lọt vào bundle) — Admin tự nhập secret này 1 lần trong panel Quản
+// Trị (lưu localStorage trên máy admin), giống hệt cách app đã làm với
+// "khoá sở hữu" ở trên — không phải auth server thật, nhưng đúng mức độ bảo
+// mật hiện có của toàn bộ app này (xem ghi chú đầu file: "App này KHÔNG có
+// server-session/cookie").
+function isValidAdminSecret(secret) {
+  const expected = process.env.ADMIN_API_SECRET;
+  return !!expected && !!secret && secret === expected;
+}
 
 function hashSecret(secret) {
   return createHash('sha256').update(String(secret)).digest('hex');
@@ -77,6 +105,19 @@ export default async function handler(req, res) {
     await ensureUserIdIndex(col);
 
     if (req.method === 'GET') {
+      // Admin: danh sách yêu cầu dùng API trả phí đang chờ duyệt.
+      if (req.query?.adminApiAccessList !== undefined) {
+        if (!isValidAdminSecret(req.headers['x-admin-secret'])) {
+          return res.status(403).json({ error: 'Sai admin secret.' });
+        }
+        const pending = await col
+          .find({ apiAccessStatus: 'pending' })
+          .project({ uuid: 1, name: 1, email: 1, apiAccessRequestedAt: 1, apiAccessNote: 1 })
+          .sort({ apiAccessRequestedAt: 1 })
+          .toArray();
+        return res.status(200).json({ requests: pending });
+      }
+
       // Kiểm tra nhanh 1 User ID còn trống hay không (dùng lúc gõ ở form
       // Đăng ký, TRƯỚC KHI tài khoản/uuid tồn tại nên chưa gọi được nhánh
       // uuid bên dưới).
@@ -92,7 +133,12 @@ export default async function handler(req, res) {
       const uuid = String(req.query?.uuid || '').trim();
       if (uuid) {
         const doc = await col.findOne({ uuid });
-        return res.status(200).json({ name: doc?.name || null, verified: !!doc?.verified, userId: doc?.userId || null });
+        return res.status(200).json({
+          name: doc?.name || null,
+          verified: !!doc?.verified,
+          userId: doc?.userId || null,
+          apiAccessStatus: doc?.apiAccessStatus || 'none',
+        });
       }
 
       if (req.query?.userId !== undefined) {
@@ -112,6 +158,27 @@ export default async function handler(req, res) {
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch { body = {}; }
       }
+
+      // Admin: duyệt / từ chối 1 yêu cầu dùng API trả phí.
+      if (body?.action === 'decideApiAccess') {
+        if (!isValidAdminSecret(body?.adminSecret)) {
+          return res.status(403).json({ error: 'Sai admin secret.' });
+        }
+        const uuid = String(body?.uuid || '').trim();
+        const decision = body?.decision === 'approve' ? 'approved' : body?.decision === 'reject' ? 'rejected' : null;
+        if (!uuid || !decision) {
+          return res.status(400).json({ error: 'Thiếu uuid hoặc decision không hợp lệ.' });
+        }
+        const result = await col.updateOne(
+          { uuid },
+          { $set: { apiAccessStatus: decision, apiAccessDecidedAt: new Date().toISOString() } }
+        );
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ error: 'Không tìm thấy uuid.' });
+        }
+        return res.status(200).json({ ok: true, apiAccessStatus: decision });
+      }
+
       const uuid = String(body?.uuid || '').trim();
       const name = String(body?.name || '').trim().slice(0, 120);
       const secret = String(body?.secret || '').trim();
@@ -148,6 +215,9 @@ export default async function handler(req, res) {
         }
       }
 
+      const email = body?.email ? String(body.email).trim().slice(0, 200) : null;
+      const apiAccessRequest = !!body?.apiAccessRequest;
+
       const setFields = {
         uuid,
         name,
@@ -158,6 +228,17 @@ export default async function handler(req, res) {
       if (userId) {
         setFields.userId = userId;
         setFields.userIdLower = userId.toLowerCase();
+      }
+      if (email) {
+        setFields.email = email;
+      }
+      if (apiAccessRequest) {
+        // Không cho gửi lại yêu cầu mới nếu đã được duyệt trước đó (idempotent,
+        // tránh vô tình đưa 1 tài khoản đã 'approved' về lại 'pending').
+        if (existing?.apiAccessStatus !== 'approved') {
+          setFields.apiAccessStatus = 'pending';
+          setFields.apiAccessRequestedAt = new Date().toISOString();
+        }
       }
 
       try {
@@ -170,7 +251,7 @@ export default async function handler(req, res) {
         }
         throw err;
       }
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, apiAccessStatus: setFields.apiAccessStatus || existing?.apiAccessStatus || 'none' });
     }
 
     res.setHeader('Allow', 'GET, POST');
