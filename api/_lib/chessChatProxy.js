@@ -10,7 +10,11 @@
 //
 // Ba nhánh, đúng 3 chỗ Chess Chat gốc gọi thẳng Gemini phía client:
 //   1. `liveToken` — phiên chat thoại thời gian thực với quân cờ (Live API,
-//      WebSocket, model gemini-2.5-flash-native-audio-preview-12-2025).
+//      WebSocket, model gemini-3.1-flash-live-preview — ĐÃ ĐỔI từ
+//      'gemini-2.5-flash-native-audio-preview-12-2025' vì Google báo lỗi
+//      WebSocket tự ngắt giữa lượt ở tỷ lệ ~80-90% từ 27/5/2026 và khuyến
+//      nghị migrate sang model này, xem
+//      https://ai.google.dev/gemini-api/docs/deprecations).
 //      CHỈ nhánh Live API mới hỗ trợ EPHEMERAL TOKEN (ai.authTokens.create())
 //      — đúng khuyến nghị bảo mật chính thức của Google cho kết nối Live API
 //      client-to-server (xem
