@@ -9,6 +9,7 @@ export const LANDING_I18N = {
   vi: {
     nav: {
       home: 'Trang chủ',
+      aikolToken: 'AIKOL token',
       about: 'Về chúng tôi',
       journey: 'Hành trình',
       community: 'Cộng đồng',
@@ -48,6 +49,15 @@ export const LANDING_I18N = {
       copied: 'Đã chép',
       viewOnPumpFun: 'Xem trên pump.fun',
       footerLink: 'Token AIKOL',
+      page: {
+        eyebrow: 'Token cộng đồng',
+        title: 'AIKOL token',
+        subtitle: 'Token meme cộng đồng trên Solana (pump.fun) và báo cáo tương tác về kiến trúc AIKOL Network: Viction Zero-Gas, tokenomics, airdrop Merkle, bộ máy xác thực 5 lớp và khung pháp lý.',
+        reportEyebrow: 'Báo cáo nghiên cứu',
+        reportTitle: 'AIKOL Network – Báo cáo tương tác kiến trúc & phễu cross-chain',
+        reportNote: '',
+        openFull: 'Mở toàn màn hình',
+      },
       disclaimer: 'Token meme mang tính giải trí và cộng đồng, không phải lời khuyên đầu tư và không liên quan đến dịch vụ y tế của nền tảng. Giá có thể biến động mạnh và bạn có thể mất toàn bộ số tiền. Hãy tự tìm hiểu kỹ (DYOR) và chỉ dùng số tiền bạn sẵn sàng mất.',
     },
     home: {
@@ -362,6 +372,7 @@ export const LANDING_I18N = {
   en: {
     nav: {
       home: 'Home',
+      aikolToken: 'AIKOL token',
       about: 'About Us',
       journey: 'Journey',
       community: 'Community',
@@ -401,6 +412,15 @@ export const LANDING_I18N = {
       copied: 'Copied',
       viewOnPumpFun: 'View on pump.fun',
       footerLink: 'AIKOL token',
+      page: {
+        eyebrow: 'Community token',
+        title: 'AIKOL token',
+        subtitle: 'The community meme token on Solana (pump.fun) and an interactive report on the AIKOL Network architecture: Viction Zero-Gas, tokenomics, Merkle airdrop, the 5-layer attestation engine and the legal framework.',
+        reportEyebrow: 'Research report',
+        reportTitle: 'AIKOL Network – Interactive architecture & cross-chain funnel report',
+        reportNote: 'The interactive report below is currently available in Vietnamese only.',
+        openFull: 'Open full screen',
+      },
       disclaimer: 'This meme token is for entertainment and community purposes only. It is not investment advice and is unrelated to the platform\'s medical services. Prices can be highly volatile and you may lose all of your money. Do your own research (DYOR) and only use funds you can afford to lose.',
     },
     home: {

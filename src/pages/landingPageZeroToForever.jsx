@@ -17,6 +17,7 @@ import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
 import AikolTokenBanner, { AIKOL_PUMPFUN_URL } from '../components/AikolTokenBanner.jsx'
+import AikolTokenReport from '../components/AikolTokenReport.jsx'
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
@@ -70,6 +71,7 @@ const PARTNERSHIP_EMAIL = 'partner@blooddonation.space'
 function getNavItems(t) {
   return [
     { key: 'home', label: t.nav.home },
+    { key: 'aikolToken', label: t.nav.aikolToken },
     { key: 'about', label: t.nav.about },
     { key: 'journey', label: t.nav.journey },
     { key: 'community', label: t.nav.community },
@@ -755,7 +757,7 @@ export default function LandingPageZeroToForever({
   // "Game sức khỏe" trong caption cuối game Dino Jump trỏ về
   // "/?page=gameSucKhoe"). Chỉ nhận các key hợp lệ đã biết, còn lại rơi
   // về 'home' như cũ để không bị phá bởi giá trị lạ.
-  const VALID_PAGE_KEYS = ['home', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
+  const VALID_PAGE_KEYS = ['home', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
   const [page, setPage] = useState(() => {
     if (typeof window === 'undefined') return 'home'
     try {
@@ -1681,6 +1683,20 @@ export default function LandingPageZeroToForever({
             subtitle={t.journey.cta.subtitle}
             t={t}
           />
+        </>
+      )}
+
+      {/* ══════════════════════════ AIKOL TOKEN ══════════════════════════ */}
+      {page === 'aikolToken' && (
+        <>
+          <PageHero
+            icon={Coins}
+            eyebrow={t.aikol.page.eyebrow}
+            title={t.aikol.page.title}
+            subtitle={t.aikol.page.subtitle}
+          />
+          <AikolTokenBanner t={t} />
+          <AikolTokenReport t={t} />
         </>
       )}
 
