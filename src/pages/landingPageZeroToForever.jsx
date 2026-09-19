@@ -16,6 +16,7 @@ import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
+import AikolTokenBanner, { AIKOL_PUMPFUN_URL } from '../components/AikolTokenBanner.jsx'
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
@@ -708,6 +709,12 @@ function LandingFooter({ t, setPage }) {
                 </span>
               </a>
             </li>
+            <li>
+              <a href={AIKOL_PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-white transition">
+                <Coins className="w-4 h-4 text-yellow-300 flex-shrink-0" />
+                <span>{t.aikol.footerLink}</span>
+              </a>
+            </li>
           </ul>
         </div>
       </div>
@@ -1349,6 +1356,9 @@ export default function LandingPageZeroToForever({
               </div>
             </div>
           </section>
+
+          {/* Token meme AIKOL (pump.fun) — game Learn-to-Earn */}
+          <AikolTokenBanner t={t} />
 
           <StatsBand stats={t.home.journeyPanel.stats} />
 
