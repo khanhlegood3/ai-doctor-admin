@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { Suspense, lazy, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowRight, ArrowUpRight, Play, CheckCircle2, Users, Users2, Heart, Droplet, HeartPulse,
@@ -17,7 +17,7 @@ import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
 import AikolTokenBanner, { AIKOL_PUMPFUN_URL } from '../components/AikolTokenBanner.jsx'
-import AikolTokenReport from '../components/AikolTokenReport.jsx'
+const AikolNetworkReport = lazy(() => import('../components/AikolNetworkReport.jsx'))
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
@@ -1696,7 +1696,11 @@ export default function LandingPageZeroToForever({
             subtitle={t.aikol.page.subtitle}
           />
           <AikolTokenBanner t={t} />
-          <AikolTokenReport t={t} />
+          <Suspense
+            fallback={<div className="container mx-auto max-w-7xl px-4 py-20 text-center text-gray-500 dark:text-gray-400">{t.aikol.page.loading}</div>}
+          >
+            <AikolNetworkReport t={t} language={language} isDark={isDark} />
+          </Suspense>
         </>
       )}
 
