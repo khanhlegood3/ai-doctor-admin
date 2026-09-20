@@ -10,7 +10,7 @@ export const LANDING_I18N = {
     nav: {
       home: 'Trang chủ',
       zofoToken: 'ZoFo token',
-      aikolToken: 'AIKOL token',
+      aikolToken: 'Whitepaper',
       about: 'Về chúng tôi',
       journey: 'Hành trình',
       community: 'Cộng đồng',
@@ -383,7 +383,7 @@ export const LANDING_I18N = {
     nav: {
       home: 'Home',
       zofoToken: 'ZoFo token',
-      aikolToken: 'AIKOL token',
+      aikolToken: 'Whitepaper',
       about: 'About Us',
       journey: 'Journey',
       community: 'Community',
