@@ -26,7 +26,8 @@ const TAB_KEYS = ['vision', 'tokenomics', 'vesting', 'blockchain', 'sandbox']
 const TAB_ICONS = { vision: '📘', tokenomics: '💎', vesting: '📈', blockchain: '⚡', sandbox: '🔬' }
 const ALLOC_MILLIONS = [250, 200, 250, 100, 100, 70, 30]
 const CIRCULATING = [464, 485, 520, 640, 760, 880, 950, 1000]
-const INITIAL_CIRCULATING = 450000000
+// Nguồn cung lưu thông tại TGE lấy từ chính dữ liệu biểu đồ (250M Presale + 200M LP + 14M Marketing = 464M)
+const INITIAL_CIRCULATING = CIRCULATING[0] * 1000000
 const TOTAL_SUPPLY = 1000000000
 const REWARD_PER_LESSON = 250
 const SITE_URL = 'https://hienmaunhanvan.com/'
@@ -353,6 +354,7 @@ export default function ZofoWhitepaperReport({ t, language = 'vi', isDark = fals
                   <Line data={vestData} options={vestOptions} />
                 </div>
                 <p className="text-[11px] italic text-gray-500 dark:text-gray-400 mt-3 text-center">{r.vesting.chartNote}</p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 text-center">{r.vesting.tgeBreakdown}</p>
               </Card>
 
               <Card>
@@ -381,7 +383,7 @@ export default function ZofoWhitepaperReport({ t, language = 'vi', isDark = fals
                   <div className="rounded-2xl bg-gray-50 dark:bg-white/5 p-3">
                     <dt className="text-xs text-gray-500 dark:text-gray-400">{r.vesting.outMc}</dt>
                     <dd className="text-lg font-extrabold text-gray-900 dark:text-gray-50">${fmt(initialMc, { maximumFractionDigits: 0 })}</dd>
-                    <dd className="text-[11px] text-gray-400">{r.vesting.outMcSub}</dd>
+                    <dd className="text-[11px] text-gray-400">{r.vesting.outMcSub.replace('{amount}', fmt(INITIAL_CIRCULATING))}</dd>
                   </div>
                   <div className="rounded-2xl bg-gray-50 dark:bg-white/5 p-3">
                     <dt className="text-xs text-gray-500 dark:text-gray-400">{r.vesting.outFdv}</dt>
