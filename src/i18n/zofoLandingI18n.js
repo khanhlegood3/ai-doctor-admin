@@ -9,6 +9,7 @@ export const LANDING_I18N = {
   vi: {
     nav: {
       home: 'Trang chủ',
+      zofoToken: 'ZoFo token',
       aikolToken: 'AIKOL token',
       about: 'Về chúng tôi',
       journey: 'Hành trình',
@@ -38,6 +39,16 @@ export const LANDING_I18N = {
       quickLinks: 'Liên kết nhanh',
       contact: 'Liên hệ',
       rights: '© 2026 Zero to Forever. Đã đăng ký bản quyền.',
+    },
+    zofo: {
+      page: {
+        eyebrow: 'Bạch thư token',
+        title: 'ZoFo token',
+        subtitle: 'Bạch thư tương tác v1.0 của Zero to Forever Foundation: phân bổ 1 tỷ token, vesting, mô phỏng Learn-to-Earn, hạ tầng Viction & AI và ma trận rủi ro.',
+        reportEyebrow: 'Bạch thư chính thức',
+        reportTitle: 'Zero to Forever Foundation & $ZoFo – Bạch thư tương tác',
+        loading: 'Đang tải bạch thư…',
+      },
     },
     aikol: {
       eyebrow: 'Token cộng đồng',
@@ -371,6 +382,7 @@ export const LANDING_I18N = {
   en: {
     nav: {
       home: 'Home',
+      zofoToken: 'ZoFo token',
       aikolToken: 'AIKOL token',
       about: 'About Us',
       journey: 'Journey',
@@ -400,6 +412,16 @@ export const LANDING_I18N = {
       quickLinks: 'Quick Links',
       contact: 'Contact',
       rights: '© 2026 Zero to Forever. All rights reserved.',
+    },
+    zofo: {
+      page: {
+        eyebrow: 'Token whitepaper',
+        title: 'ZoFo token',
+        subtitle: 'The interactive v1.0 whitepaper of the Zero to Forever Foundation: 1-billion-token allocation, vesting, Learn-to-Earn simulation, Viction & AI infrastructure and a risk matrix.',
+        reportEyebrow: 'Official whitepaper',
+        reportTitle: 'Zero to Forever Foundation & $ZoFo – Interactive Whitepaper',
+        loading: 'Loading whitepaper…',
+      },
     },
     aikol: {
       eyebrow: 'Community token',

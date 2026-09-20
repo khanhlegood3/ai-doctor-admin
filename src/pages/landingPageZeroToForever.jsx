@@ -18,6 +18,7 @@ import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
 import AikolTokenBanner, { AIKOL_PUMPFUN_URL } from '../components/AikolTokenBanner.jsx'
 const AikolNetworkReport = lazy(() => import('../components/AikolNetworkReport.jsx'))
+const ZofoWhitepaperReport = lazy(() => import('../components/ZofoWhitepaperReport.jsx'))
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
 import { getLandingT } from '../i18n/zofoLandingI18n.js'
 import { useApp } from '../context/AppContext'
@@ -71,6 +72,7 @@ const PARTNERSHIP_EMAIL = 'partner@blooddonation.space'
 function getNavItems(t) {
   return [
     { key: 'home', label: t.nav.home },
+    { key: 'zofoToken', label: t.nav.zofoToken },
     { key: 'aikolToken', label: t.nav.aikolToken },
     { key: 'about', label: t.nav.about },
     { key: 'journey', label: t.nav.journey },
@@ -757,7 +759,7 @@ export default function LandingPageZeroToForever({
   // "Game sức khỏe" trong caption cuối game Dino Jump trỏ về
   // "/?page=gameSucKhoe"). Chỉ nhận các key hợp lệ đã biết, còn lại rơi
   // về 'home' như cũ để không bị phá bởi giá trị lạ.
-  const VALID_PAGE_KEYS = ['home', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
+  const VALID_PAGE_KEYS = ['home', 'zofoToken', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
   const [page, setPage] = useState(() => {
     if (typeof window === 'undefined') return 'home'
     try {
@@ -1683,6 +1685,23 @@ export default function LandingPageZeroToForever({
             subtitle={t.journey.cta.subtitle}
             t={t}
           />
+        </>
+      )}
+
+      {/* ══════════════════════════ ZOFO TOKEN ══════════════════════════ */}
+      {page === 'zofoToken' && (
+        <>
+          <PageHero
+            icon={Gamepad2}
+            eyebrow={t.zofo.page.eyebrow}
+            title={t.zofo.page.title}
+            subtitle={t.zofo.page.subtitle}
+          />
+          <Suspense
+            fallback={<div className="container mx-auto max-w-7xl px-4 py-20 text-center text-gray-500 dark:text-gray-400">{t.zofo.page.loading}</div>}
+          >
+            <ZofoWhitepaperReport t={t} language={language} isDark={isDark} />
+          </Suspense>
         </>
       )}
 
