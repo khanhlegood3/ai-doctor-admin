@@ -7,7 +7,7 @@ import { Coins, Copy, Check, ExternalLink, AlertTriangle, Gamepad2 } from 'lucid
 export const ZOFO_TOKEN_ADDRESS = 'HMhtez17ir1AT5q75AqePqCE6uhNqpiJncugUDgPpump'
 export const ZOFO_PUMPFUN_URL = `https://pump.fun/coin/${ZOFO_TOKEN_ADDRESS}`
 
-async function copyText(text) {
+export async function copyText(text) {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)

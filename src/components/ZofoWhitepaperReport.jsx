@@ -17,8 +17,9 @@ import {
   Filler,
 } from 'chart.js'
 import { Doughnut, Line } from 'react-chartjs-2'
-import { ExternalLink, AlertTriangle } from 'lucide-react'
+import { ExternalLink, AlertTriangle, Copy, Check } from 'lucide-react'
 import { getZofoWhitepaperT, ZOFO_ROW_COLORS } from '../i18n/zofoWhitepaperI18n.js'
+import { copyText } from './ZofoTokenBanner.jsx'
 
 ChartJS.register(ArcElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend, Filler)
 
@@ -31,6 +32,9 @@ const INITIAL_CIRCULATING = CIRCULATING[0] * 1000000
 const TOTAL_SUPPLY = 1000000000
 const REWARD_PER_LESSON = 250
 const SITE_URL = 'https://hienmaunhanvan.com/'
+// Địa chỉ hợp đồng $ZoFo (BEP-20 theo bạch thư) — checksum EIP-55 hợp lệ
+export const ZOFO_BSC_CONTRACT = '0x767004b8C83D0A38605804caBDa6151ED6B8D72b'
+const ZOFO_BSCSCAN_URL = `https://bscscan.com/token/${ZOFO_BSC_CONTRACT}`
 const LOG_COLORS = ['text-teal-400', 'text-amber-400', 'text-indigo-400', 'text-emerald-400']
 const RISK_STYLES = {
   tech: 'bg-amber-50 border-amber-200 dark:bg-amber-500/10 dark:border-amber-500/30',
@@ -91,6 +95,14 @@ export default function ZofoWhitepaperReport({ t, language = 'vi', isDark = fals
   const [tasks, setTasks] = useState(3)
   const [workoutStep, setWorkoutStep] = useState(1)
   const [riskFilter, setRiskFilter] = useState('all')
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    if (await copyText(ZOFO_BSC_CONTRACT)) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    }
+  }
 
   /* ── màu chart theo theme ── */
   const ink = isDark ? '#cbd5e1' : '#475569'
@@ -166,6 +178,34 @@ export default function ZofoWhitepaperReport({ t, language = 'vi', isDark = fals
       <div className="flex items-start gap-3 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 mb-5 text-xs md:text-sm text-amber-900 dark:text-amber-100 leading-relaxed">
         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-300" />
         <p><Rich text={r.common.notice} /></p>
+      </div>
+
+      {/* Địa chỉ hợp đồng */}
+      <div className="rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#141b2e] p-4 mb-5">
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">{r.contract.label}</div>
+        <div className="flex flex-col md:flex-row gap-2 md:items-stretch">
+          <code className="flex-1 min-w-0 break-all text-xs sm:text-sm font-mono text-gray-900 dark:text-gray-50 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-3 select-all">
+            {ZOFO_BSC_CONTRACT}
+          </code>
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? r.contract.copied : r.contract.copy}
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 text-xs font-semibold transition py-2.5"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? r.contract.copied : r.contract.copy}
+          </button>
+          <a
+            href={ZOFO_BSCSCAN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl bg-[#0B132B] dark:bg-white text-white dark:text-[#0B132B] text-xs font-bold py-2.5 hover:opacity-90 transition"
+          >
+            {r.contract.view} <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-2">{r.contract.hint}</p>
       </div>
 
       {/* Ticker chỉ số nhanh */}

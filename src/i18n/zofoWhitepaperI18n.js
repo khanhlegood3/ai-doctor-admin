@@ -17,6 +17,13 @@ const vi = {
       '**Lưu ý quan trọng:** Bạch thư mô tả kế hoạch tokenomics của dự án và các thông số có thể thay đổi. Nội dung chỉ mang tính thông tin, không phải lời khuyên đầu tư hay lời chào bán. Token meme có thể biến động rất mạnh và bạn có thể mất toàn bộ số tiền. Chỉ sử dụng địa chỉ hợp đồng và liên kết do dự án công bố chính thức; hãy cảnh giác với token mạo danh tên ZoFo.',
     simNote: 'Giá và thu nhập trong công cụ này là giả định minh họa — không phải giá thị trường và không đảm bảo thu nhập.',
   },
+  contract: {
+    label: 'Địa chỉ hợp đồng $ZoFo (BNB Chain – BEP-20)',
+    copy: 'Sao chép',
+    copied: 'Đã chép',
+    view: 'Xem trên BscScan',
+    hint: 'Hãy đối chiếu địa chỉ trên BscScan trước khi giao dịch và chỉ tin địa chỉ được công bố tại đây.',
+  },
   ticker: [
     { label: 'Tổng Cung Cố Định:', value: '1,000,000,000 $ZoFo' },
     { label: 'Launchpad:', value: 'PinkSale Presale' },
@@ -268,6 +275,13 @@ const en = {
     notice:
       '**Important:** This whitepaper describes the project\'s planned tokenomics, and parameters may change. The content is for information only and is not investment advice or an offer to sell. Meme tokens can be extremely volatile and you may lose all of your money. Only use contract addresses and links officially published by the project, and beware of tokens impersonating the ZoFo name.',
     simNote: 'Prices and income in this tool are hypothetical illustrations — not market prices and not a guarantee of income.',
+  },
+  contract: {
+    label: '$ZoFo contract address (BNB Chain – BEP-20)',
+    copy: 'Copy',
+    copied: 'Copied',
+    view: 'View on BscScan',
+    hint: 'Verify the address on BscScan before trading and only trust the address published here.',
   },
   ticker: [
     { label: 'Fixed Total Supply:', value: '1,000,000,000 $ZoFo' },
