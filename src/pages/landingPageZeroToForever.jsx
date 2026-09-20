@@ -16,7 +16,7 @@ import zofoLogoKit from '../assets/landing/ZeroToForever-Logo-Kit.png'
 import anonymousProfileImg from './AnonymousProfileUUID-Avatar-1080x720.png'
 import UserUuid3DAvatar from '../components/UserUuid3DAvatar.jsx'
 import HealthRemixWeb3Ecosystem from '../components/HealthRemixWeb3Ecosystem.jsx'
-import AikolTokenBanner, { AIKOL_PUMPFUN_URL } from '../components/AikolTokenBanner.jsx'
+import ZofoTokenBanner, { ZOFO_PUMPFUN_URL } from '../components/ZofoTokenBanner.jsx'
 const AikolNetworkReport = lazy(() => import('../components/AikolNetworkReport.jsx'))
 const ZofoWhitepaperReport = lazy(() => import('../components/ZofoWhitepaperReport.jsx'))
 import { ORGANS, lowerFirst, getOrganAnatomyAnnotationId } from '../data/organs.js'
@@ -714,7 +714,7 @@ function LandingFooter({ t, setPage }) {
               </a>
             </li>
             <li>
-              <a href={AIKOL_PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-white transition">
+              <a href={ZOFO_PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-white transition">
                 <Coins className="w-4 h-4 text-yellow-300 flex-shrink-0" />
                 <span>{t.aikol.footerLink}</span>
               </a>
@@ -1361,8 +1361,8 @@ export default function LandingPageZeroToForever({
             </div>
           </section>
 
-          {/* Token meme AIKOL (pump.fun) — game Learn-to-Earn */}
-          <AikolTokenBanner t={t} />
+          {/* Token meme ZoFo (pump.fun) — game Learn-to-Earn */}
+          <ZofoTokenBanner t={t} />
 
           <StatsBand stats={t.home.journeyPanel.stats} />
 
@@ -1705,7 +1705,7 @@ export default function LandingPageZeroToForever({
         </>
       )}
 
-      {/* ══════════════════════════ AIKOL TOKEN ══════════════════════════ */}
+      {/* ══════════════════════════ WHITEPAPER (token ZoFo + báo cáo AIKOL Network) ══════════════════════════ */}
       {page === 'aikolToken' && (
         <>
           <PageHero
@@ -1714,7 +1714,7 @@ export default function LandingPageZeroToForever({
             title={t.aikol.page.title}
             subtitle={t.aikol.page.subtitle}
           />
-          <AikolTokenBanner t={t} />
+          <ZofoTokenBanner t={t} />
           <Suspense
             fallback={<div className="container mx-auto max-w-7xl px-4 py-20 text-center text-gray-500 dark:text-gray-400">{t.aikol.page.loading}</div>}
           >

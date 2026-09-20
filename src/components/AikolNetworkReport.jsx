@@ -20,7 +20,7 @@ import {
 import { Doughnut, Line, Bar } from 'react-chartjs-2'
 import { ExternalLink } from 'lucide-react'
 import { getAikolReportT } from '../i18n/aikolReportI18n.js'
-import { AIKOL_TOKEN_ADDRESS } from './AikolTokenBanner.jsx'
+import { ZOFO_TOKEN_ADDRESS } from './ZofoTokenBanner.jsx'
 
 ChartJS.register(ArcElement, LineElement, PointElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Filler)
 
@@ -124,7 +124,7 @@ export default function AikolNetworkReport({ t, language = 'vi', isDark = false 
     cutout: '65%',
     plugins: {
       legend: { position: 'bottom', labels: legendLabels },
-      tooltip: { callbacks: { label: (c) => ` ${c.label}: ${c.raw}% ( ${c.raw * 10}M $AIKOL )` } },
+      tooltip: { callbacks: { label: (c) => ` ${c.label}: ${c.raw}% ( ${c.raw * 10}M $ZoFo )` } },
     },
   }
 
@@ -378,7 +378,7 @@ export default function AikolNetworkReport({ t, language = 'vi', isDark = false 
             <PanelHeader
               eyebrow={r.pumpfun.eyebrow}
               title={r.pumpfun.title}
-              intro={r.pumpfun.intro.replace('{address}', AIKOL_TOKEN_ADDRESS)}
+              intro={r.pumpfun.intro.replace('{address}', ZOFO_TOKEN_ADDRESS)}
             />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>

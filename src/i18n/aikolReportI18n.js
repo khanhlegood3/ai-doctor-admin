@@ -22,9 +22,9 @@ const vi = {
     badge: 'Báo Cáo Nghiên Cứu Chuyên Sâu Web3 & Y Tế Cộng Đồng',
     title: 'Kiến Trúc Tích Hợp AIKOL Network, Viction Zero-Gas & Phễu Solana Cross-Chain',
     intro:
-      'Phân tích toàn diện chiến lược dịch chuyển từ tài sản văn hóa/đầu cơ ngắn hạn trên Solana (`5rTPYvu...Mpump`) sang hạ tầng giáo dục y tế bền vững, miễn phí giao dịch trên Viction EVM, tuân thủ Đạo luật MiCA Châu Âu.',
+      'Phân tích toàn diện chiến lược dịch chuyển từ tài sản văn hóa/đầu cơ ngắn hạn trên Solana (`HMhtez1...Ppump`) sang hạ tầng giáo dục y tế bền vững, miễn phí giao dịch trên Viction EVM, tuân thủ Đạo luật MiCA Châu Âu.',
     metrics: [
-      { icon: '🪙', label: 'Tổng Cung $AIKOL', value: '1,000,000,000', sub: 'Cố định - Không lạm phát' },
+      { icon: '🪙', label: 'Tổng Cung $ZoFo', value: '1,000,000,000', sub: 'Cố định - Không lạm phát' },
       { icon: '⚡', label: 'Hạ Tầng EVM Cốt Lõi', value: 'Viction Layer-1', sub: 'Chuẩn VRC-25 Zero-Gas Fee' },
       { icon: '🚀', label: 'Phễu Kéo Người Dùng', value: 'Solana Pump.fun', sub: 'Mô hình Đường cong giá 85 SOL' },
       { icon: '🔬', label: 'Chuẩn Xác Thực AI', value: 'Google MediaPipe', sub: '33 Khớp xương 3D Wasm Client' },
@@ -32,7 +32,7 @@ const vi = {
     modelTitle: 'Mô Hình Tổng Quan & Động Cơ Kinh Tế Tokenomics',
     modelText:
       'AIKOL Network tiên phong trong mô hình "Attention-First, Utility-Second". Dự án tận dụng động lượng đầu cơ từ hệ sinh thái Solana để xây dựng cộng đồng ban đầu, sau đó lọc danh tính thực thông qua thuật toán LightGBM và di trú sang nền tảng Viction Zero-Gas để vận hành cổng E-learning y tế.',
-    chartTitle: 'Biểu Đồ Phân Bổ 1 Tỷ Token $AIKOL',
+    chartTitle: 'Biểu Đồ Phân Bổ 1 Tỷ Token $ZoFo',
     detailTitle: 'Chi Tiết Phân Bổ Nguồn Quỹ',
     chartLabels: [
       'Sub-DAOs Dự Án (I2E)',
@@ -42,11 +42,11 @@ const vi = {
       'TuneCore Splits & Oracles',
     ],
     funds: [
-      { name: 'Quỹ Sub-DAOs Dự Án (35%)', desc: 'Tier 3: Impact-to-Earn (I2E) - Giải ngân qua Hospital Oracles', amount: '350M $AIKOL' },
-      { name: 'Quỹ L2E & Proof-of-Action (30%)', desc: 'Tier 1 & Tier 2: Trả thưởng bài thi lý thuyết & POAP thực địa', amount: '300M $AIKOL' },
-      { name: 'Đội Ngũ Sáng Lập & Thương Hiệu (15%)', desc: 'Cam kết dài hạn phát triển hệ thống và mở rộng thương hiệu', amount: '150M $AIKOL' },
-      { name: 'Thanh Khoản DEX & Marketing (10%)', desc: 'Cung cấp thanh khoản ban đầu và phễu thu hút người dùng', amount: '100M $AIKOL' },
-      { name: 'TuneCore Splits & Oracles (10%)', desc: 'Tier 4: Phí duy trì trạm Oracles và chia sẻ bản quyền tác giả', amount: '100M $AIKOL' },
+      { name: 'Quỹ Sub-DAOs Dự Án (35%)', desc: 'Tier 3: Impact-to-Earn (I2E) - Giải ngân qua Hospital Oracles', amount: '350M $ZoFo' },
+      { name: 'Quỹ L2E & Proof-of-Action (30%)', desc: 'Tier 1 & Tier 2: Trả thưởng bài thi lý thuyết & POAP thực địa', amount: '300M $ZoFo' },
+      { name: 'Đội Ngũ Sáng Lập & Thương Hiệu (15%)', desc: 'Cam kết dài hạn phát triển hệ thống và mở rộng thương hiệu', amount: '150M $ZoFo' },
+      { name: 'Thanh Khoản DEX & Marketing (10%)', desc: 'Cung cấp thanh khoản ban đầu và phễu thu hút người dùng', amount: '100M $ZoFo' },
+      { name: 'TuneCore Splits & Oracles (10%)', desc: 'Tier 4: Phí duy trì trạm Oracles và chia sẻ bản quyền tác giả', amount: '100M $ZoFo' },
     ],
   },
   viction: {
@@ -82,7 +82,7 @@ const vi = {
           '// Khả năng lưu trữ tự động:',
           '• SBTs Kỹ năng y tế (ERC-5192)',
           '• Huy hiệu POAP hiện diện',
-          '• Thưởng token $AIKOL tự động',
+          '• Thưởng token $ZoFo tự động',
         ],
         note: 'Lịch sử và doanh thu gắn liền vĩnh viễn với NFT, kiểm toán công khai trên 9scan.',
       },
@@ -111,13 +111,13 @@ const vi = {
     sliderLabel: 'Lượng SOL Đã Nạp Vào Đường Cong:',
     marks: ['0 SOL (Launch)', '42.5 SOL (50%)', '85 SOL (Graduation)'],
     marketCap: 'Ước Tính Vốn Hóa Thị Trường:',
-    tokenPrice: 'Giá Mỗi Token ($AIKOL):',
+    tokenPrice: 'Giá Mỗi Token ($ZoFo):',
     virtualTokens: 'Dự Trữ Token Ảo Còn Lại (y):',
     lpLabel: 'Cơ Chế Khóa LP & Mint Authority:',
     lp: { unlocked: 'Chưa Khóa', unlockedNew: 'Chưa Khóa (Đang Mới)', burned: 'Đã Đốt LP & Chuyển Raydium' },
     note: '💡 **Ghi chú thực tế:** Chưa đến 2% token trên Pump.fun hoàn thành mốc 85 SOL để di trú lên Raydium. AIKOL Network sử dụng phễu này để thu hút sự chú ý trước khi lọc người dùng thật qua thuật toán Anti-Sybil.',
     chartTitle: 'Đường Cong Giá x · y = k Tự Động Theo Lượng SOL',
-    chartDataset: 'Giá Token ($AIKOL / SOL)',
+    chartDataset: 'Giá Token ($ZoFo / SOL)',
     tableHead: ['Giai Đoạn Hoạt Động', 'Ngưỡng Tích Lũy SOL', 'Đặc Điểm Cơ Chế Thị Trường Cốt Lõi'],
     rows: [
       ['Khởi Tạo (Launch)', '0 - 5 SOL', 'Định giá siêu thấp. Giai đoạn thường bị chi phối bởi sniper bots hoặc devs.'],
@@ -131,7 +131,7 @@ const vi = {
     eyebrow: 'Lọc Danh Tính & Kháng Gian Lận',
     title: 'Airdrop Cây Merkle & Thuật Toán Anti-Sybil (LightGBM)',
     intro:
-      'Mục này chi tiết hóa giải pháp bảo vệ quỹ dự án khỏi các đợt tấn công cào airdrop (Sybil Attacks). AIKOL Network kết hợp thuật toán học máy phân cụm đồ thị (DBSCAN/OPTICS + LightGBM) với cấu trúc Bằng chứng Cây Merkle (Merkle Proof) để đảm bảo 100% token $AIKOL được trao cho người dùng thật.',
+      'Mục này chi tiết hóa giải pháp bảo vệ quỹ dự án khỏi các đợt tấn công cào airdrop (Sybil Attacks). AIKOL Network kết hợp thuật toán học máy phân cụm đồ thị (DBSCAN/OPTICS + LightGBM) với cấu trúc Bằng chứng Cây Merkle (Merkle Proof) để đảm bảo 100% token $ZoFo được trao cho người dùng thật.',
     checklistTitle: 'Kiểm Tra Tiêu Chí Đánh Giá Rủi Ro Sybil',
     checklistIntro: 'Tích chọn các đặc trưng hành vi của địa chỉ ví Solana để mô phỏng điểm đánh giá từ thuật toán LightGBM:',
     criteria: [
@@ -143,7 +143,7 @@ const vi = {
     scoreLabel: 'Xác Xuất Sybil (LightGBM Score):',
     verdictSafe: 'An Toàn',
     verdictRisk: 'Cảnh Báo Sybil High Risk',
-    statusSafe: '✅ Ví hợp lệ! Được cấp Merkle Proof để nhận Airdrop $AIKOL trên Viction.',
+    statusSafe: '✅ Ví hợp lệ! Được cấp Merkle Proof để nhận Airdrop $ZoFo trên Viction.',
     statusRisk: '❌ Phát hiện dấu hiệu Sybil! Địa chỉ bị thuật toán LightGBM gắn cờ loại khỏi danh sách Airdrop.',
     merkleTitle: 'Kiến Trúc Xác Minh Merkle Tree (Solidity & OpenZeppelin)',
     merkleIntro:
@@ -171,7 +171,7 @@ const vi = {
     badges: { master: 'Master Hero User', standard: 'Tình Nguyện Viên Đạt Chuẩn', below: 'Chưa Đạt Chuẩn Tối Thiểu' },
     descs: {
       master: '🎉 **Chúc mừng!** Đạt điều kiện trở thành Master Hero User. Được phép đúc bản Remix bài giảng và nhận 60% phân bổ doanh thu TuneCore Splits.',
-      standard: '✅ Đạt chuẩn Tình nguyện viên thực địa. Được nhận thưởng $AIKOL từ quỹ L2E và Proof-of-Action.',
+      standard: '✅ Đạt chuẩn Tình nguyện viên thực địa. Được nhận thưởng $ZoFo từ quỹ L2E và Proof-of-Action.',
       below: '⚠️ Tổng điểm chưa đủ 70 điểm. Cần cải thiện điểm bài kiểm tra lý thuyết hoặc bài tập động tác AI MediaPipe.',
     },
     chartTitle: 'Trọng Số & Điểm Đạt Được Qua 5 Lớp',
@@ -222,7 +222,7 @@ const vi = {
     classLabel: 'Xác Định Phân Loại:',
     classValue: 'Utility Token',
     classText:
-      '$AIKOL không phải là ART (Asset-Referenced Token) hay EMT (E-Money Token) do không neo giá vào tài sản pháp định. Mục đích cốt lõi là cung cấp quyền truy cập kỹ thuật số vào nền tảng E-learning và thanh toán phí bản quyền TuneCore.',
+      '$ZoFo không phải là ART (Asset-Referenced Token) hay EMT (E-Money Token) do không neo giá vào tài sản pháp định. Mục đích cốt lõi là cung cấp quyền truy cập kỹ thuật số vào nền tảng E-learning và thanh toán phí bản quyền TuneCore.',
     exemptTitle: '📜 3 Điểm Miễn Trừ Xuất Bản Whitepaper (Article 4)',
     exemptions: [
       '**Phát hành Miễn phí (Offered for Free):** Airdrop cho người dùng Solana không yêu cầu trả tiền hoặc thu thập dữ liệu cá nhân.',
@@ -231,7 +231,7 @@ const vi = {
     ],
     riskTitle: '⚠️ Rủi Ro Pháp Lý Hệ Trọng Cần Lưu Ý',
     riskText:
-      'Các sự miễn trừ theo Điều 4 MiCA sẽ **mất hiệu lực ngay lập tức** nếu tổ chức phát hành công bố ý định xin niêm yết ($AIKOL) lên một sàn giao dịch được cấp phép tại EU (Trading Platform). Đây là lý do AIKOL Network tách biệt hoàn toàn vai trò: Token trên Solana là //Community Promo Token//, trong khi Token trên Viction là //Utility Token// tuân thủ nghiêm ngặt khung miễn trừ Airdrop Châu Âu.',
+      'Các sự miễn trừ theo Điều 4 MiCA sẽ **mất hiệu lực ngay lập tức** nếu tổ chức phát hành công bố ý định xin niêm yết ($ZoFo) lên một sàn giao dịch được cấp phép tại EU (Trading Platform). Đây là lý do AIKOL Network tách biệt hoàn toàn vai trò: Token trên Solana là //Community Promo Token//, trong khi Token trên Viction là //Utility Token// tuân thủ nghiêm ngặt khung miễn trừ Airdrop Châu Âu.',
     legalNote: 'Nội dung mang tính tham khảo, không phải tư vấn pháp lý và không phải lời khuyên đầu tư.',
   },
   footer: ['© 2026 AIKOL Network (hienmaunhanvan.com). Báo Cáo Nghiên Cứu Chuyên Sâu Tương Tác.', 'Xây dựng trên Viction Zero-Gas EVM & Solana Cross-Chain Funnel.'],
@@ -256,9 +256,9 @@ const en = {
     badge: 'In-Depth Web3 & Community Health Research Report',
     title: 'Integrated Architecture of AIKOL Network, Viction Zero-Gas & the Solana Cross-Chain Funnel',
     intro:
-      'A comprehensive analysis of the strategy of moving from a cultural / short-term speculative asset on Solana (`5rTPYvu...Mpump`) to a sustainable, gas-free medical education infrastructure on Viction EVM, aligned with the EU MiCA regulation.',
+      'A comprehensive analysis of the strategy of moving from a cultural / short-term speculative asset on Solana (`HMhtez1...Ppump`) to a sustainable, gas-free medical education infrastructure on Viction EVM, aligned with the EU MiCA regulation.',
     metrics: [
-      { icon: '🪙', label: '$AIKOL Total Supply', value: '1,000,000,000', sub: 'Fixed - Non-inflationary' },
+      { icon: '🪙', label: '$ZoFo Total Supply', value: '1,000,000,000', sub: 'Fixed - Non-inflationary' },
       { icon: '⚡', label: 'Core EVM Infrastructure', value: 'Viction Layer-1', sub: 'VRC-25 Zero-Gas Fee standard' },
       { icon: '🚀', label: 'User Acquisition Funnel', value: 'Solana Pump.fun', sub: '85 SOL bonding-curve model' },
       { icon: '🔬', label: 'AI Attestation Standard', value: 'Google MediaPipe', sub: '33 3D skeletal keypoints, Wasm client-side' },
@@ -266,7 +266,7 @@ const en = {
     modelTitle: 'Overview Model & Tokenomics Economic Engine',
     modelText:
       'AIKOL Network pioneers an "Attention-First, Utility-Second" model. The project harnesses speculative momentum from the Solana ecosystem to build an initial community, then filters for real identities with a LightGBM algorithm and migrates to the Viction Zero-Gas platform to run the medical E-learning portal.',
-    chartTitle: 'Allocation of the 1 Billion $AIKOL Supply',
+    chartTitle: 'Allocation of the 1 Billion $ZoFo Supply',
     detailTitle: 'Fund Allocation Details',
     chartLabels: [
       'Project Sub-DAOs (I2E)',
@@ -276,11 +276,11 @@ const en = {
       'TuneCore Splits & Oracles',
     ],
     funds: [
-      { name: 'Project Sub-DAOs Fund (35%)', desc: 'Tier 3: Impact-to-Earn (I2E) - disbursed via Hospital Oracles', amount: '350M $AIKOL' },
-      { name: 'L2E & Proof-of-Action Fund (30%)', desc: 'Tier 1 & Tier 2: Rewards for theory exams & on-site POAP', amount: '300M $AIKOL' },
-      { name: 'Founding Team & Brand (15%)', desc: 'Long-term commitment to system development and brand expansion', amount: '150M $AIKOL' },
-      { name: 'DEX Liquidity & Marketing (10%)', desc: 'Initial liquidity and the user-acquisition funnel', amount: '100M $AIKOL' },
-      { name: 'TuneCore Splits & Oracles (10%)', desc: 'Tier 4: Oracle station upkeep fees and author-royalty sharing', amount: '100M $AIKOL' },
+      { name: 'Project Sub-DAOs Fund (35%)', desc: 'Tier 3: Impact-to-Earn (I2E) - disbursed via Hospital Oracles', amount: '350M $ZoFo' },
+      { name: 'L2E & Proof-of-Action Fund (30%)', desc: 'Tier 1 & Tier 2: Rewards for theory exams & on-site POAP', amount: '300M $ZoFo' },
+      { name: 'Founding Team & Brand (15%)', desc: 'Long-term commitment to system development and brand expansion', amount: '150M $ZoFo' },
+      { name: 'DEX Liquidity & Marketing (10%)', desc: 'Initial liquidity and the user-acquisition funnel', amount: '100M $ZoFo' },
+      { name: 'TuneCore Splits & Oracles (10%)', desc: 'Tier 4: Oracle station upkeep fees and author-royalty sharing', amount: '100M $ZoFo' },
     ],
   },
   viction: {
@@ -316,7 +316,7 @@ const en = {
           '// Automatic storage capabilities:',
           '• Medical-skill SBTs (ERC-5192)',
           '• Attendance POAP badges',
-          '• Automatic $AIKOL token rewards',
+          '• Automatic $ZoFo token rewards',
         ],
         note: 'History and revenue stay permanently tied to the NFT, publicly auditable on 9scan.',
       },
@@ -345,13 +345,13 @@ const en = {
     sliderLabel: 'SOL Deposited Into the Curve:',
     marks: ['0 SOL (Launch)', '42.5 SOL (50%)', '85 SOL (Graduation)'],
     marketCap: 'Estimated Market Cap:',
-    tokenPrice: 'Price per Token ($AIKOL):',
+    tokenPrice: 'Price per Token ($ZoFo):',
     virtualTokens: 'Remaining Virtual Token Reserve (y):',
     lpLabel: 'LP Lock & Mint Authority:',
     lp: { unlocked: 'Not Locked', unlockedNew: 'Not Locked (New)', burned: 'LP Burned & Moved to Raydium' },
     note: '💡 **Reality check:** Fewer than 2% of tokens on Pump.fun reach the 85 SOL mark and migrate to Raydium. AIKOL Network uses this funnel to attract attention before filtering real users with the Anti-Sybil algorithm.',
     chartTitle: 'Price Curve x · y = k by Amount of SOL',
-    chartDataset: 'Token Price ($AIKOL / SOL)',
+    chartDataset: 'Token Price ($ZoFo / SOL)',
     tableHead: ['Stage', 'Accumulated SOL Threshold', 'Core Market Mechanics'],
     rows: [
       ['Launch', '0 - 5 SOL', 'Ultra-low valuation. Typically dominated by sniper bots or devs.'],
@@ -365,7 +365,7 @@ const en = {
     eyebrow: 'Identity Filtering & Fraud Resistance',
     title: 'Merkle Tree Airdrop & Anti-Sybil Algorithm (LightGBM)',
     intro:
-      'This section details how the project fund is protected from airdrop-farming (Sybil) attacks. AIKOL Network combines graph-clustering machine learning (DBSCAN/OPTICS + LightGBM) with Merkle Proofs to ensure 100% of $AIKOL tokens go to real users.',
+      'This section details how the project fund is protected from airdrop-farming (Sybil) attacks. AIKOL Network combines graph-clustering machine learning (DBSCAN/OPTICS + LightGBM) with Merkle Proofs to ensure 100% of $ZoFo tokens go to real users.',
     checklistTitle: 'Sybil Risk Assessment Criteria Check',
     checklistIntro: 'Tick the behavioral features of a Solana wallet address to simulate the score from the LightGBM algorithm:',
     criteria: [
@@ -377,7 +377,7 @@ const en = {
     scoreLabel: 'Sybil Probability (LightGBM Score):',
     verdictSafe: 'Safe',
     verdictRisk: 'Sybil High Risk Warning',
-    statusSafe: '✅ Valid wallet! Issued a Merkle Proof to claim the $AIKOL Airdrop on Viction.',
+    statusSafe: '✅ Valid wallet! Issued a Merkle Proof to claim the $ZoFo Airdrop on Viction.',
     statusRisk: '❌ Sybil signals detected! The address is flagged by LightGBM and removed from the Airdrop list.',
     merkleTitle: 'Merkle Tree Verification Architecture (Solidity & OpenZeppelin)',
     merkleIntro:
@@ -405,7 +405,7 @@ const en = {
     badges: { master: 'Master Hero User', standard: 'Qualified Volunteer', below: 'Below Minimum Standard' },
     descs: {
       master: '🎉 **Congratulations!** You qualify as a Master Hero User. You may mint Remix versions of lessons and receive 60% of TuneCore Splits revenue.',
-      standard: '✅ Qualified as a field volunteer. Eligible for $AIKOL rewards from the L2E and Proof-of-Action funds.',
+      standard: '✅ Qualified as a field volunteer. Eligible for $ZoFo rewards from the L2E and Proof-of-Action funds.',
       below: '⚠️ Total score is below 70. Improve the theory test score or the AI MediaPipe movement exercises.',
     },
     chartTitle: 'Weights & Scores Across the 5 Layers',
@@ -456,7 +456,7 @@ const en = {
     classLabel: 'Classification:',
     classValue: 'Utility Token',
     classText:
-      '$AIKOL is neither an ART (Asset-Referenced Token) nor an EMT (E-Money Token), as it is not pegged to fiat assets. Its core purpose is to provide digital access to the E-learning platform and to pay TuneCore royalties.',
+      '$ZoFo is neither an ART (Asset-Referenced Token) nor an EMT (E-Money Token), as it is not pegged to fiat assets. Its core purpose is to provide digital access to the E-learning platform and to pay TuneCore royalties.',
     exemptTitle: '📜 3 Whitepaper Publication Exemptions (Article 4)',
     exemptions: [
       '**Offered for Free:** The Airdrop to Solana users requires no payment or collection of personal data.',
@@ -465,7 +465,7 @@ const en = {
     ],
     riskTitle: '⚠️ Critical Legal Risk to Note',
     riskText:
-      'The Article 4 MiCA exemptions **lapse immediately** if the issuer announces an intention to seek admission of $AIKOL to trading on an EU-licensed trading platform. This is why AIKOL Network fully separates the roles: the Solana token is a //Community Promo Token//, while the Viction token is a //Utility Token// strictly operating within the European Airdrop exemption framework.',
+      'The Article 4 MiCA exemptions **lapse immediately** if the issuer announces an intention to seek admission of $ZoFo to trading on an EU-licensed trading platform. This is why AIKOL Network fully separates the roles: the Solana token is a //Community Promo Token//, while the Viction token is a //Utility Token// strictly operating within the European Airdrop exemption framework.',
     legalNote: 'For reference only. This is not legal advice or investment advice.',
   },
   footer: ['© 2026 AIKOL Network (hienmaunhanvan.com). In-Depth Interactive Research Report.', 'Built on Viction Zero-Gas EVM & the Solana Cross-Chain Funnel.'],

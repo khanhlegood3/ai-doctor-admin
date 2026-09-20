@@ -1,11 +1,11 @@
-// src/components/AikolTokenBanner.jsx
-// Khối giới thiệu token meme AIKOL (pump.fun) trên landing page.
+// src/components/ZofoTokenBanner.jsx
+// Khối giới thiệu token meme ZoFo (pump.fun) trên landing page.
 // Nội dung song ngữ lấy từ `t.aikol` (src/i18n/zofoLandingI18n.js).
 import React, { useState } from 'react'
 import { Coins, Copy, Check, ExternalLink, AlertTriangle, Gamepad2 } from 'lucide-react'
 
-export const AIKOL_TOKEN_ADDRESS = '5rTPYvuupXdaseSevkGBrT4htfKPYk26YUn6QFRMpump'
-export const AIKOL_PUMPFUN_URL = `https://pump.fun/coin/${AIKOL_TOKEN_ADDRESS}`
+export const ZOFO_TOKEN_ADDRESS = 'HMhtez17ir1AT5q75AqePqCE6uhNqpiJncugUDgPpump'
+export const ZOFO_PUMPFUN_URL = `https://pump.fun/coin/${ZOFO_TOKEN_ADDRESS}`
 
 async function copyText(text) {
   try {
@@ -32,12 +32,12 @@ async function copyText(text) {
   }
 }
 
-export default function AikolTokenBanner({ t }) {
+export default function ZofoTokenBanner({ t }) {
   const [copied, setCopied] = useState(false)
   const a = t.aikol
 
   const handleCopy = async () => {
-    const ok = await copyText(AIKOL_TOKEN_ADDRESS)
+    const ok = await copyText(ZOFO_TOKEN_ADDRESS)
     if (ok) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
@@ -45,7 +45,7 @@ export default function AikolTokenBanner({ t }) {
   }
 
   return (
-    <section id="aikol-token" className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
+    <section id="zofo-token" className="container mx-auto max-w-7xl px-4 lg:px-8 py-10">
       <div className="rounded-3xl shadow-xl relative overflow-hidden bg-[#0B132B] border border-white/10">
         <div
           className="absolute inset-0 pointer-events-none"
@@ -67,7 +67,7 @@ export default function AikolTokenBanner({ t }) {
             <div className="text-xs uppercase tracking-wide text-gray-400">{a.addressLabel}</div>
             <div className="flex items-stretch gap-2">
               <code className="flex-1 min-w-0 break-all text-[11px] sm:text-xs leading-snug font-mono text-white bg-black/30 border border-white/10 rounded-xl px-3 py-3 select-all">
-                {AIKOL_TOKEN_ADDRESS}
+                {ZOFO_TOKEN_ADDRESS}
               </code>
               <button
                 type="button"
@@ -81,7 +81,7 @@ export default function AikolTokenBanner({ t }) {
               </button>
             </div>
             <a
-              href={AIKOL_PUMPFUN_URL}
+              href={ZOFO_PUMPFUN_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-white text-[#0B132B] px-6 py-3 rounded-full font-bold shadow-lg hover:shadow-[0_0_20px_rgba(250,204,21,0.4)] transition inline-flex items-center justify-center gap-2"
