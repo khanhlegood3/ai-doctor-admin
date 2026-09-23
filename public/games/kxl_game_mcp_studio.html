@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Game Engine Studio - Live AI Asset Pipeline Demo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#111827',
+                            950: '#030712',
+                        },
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#06b6d4',
+                        },
+                        emerald: {
+                            400: '#34d399',
+                            500: '#10b981',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for terminal UI */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #030712;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2937;
+            border-radius: 4px;
+        }
+        canvas {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-cyan-500 selection:text-slate-950">
+
+    <!-- Chosen Palette: Cyberpunk Dark Studio (Background: #030712 Slate-950, Cards: #0f172a Slate-900, Accents: Cyan #22d3ee, Emerald #34d399, Amber #f59e0b) -->
+
+    <!-- Application Structure Plan:
+        1. Top Bar: Game Studio MCP Status, Engine FPS counter, Active Protocol Version (JSON-RPC 2.0).
+        2. Main Viewport Split Layout:
+           - Left Column (Playable Game Engine): Canvas Viewport with physics, player controls, live tilemap, dynamic particles, collision debug toggle, mobile touch D-Pad.
+           - Right Column (MCP AI Agent & Pipeline Console):
+             a. Prompt & Preset Trigger Selector (Cyberpunk Ninja, Retro Dungeon, Sci-Fi Alien, Lava Cavern).
+             b. Dynamic Tool Executor (Fire MCP calls for Sprites, Tilemaps, Audio, VFX, Colliders).
+             c. Live MCP Protocol Inspector (Exposes JSON-RPC tool calls, metadata, hitboxes, audio waveforms, slice grids).
+             d. Generated Asset Texture/Audio Inspector Sandbox.
+        3. Bottom Bar: Keyboard controls guide and MCP Protocol event log ticker.
+    -->
+
+    <!-- Visualization & Content Choices:
+        - Interactive Canvas 2D Engine: Real-time platformer physics, tile collisions, enemy AI, particle systems, procedural graphics generation.
+        - Web Audio API Engine: Zero external asset dependency; procedurally generates Jump, Attack, Coin, Land, Hit SFX and background synthesizer arpeggios on demand!
+        - Procedural Pixel Art Compiler: Custom JS functions render spritesheets, tile textures, and VFX flipbooks dynamically into memory when MCP tools are executed.
+        - NO SVG, NO Mermaid JS. All UI rendered with structured HTML/Tailwind, icons with Unicode, graphics on Canvas.
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <!-- Header / Top Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 px-4 py-2.5">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg">
+                    🎮
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-white flex items-center gap-2">
+                        Game Engine MCP Pipeline Studio
+                        <span class="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[10px] font-mono px-2 py-0.5 rounded-full">v1.0.4 Runtime</span>
+                    </h1>
+                </div>
+            </div>
+
+            <!-- Engine Telemetry Bar -->
+            <div class="flex items-center space-x-4 text-[11px] font-mono">
+                <div class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-slate-400">FPS:</span> <span id="fps-counter" class="text-emerald-400 font-bold">60</span>
+                </div>
+                <div class="hidden md:flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
+                    <span class="text-slate-400">Audio Synth:</span> <span id="audio-status" class="text-amber-400 font-bold">WebAudio Ready</span>
+                </div>
+                <div class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
+                    <span class="text-slate-400">MCP Protocol:</span> <span class="text-cyan-400 font-bold">JSON-RPC 2.0</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-4 grid lg:grid-cols-12 gap-4">
+
+        <!-- LEFT COLUMN: CANVAS PLAYABLE GAME ENGINE (7 COLS) -->
+        <div class="lg:col-span-7 flex flex-col space-y-3">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-3 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                <!-- Engine Viewport Header -->
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800 text-xs font-mono">
+                    <div class="flex items-center gap-2">
+                        <span class="text-cyan-400 font-bold">🕹️ VIEWPORT:</span>
+                        <span id="current-theme-tag" class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px]">Cyberpunk Neon</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1 cursor-pointer select-none text-[11px] text-slate-400 hover:text-white">
+                            <input type="checkbox" id="toggle-debug-colliders" onchange="toggleColliderDebug()" class="rounded bg-slate-950 border-slate-700 text-cyan-500">
+                            <span>Show Colliders</span>
+                        </label>
+                        <button onclick="toggleAudioBGM()" id="bgm-toggle-btn" class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-2 py-0.5 rounded text-[11px] font-bold">
+                            🔊 BGM: OFF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas Game Viewport Container -->
+                <div class="relative my-2 w-full aspect-[16/9] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
+                    <canvas id="gameCanvas" width="640" height="360" class="w-full h-full object-contain cursor-crosshair"></canvas>
+
+                    <!-- Game Overlay Banner / HUD -->
+                    <div class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1.5 rounded border border-slate-800 text-[11px] font-mono space-y-0.5 pointer-events-none">
+                        <div class="text-slate-400 flex items-center justify-between gap-4">
+                            <span>SCORE: <strong id="hud-score" class="text-emerald-400">0000</strong></span>
+                            <span>COLLECTIBLES: <strong id="hud-orbs" class="text-amber-400">0/3</strong></span>
+                        </div>
+                        <div class="text-slate-400 flex items-center gap-2">
+                            <span>HP:</span>
+                            <div class="w-24 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                <div id="hud-hp-bar" class="w-full h-full bg-emerald-500 transition-all"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Notification Banner -->
+                    <div id="mcp-toast" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-cyan-950/90 border border-cyan-500/50 text-cyan-300 text-xs px-4 py-1.5 rounded-full shadow-2xl transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
+                        <span class="animate-spin text-cyan-400">⚙️</span>
+                        <span id="mcp-toast-msg">MCP Asset Injected into Engine</span>
+                    </div>
+                </div>
+
+                <!-- Touch / On-screen Game Controls for Mobile/Tablet -->
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs sm:hidden">
+                    <div class="flex space-x-1">
+                        <button ontouchstart="keys.left=true" ontouchend="keys.left=false" class="flex-1 bg-slate-800 py-2 rounded text-center text-slate-300 active:bg-cyan-600 font-bold">◀</button>
+                        <button ontouchstart="keys.right=true" ontouchend="keys.right=false" class="flex-1 bg-slate-800 py-2 rounded text-center text-slate-300 active:bg-cyan-600 font-bold">▶</button>
+                    </div>
+                    <div class="flex space-x-1">
+                        <button ontouchstart="triggerJump()" class="flex-1 bg-slate-800 py-2 rounded text-center text-amber-400 active:bg-amber-600 font-bold">JUMP</button>
+                        <button ontouchstart="triggerAttack()" class="flex-1 bg-slate-800 py-2 rounded text-center text-emerald-400 active:bg-emerald-600 font-bold">ATTACK</button>
+                    </div>
+                </div>
+
+                <!-- Keyboard Control Guide -->
+                <div class="hidden sm:flex justify-between items-center text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-800">
+                    <div>Controls: <span class="text-white bg-slate-800 px-1 rounded">A</span> / <span class="text-white bg-slate-800 px-1 rounded">D</span> or <span class="text-white bg-slate-800 px-1 rounded">←</span> <span class="text-white bg-slate-800 px-1 rounded">→</span> Move | <span class="text-white bg-slate-800 px-1 rounded">W</span> / <span class="text-white bg-slate-800 px-1 rounded">Space</span> Jump | <span class="text-white bg-slate-800 px-1 rounded">J</span> / <span class="text-white bg-slate-800 px-1 rounded">Z</span> Attack</div>
+                    <button onclick="resetGameLevel()" class="hover:text-cyan-400 transition-colors">↺ Reset Scene</button>
+                </div>
+            </div>
+
+            <!-- Active Compiled Assets Palette View -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-3 space-y-2">
+                <div class="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>🖼️ IN-MEMORY RENDERED ASSET TEXTURES & ATLASES</span>
+                    <span class="text-[10px] text-slate-500 font-mono">Procedurally Generated by MCP</span>
+                </div>
+                <div class="grid grid-cols-4 gap-2 text-center text-[10px] font-mono">
+                    <div class="bg-slate-950 p-2 rounded border border-slate-800 space-y-1">
+                        <div class="text-slate-400">Hero Atlas</div>
+                        <canvas id="previewHeroCanvas" width="64" height="16" class="w-full h-8 bg-slate-900 rounded mx-auto border border-slate-800"></canvas>
+                    </div>
+                    <div class="bg-slate-950 p-2 rounded border border-slate-800 space-y-1">
+                        <div class="text-slate-400">Tileset Sheet</div>
+                        <canvas id="previewTileCanvas" width="64" height="16" class="w-full h-8 bg-slate-900 rounded mx-auto border border-slate-800"></canvas>
+                    </div>
+                    <div class="bg-slate-950 p-2 rounded border border-slate-800 space-y-1">
+                        <div class="text-slate-400">VFX Particles</div>
+                        <canvas id="previewVfxCanvas" width="32" height="16" class="w-full h-8 bg-slate-900 rounded mx-auto border border-slate-800"></canvas>
+                    </div>
+                    <div class="bg-slate-950 p-2 rounded border border-slate-800 space-y-1">
+                        <div class="text-slate-400">Collectible Item</div>
+                        <canvas id="previewItemCanvas" width="16" height="16" class="w-full h-8 bg-slate-900 rounded mx-auto border border-slate-800"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: MCP AI AGENT CONSOLE & TOOL EXECUTOR (5 COLS) -->
+        <div class="lg:col-span-5 flex flex-col space-y-3">
+
+            <!-- Prompt & Presets Bar -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-3 space-y-3 shadow-xl">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xs font-bold text-white flex items-center gap-2">
+                        🤖 MCP AI AGENT CONSOLE
+                    </h3>
+                    <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20 font-mono">Target: Engine Scene #1</span>
+                </div>
+
+                <!-- Theme Presets -->
+                <div class="space-y-1">
+                    <label class="text-[11px] text-slate-400 font-medium">Select Preset Prompt Theme:</label>
+                    <div class="grid grid-cols-2 gap-1.5 text-xs font-semibold">
+                        <button onclick="applyPreset('cyberpunk')" id="btn-cyberpunk" class="preset-btn px-2.5 py-1.5 rounded bg-cyan-500 text-slate-950 border border-cyan-400 font-bold text-left flex justify-between items-center">
+                            <span>🌆 Cyberpunk</span>
+                            <span class="text-[9px]">Neon Sci-Fi</span>
+                        </button>
+                        <button onclick="applyPreset('dungeon')" id="btn-dungeon" class="preset-btn px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-left flex justify-between items-center">
+                            <span>🏰 Retro Dungeon</span>
+                            <span class="text-[9px]">Pixel Stone</span>
+                        </button>
+                        <button onclick="applyPreset('lava')" id="btn-lava" class="preset-btn px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-left flex justify-between items-center">
+                            <span>🔥 Lava Cavern</span>
+                            <span class="text-[9px]">Inferno</span>
+                        </button>
+                        <button onclick="applyPreset('alien')" id="btn-alien" class="preset-btn px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-left flex justify-between items-center">
+                            <span>👾 Alien World</span>
+                            <span class="text-[9px]">Bio Synth</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MCP Individual Tool Execution Triggers -->
+                <div class="space-y-1.5 pt-2 border-t border-slate-800">
+                    <label class="text-[11px] text-slate-400 font-medium">Execute Specific MCP Tools:</label>
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                        <button onclick="execMcpTool('spritesheet')" class="bg-slate-950 hover:bg-slate-800 text-cyan-300 border border-slate-800 hover:border-cyan-500/50 p-2 rounded text-left transition-all">
+                            ⚡ mcp__gen_character
+                        </button>
+                        <button onclick="execMcpTool('tilemap')" class="bg-slate-950 hover:bg-slate-800 text-emerald-300 border border-slate-800 hover:border-emerald-500/50 p-2 rounded text-left transition-all">
+                            🗺️ mcp__gen_tilemap
+                        </button>
+                        <button onclick="execMcpTool('vfx')" class="bg-slate-950 hover:bg-slate-800 text-amber-300 border border-slate-800 hover:border-amber-500/50 p-2 rounded text-left transition-all">
+                            💥 mcp__gen_vfx
+                        </button>
+                        <button onclick="execMcpTool('audio')" class="bg-slate-950 hover:bg-slate-800 text-purple-300 border border-slate-800 hover:border-purple-500/50 p-2 rounded text-left transition-all">
+                            🔊 mcp__gen_audio_sfx
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live MCP Protocol JSON Inspector -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-3 flex-grow flex flex-col space-y-2 shadow-xl">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span class="text-xs font-bold text-slate-200 font-mono">📡 MCP TOOL CALL & METADATA INSPECTOR</span>
+                    <span id="mcp-tool-name" class="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">mcp__game_gen_spritesheet</span>
+                </div>
+
+                <div class="bg-slate-950 rounded-lg p-3 border border-slate-800 font-mono text-[11px] flex-grow overflow-hidden flex flex-col">
+                    <div class="text-slate-500 mb-1 flex justify-between">
+                        <span>// JSON-RPC 2.0 Response & Engine Ingestion Payload</span>
+                        <button onclick="copyMcpJson()" class="text-slate-400 hover:text-white">Copy JSON</button>
+                    </div>
+                    <pre id="mcp-json-display" class="text-emerald-400 overflow-y-auto flex-grow max-h-[220px] whitespace-pre-wrap leading-relaxed">
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "tool": "mcp__game_gen_spritesheet",
+    "theme": "cyberpunk",
+    "metadata": {
+      "frame_width": 16,
+      "frame_height": 16,
+      "total_frames": 4,
+      "animations": { "idle": [0], "run": [0, 1, 2, 3] },
+      "hitbox": { "x": 3, "y": 2, "w": 10, "h": 14 }
+    }
+  }
+}</pre>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer Event Ticker -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-2 px-4 text-xs font-mono text-slate-400 flex justify-between items-center">
+        <div class="flex items-center gap-2 overflow-hidden">
+            <span class="text-cyan-400 font-bold">MCP LOG:</span>
+            <span id="mcp-log-ticker" class="truncate text-slate-300">Ready to accept Model Context Protocol requests. Click any preset or tool button to trigger AI asset compilation.</span>
+        </div>
+        <div class="hidden sm:block text-[11px] text-slate-500 whitespace-nowrap">
+            Pure JS Engine • No SVG/Mermaid • WebAudio
+        </div>
+    </footer>
+
+    <!-- GAME ENGINE & MCP PIPELINE JAVASCRIPT LOGIC -->
+    <script>
+        // ====================================================================
+        // 1. GAME ENGINE STATE & PROCEDURAL ASSET COMPILERS
+        // ====================================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Engine Telemetry
+        let lastFrameTime = performance.now();
+        let fps = 60;
+        let showColliders = false;
+        let score = 0;
+        let bgmPlaying = false;
+
+        // Current Active Theme & Preset State
+        let currentTheme = 'cyberpunk';
+
+        // Palette presets for themes
+        const THEMES = {
+            cyberpunk: {
+                name: "Cyberpunk Neon",
+                heroColor: "#22d3ee",
+                heroAltColor: "#ec4899",
+                tileTop: "#06b6d4",
+                tileBody: "#0f172a",
+                bgGradient: ["#030712", "#0f172a"],
+                particleColor: "#22d3ee",
+                itemColor: "#f59e0b",
+                vfxTrail: "rgba(34, 211, 238, 0.4)"
+            },
+            dungeon: {
+                name: "Retro Dungeon",
+                heroColor: "#f59e0b",
+                heroAltColor: "#ef4444",
+                tileTop: "#78350f",
+                tileBody: "#27272a",
+                bgGradient: ["#18181b", "#09090b"],
+                particleColor: "#f59e0b",
+                itemColor: "#3b82f6",
+                vfxTrail: "rgba(245, 158, 11, 0.4)"
+            },
+            lava: {
+                name: "Lava Cavern",
+                heroColor: "#ef4444",
+                heroAltColor: "#f97316",
+                tileTop: "#dc2626",
+                tileBody: "#450a0a",
+                bgGradient: ["#450a0a", "#180202"],
+                particleColor: "#f97316",
+                itemColor: "#facc15",
+                vfxTrail: "rgba(239, 68, 68, 0.4)"
+            },
+            alien: {
+                name: "Alien World",
+                heroColor: "#a855f7",
+                heroAltColor: "#10b981",
+                tileTop: "#059669",
+                tileBody: "#3b0764",
+                bgGradient: ["#2e1065", "#090514"],
+                particleColor: "#a855f7",
+                itemColor: "#34d399",
+                vfxTrail: "rgba(168, 85, 247, 0.4)"
+            }
+        };
+
+        // Player Entity
+        const player = {
+            x: 50,
+            y: 200,
+            w: 16,
+            h: 16,
+            vx: 0,
+            vy: 0,
+            speed: 2.5,
+            jumpPower: -7.5,
+            grounded: false,
+            frame: 0,
+            animTimer: 0,
+            facing: 1, // 1 right, -1 left
+            hp: 100,
+            isAttacking: false,
+            attackTimer: 0
+        };
+
+        // Key controls
+        const keys = { left: false, right: false, up: false, attack: false };
+
+        // Platforms & Level Tilemap (Grid based or AABB)
+        let platforms = [
+            { x: 0, y: 320, w: 640, h: 40, type: 'ground' },
+            { x: 100, y: 250, w: 120, h: 16, type: 'platform' },
+            { x: 260, y: 200, w: 120, h: 16, type: 'platform' },
+            { x: 420, y: 150, w: 140, h: 16, type: 'platform' },
+            { x: 200, y: 100, w: 100, h: 16, type: 'platform' }
+        ];
+
+        // Collectibles (Orbs)
+        let collectibles = [
+            { x: 150, y: 220, w: 10, h: 10, collected: false },
+            { x: 310, y: 170, w: 10, h: 10, collected: false },
+            { x: 470, y: 120, w: 10, h: 10, collected: false }
+        ];
+
+        // Particles System
+        let particles = [];
+
+        // ====================================================================
+        // 2. PROCEDURAL TEXTURE & SPRITE CANVAS GENERATORS
+        // ====================================================================
+
+        const heroOffscreen = document.getElementById('previewHeroCanvas');
+        const heroCtx = heroOffscreen.getContext('2d');
+
+        const tileOffscreen = document.getElementById('previewTileCanvas');
+        const tileCtx = tileOffscreen.getContext('2d');
+
+        const vfxOffscreen = document.getElementById('previewVfxCanvas');
+        const vfxCtx = vfxOffscreen.getContext('2d');
+
+        const itemOffscreen = document.getElementById('previewItemCanvas');
+        const itemCtx = itemOffscreen.getContext('2d');
+
+        function recompileHeroSprite() {
+            const theme = THEMES[currentTheme];
+            heroCtx.clearRect(0, 0, 64, 16);
+
+            // Draw 4 animation frames (16x16 each)
+            for (let f = 0; f < 4; f++) {
+                const ox = f * 16;
+                // Body
+                heroCtx.fillStyle = theme.heroColor;
+                heroCtx.fillRect(ox + 3, 3, 10, 10);
+                // Head/Visor
+                heroCtx.fillStyle = theme.heroAltColor;
+                heroCtx.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
+                // Legs animation
+                heroCtx.fillStyle = '#ffffff';
+                if (f === 0) {
+                    heroCtx.fillRect(ox + 4, 13, 3, 3);
+                    heroCtx.fillRect(ox + 9, 13, 3, 3);
+                } else if (f === 1) {
+                    heroCtx.fillRect(ox + 3, 13, 3, 3);
+                    heroCtx.fillRect(ox + 10, 13, 3, 3);
+                } else if (f === 2) {
+                    heroCtx.fillRect(ox + 5, 13, 3, 3);
+                    heroCtx.fillRect(ox + 8, 13, 3, 3);
+                } else {
+                    heroCtx.fillRect(ox + 6, 13, 4, 3);
+                }
+            }
+        }
+
+        function recompileTileset() {
+            const theme = THEMES[currentTheme];
+            tileCtx.clearRect(0, 0, 64, 16);
+
+            // Tile 1: Top Surface
+            tileCtx.fillStyle = theme.tileTop;
+            tileCtx.fillRect(0, 0, 16, 4);
+            tileCtx.fillStyle = theme.tileBody;
+            tileCtx.fillRect(0, 4, 16, 12);
+
+            // Tile 2: Pattern Block
+            tileCtx.fillStyle = theme.tileBody;
+            tileCtx.fillRect(16, 0, 16, 16);
+            tileCtx.fillStyle = theme.tileTop;
+            tileCtx.fillRect(18, 2, 12, 12);
+
+            // Tile 3: Brick Accent
+            tileCtx.fillStyle = theme.tileBody;
+            tileCtx.fillRect(32, 0, 16, 16);
+            tileCtx.fillStyle = theme.heroColor;
+            tileCtx.fillRect(34, 4, 12, 2);
+            tileCtx.fillRect(34, 10, 12, 2);
+        }
+
+        function recompileVfx() {
+            const theme = THEMES[currentTheme];
+            vfxCtx.clearRect(0, 0, 32, 16);
+
+            // Frame 1
+            vfxCtx.fillStyle = theme.particleColor;
+            vfxCtx.fillRect(4, 4, 8, 8);
+            // Frame 2
+            vfxCtx.fillStyle = theme.heroAltColor;
+            vfxCtx.fillRect(20, 2, 12, 12);
+        }
+
+        function recompileItem() {
+            const theme = THEMES[currentTheme];
+            itemCtx.clearRect(0, 0, 16, 16);
+            itemCtx.fillStyle = theme.itemColor;
+            itemCtx.beginPath();
+            itemCtx.arc(8, 8, 5, 0, Math.PI * 2);
+            itemCtx.fill();
+        }
+
+        // Initialize all procedural compilers
+        function compileAllAssets() {
+            recompileHeroSprite();
+            recompileTileset();
+            recompileVfx();
+            recompileItem();
+        }
+
+        // ====================================================================
+        // 3. WEB AUDIO SYNTHESIZER ENGINE (NO EXTERNAL AUDIO FILES)
+        // ====================================================================
+
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'coin') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.setValueAtTime(900, now + 0.08);
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'attack') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(80, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'mcp_inject') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(880, now + 0.1);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        }
+
+        // Simple BGM Loop Synthesizer
+        let bgmInterval = null;
+        const bgmNotes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63];
+        let bgmNoteIdx = 0;
+
+        function toggleAudioBGM() {
+            initAudio();
+            bgmPlaying = !bgmPlaying;
+            const btn = document.getElementById('bgm-toggle-btn');
+
+            if (bgmPlaying) {
+                btn.innerText = "🔊 BGM: ON";
+                btn.classList.add("bg-amber-500", "text-slate-950");
+                btn.classList.remove("bg-slate-800", "text-amber-400");
+
+                bgmInterval = setInterval(() => {
+                    if (!audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(bgmNotes[bgmNoteIdx], audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+
+                    bgmNoteIdx = (bgmNoteIdx + 1) % bgmNotes.length;
+                }, 280);
+            } else {
+                btn.innerText = "🔊 BGM: OFF";
+                btn.classList.remove("bg-amber-500", "text-slate-950");
+                btn.classList.add("bg-slate-800", "text-amber-400");
+                if (bgmInterval) clearInterval(bgmInterval);
+            }
+        }
+
+        // ====================================================================
+        // 4. MCP TOOL EXECUTION ENGINE & SIMULATOR LOGIC
+        // ====================================================================
+
+        const MCP_RESPONSES = {
+            spritesheet: (theme) => ({
+                jsonrpc: "2.0",
+                result: {
+                    tool: "mcp__game_gen_spritesheet",
+                    status: "SUCCESS_INJECTED",
+                    preset: theme,
+                    asset_type: "CHARACTER_SPRITE_ATLAS",
+                    metadata: {
+                        frame_dimensions: { width: 16, height: 16 },
+                        animations: {
+                            idle: { frames: [0], fps: 1 },
+                            run: { frames: [0, 1, 2, 3], fps: 12 },
+                            attack: { frames: [2, 3], fps: 16 }
+                        },
+                        bounding_box: { x: 3, y: 3, w: 10, h: 13 },
+                        pivot: { x: 0.5, y: 1.0 }
+                    }
+                }
+            }),
+            tilemap: (theme) => ({
+                jsonrpc: "2.0",
+                result: {
+                    tool: "mcp__game_gen_level_tilemap",
+                    status: "SUCCESS_INJECTED",
+                    preset: theme,
+                    asset_type: "TILESET_AND_PHYSICS_COLLIDERS",
+                    metadata: {
+                        tile_size: 16,
+                        layers: ["Terrain_Top", "Terrain_Body", "Deco_Accent"],
+                        passable_mask: [0, 1, 1, 0],
+                        colliders_generated: platforms.length,
+                        physics_engine: "AABB_Box2D_Lite"
+                    }
+                }
+            }),
+            vfx: (theme) => ({
+                jsonrpc: "2.0",
+                result: {
+                    tool: "mcp__game_gen_vfx",
+                    status: "SUCCESS_INJECTED",
+                    preset: theme,
+                    asset_type: "PARTICLE_EMITTER_SYSTEM",
+                    metadata: {
+                        particle_count: 24,
+                        blend_mode: "ADDITIVE",
+                        life_span_ms: 600,
+                        color_hex: THEMES[theme].particleColor,
+                        trail_alpha: THEMES[theme].vfxTrail
+                    }
+                }
+            }),
+            audio: (theme) => ({
+                jsonrpc: "2.0",
+                result: {
+                    tool: "mcp__game_gen_audio_sfx",
+                    status: "SUCCESS_INJECTED",
+                    preset: theme,
+                    asset_type: "WEBAUDIO_PROCEDURAL_NODES",
+                    metadata: {
+                        wave_type: "SQUARE_AND_SAWTOOTH",
+                        sample_rate: 44100,
+                        sfx_registered: ["jump", "coin", "attack", "mcp_inject"],
+                        latency_ms: 1.2
+                    }
+                }
+            })
+        };
+
+        function execMcpTool(toolKey) {
+            initAudio();
+            playSound('mcp_inject');
+
+            // Recompile specific graphic textures
+            if (toolKey === 'spritesheet') recompileHeroSprite();
+            if (toolKey === 'tilemap') recompileTileset();
+            if (toolKey === 'vfx') recompileVfx();
+            if (toolKey === 'audio') { /* Audio nodes synthesized dynamically */ }
+
+            // Trigger burst particles in viewport
+            spawnParticleBurst(player.x + 8, player.y + 8, 15);
+
+            // Update JSON Inspector
+            const payload = MCP_RESPONSES[toolKey](currentTheme);
+            document.getElementById('mcp-json-display').innerText = JSON.stringify(payload, null, 2);
+            document.getElementById('mcp-tool-name').innerText = payload.result.tool;
+
+            // Show Toast & Log
+            showToast(`Executed ${payload.result.tool} [${currentTheme}]`);
+            logMcpTicker(`Tool call ${payload.result.tool} succeeded. Updated metadata & colliders in Engine.`);
+        }
+
+        function applyPreset(themeKey) {
+            currentTheme = themeKey;
+            const theme = THEMES[themeKey];
+
+            // Update UI preset buttons styling
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.className = "preset-btn px-2.5 py-1.5 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-left flex justify-between items-center";
+            });
+            const activeBtn = document.getElementById('btn-' + themeKey);
+            if (activeBtn) {
+                activeBtn.className = "preset-btn px-2.5 py-1.5 rounded bg-cyan-500 text-slate-950 border border-cyan-400 font-bold text-left flex justify-between items-center";
+            }
+
+            document.getElementById('current-theme-tag').innerText = theme.name;
+
+            // Recompile graphics across canvas memory
+            compileAllAssets();
+
+            // Execute full MCP pipeline simulation
+            execMcpTool('spritesheet');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('mcp-toast');
+            document.getElementById('mcp-toast-msg').innerText = msg;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        function logMcpTicker(msg) {
+            document.getElementById('mcp-log-ticker').innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        }
+
+        function copyMcpJson() {
+            const jsonText = document.getElementById('mcp-json-display').innerText;
+            navigator.clipboard.writeText(jsonText);
+            showToast("MCP JSON Metadata copied to clipboard!");
+        }
+
+        function toggleColliderDebug() {
+            showColliders = document.getElementById('toggle-debug-colliders').checked;
+        }
+
+        // ====================================================================
+        // 5. PLAYABLE PHYSICS ENGINE & RENDER LOOP
+        // ====================================================================
+
+        function spawnParticleBurst(x, y, count = 8) {
+            const theme = THEMES[currentTheme];
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 1.0,
+                    size: Math.random() * 3 + 1,
+                    color: theme.particleColor
+                });
+            }
+        }
+
+        function triggerJump() {
+            initAudio();
+            if (player.grounded) {
+                player.vy = player.jumpPower;
+                player.grounded = false;
+                playSound('jump');
+                spawnParticleBurst(player.x + 8, player.y + 16, 6);
+            }
+        }
+
+        function triggerAttack() {
+            initAudio();
+            player.isAttacking = true;
+            player.attackTimer = 12;
+            playSound('attack');
+            spawnParticleBurst(player.x + (player.facing > 0 ? 20 : -4), player.y + 8, 10);
+        }
+
+        function resetGameLevel() {
+            player.x = 50;
+            player.y = 200;
+            player.vx = 0;
+            player.vy = 0;
+            player.hp = 100;
+            score = 0;
+            collectibles.forEach(c => c.collected = false);
+            document.getElementById('hud-score').innerText = "0000";
+            document.getElementById('hud-orbs').innerText = "0/3";
+            document.getElementById('hud-hp-bar').style.width = "100%";
+            logMcpTicker("Reset game scene state.");
+        }
+
+        // Keyboard Handlers
+        window.addEventListener('keydown', (e) => {
+            initAudio();
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = true;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = true;
+            if (e.key === 'w' || e.key === 'W' || e.key === ' ' || e.key === 'ArrowUp') triggerJump();
+            if (e.key === 'j' || e.key === 'J' || e.key === 'z' || e.key === 'Z') triggerAttack();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = false;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = false;
+        });
+
+        // Main Update Loop
+        function updatePhysics() {
+            // Horizontal Movement
+            if (keys.left) {
+                player.vx = -player.speed;
+                player.facing = -1;
+            } else if (keys.right) {
+                player.vx = player.speed;
+                player.facing = 1;
+            } else {
+                player.vx *= 0.8; // Friction
+            }
+
+            // Gravity
+            player.vy += 0.4;
+
+            // Apply movement
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Animation counter
+            if (Math.abs(player.vx) > 0.2) {
+                player.animTimer++;
+                if (player.animTimer % 6 === 0) {
+                    player.frame = (player.frame + 1) % 4;
+                }
+            } else {
+                player.frame = 0;
+            }
+
+            // Attack cooldown
+            if (player.isAttacking) {
+                player.attackTimer--;
+                if (player.attackTimer <= 0) player.isAttacking = false;
+            }
+
+            // Platform Collisions (AABB)
+            player.grounded = false;
+            platforms.forEach(p => {
+                if (player.x + player.w > p.x && player.x < p.x + p.w &&
+                    player.y + player.h >= p.y && player.y + player.h <= p.y + p.h &&
+                    player.vy >= 0) {
+                    player.y = p.y - player.h;
+                    player.vy = 0;
+                    player.grounded = true;
+                }
+            });
+
+            // Collectibles Collisions
+            collectibles.forEach(c => {
+                if (!c.collected &&
+                    player.x + player.w > c.x && player.x < c.x + c.w &&
+                    player.y + player.h > c.y && player.y < c.y + c.h) {
+                    c.collected = true;
+                    score += 100;
+                    playSound('coin');
+                    spawnParticleBurst(c.x + 5, c.y + 5, 12);
+
+                    const collectedCount = collectibles.filter(i => i.collected).length;
+                    document.getElementById('hud-score').innerText = String(score).padStart(4, '0');
+                    document.getElementById('hud-orbs').innerText = `${collectedCount}/3`;
+
+                    if (collectedCount === 3) {
+                        showToast("🎉 Level Complete! All MCP Orbs Collected!");
+                    }
+                }
+            });
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.vx;
+                pt.y += pt.vy;
+                pt.life -= 0.03;
+                if (pt.life <= 0) particles.splice(i, 1);
+            }
+
+            // Screen boundary bounds
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+            if (player.y > canvas.height) {
+                // Respawn
+                player.x = 50;
+                player.y = 200;
+                player.vy = 0;
+            }
+        }
+
+        // Main Render Loop
+        function renderScene() {
+            const theme = THEMES[currentTheme];
+
+            // 1. Render Background Gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, theme.bgGradient[0]);
+            bgGrad.addColorStop(1, theme.bgGradient[1]);
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Render Platforms (Tilemap)
+            platforms.forEach(p => {
+                ctx.fillStyle = theme.tileBody;
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+
+                ctx.fillStyle = theme.tileTop;
+                ctx.fillRect(p.x, p.y, p.w, 4);
+
+                // Grid line detail
+                ctx.strokeStyle = "rgba(255,255,255,0.05)";
+                ctx.strokeRect(p.x, p.y, p.w, p.h);
+            });
+
+            // 3. Render Collectibles
+            collectibles.forEach(c => {
+                if (!c.collected) {
+                    ctx.drawImage(itemOffscreen, c.x, c.y);
+                }
+            });
+
+            // 4. Render Particles
+            particles.forEach(pt => {
+                ctx.fillStyle = pt.color;
+                ctx.globalAlpha = pt.life;
+                ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+                ctx.globalAlpha = 1.0;
+            });
+
+            // 5. Render Player Character
+            ctx.save();
+            if (player.facing === -1) {
+                ctx.translate(player.x + player.w, player.y);
+                ctx.scale(-1, 1);
+                ctx.drawImage(heroOffscreen, player.frame * 16, 0, 16, 16, 0, 0, 16, 16);
+            } else {
+                ctx.drawImage(heroOffscreen, player.frame * 16, 0, 16, 16, player.x, player.y, 16, 16);
+            }
+            ctx.restore();
+
+            // Render Attack Visual Slash Effect
+            if (player.isAttacking) {
+                ctx.fillStyle = theme.heroAltColor;
+                const slashX = player.facing > 0 ? player.x + 16 : player.x - 12;
+                ctx.fillRect(slashX, player.y + 2, 12, 12);
+            }
+
+            // 6. Debug Colliders Overlay
+            if (showColliders) {
+                ctx.strokeStyle = "#34d399";
+                ctx.lineWidth = 1;
+                // Player box
+                ctx.strokeRect(player.x, player.y, player.w, player.h);
+                // Platforms
+                ctx.strokeStyle = "#22d3ee";
+                platforms.forEach(p => ctx.strokeRect(p.x, p.y, p.w, p.h));
+            }
+        }
+
+        // Game Loop Cycle
+        function gameLoop(now) {
+            fps = Math.round(1000 / (now - lastFrameTime || 16.6));
+            lastFrameTime = now;
+            document.getElementById('fps-counter').innerText = fps;
+
+            updatePhysics();
+            renderScene();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize Everything
+        document.addEventListener('DOMContentLoaded', () => {
+            compileAllAssets();
+            applyPreset('cyberpunk');
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+</html>
