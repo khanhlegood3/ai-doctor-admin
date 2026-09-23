@@ -58,6 +58,10 @@
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
+        
+        /* Custom scrollbar for MCP Json view */
+        #mcp-json-display::-webkit-scrollbar { width: 4px; height: 4px; }
+        #mcp-json-display::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col items-center p-2 sm:p-4 relative">
@@ -79,6 +83,7 @@
         </button>
     </div>
 
+    <!-- Cài Đặt Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex justify-center items-center backdrop-blur-sm">
         <div class="settings-panel">
             <div class="settings-header">Cài Đặt Điều Khiển & Cử Chỉ AI</div>
@@ -107,8 +112,8 @@
         </div>
     </div>
 
+    <!-- Giao diện Game -->
     <div class="w-full max-w-[800px] flex-shrink-0 flex flex-col relative z-10 mt-12 sm:mt-14 mb-10">
-        
         <div class="bg-slate-950 p-2 rounded-t-xl border-t border-x border-slate-800 flex justify-between items-center px-2 sm:px-4 flex-wrap gap-2">
             <div class="flex gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
                 <div class="text-emerald-400 font-bold text-[10px] sm:text-sm">🛡️ P1: <span id="p1-hp">10</span></div>
@@ -168,7 +173,6 @@
             </div>
             <p class="text-slate-400 text-[10px] sm:text-xs text-center max-w-[500px] mb-4">
                 Luôn dùng 1 camera. Bật User 1 để nhận tay trái màn hình; bật 2 User để nhận thêm tay phải cho User 2.
-                Camera vẫn quan sát cử chỉ theo chế độ 1/2 tay đã chọn kể cả khi bạn ẩn khung hình hoặc ẩn cử chỉ để tập trung chơi game.
             </p>
             <button onclick="openSettings()" class="bg-slate-700 hover:bg-slate-600 text-white border border-slate-500 px-5 py-2 rounded-lg text-xs font-bold transition-all shadow-md">
                 ⚙️ Cài đặt Phím / Map Cử Chỉ
@@ -176,12 +180,11 @@
         </div>
     </div>
 
-    <div id="sideMenu" class="fixed top-12 sm:top-16 right-0 sm:right-4 bottom-0 sm:bottom-4 w-full sm:w-[320px] bg-slate-900/95 sm:rounded-2xl border-l sm:border border-slate-700 shadow-2xl flex flex-col z-[80] transition-transform duration-300 translate-x-[120%] backdrop-blur-md overflow-y-auto pt-14 px-5 pb-12">
+    <!-- Side Menu Nâng Cấp Với MCP -->
+    <div id="sideMenu" class="fixed top-12 sm:top-16 right-0 sm:right-4 bottom-0 sm:bottom-4 w-full sm:w-[340px] bg-slate-900/95 sm:rounded-2xl border-l sm:border border-slate-700 shadow-2xl flex flex-col z-[80] transition-transform duration-300 translate-x-[120%] backdrop-blur-md overflow-y-auto pt-14 px-5 pb-12">
         
         <button onclick="closeMenu()" class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-500 text-white rounded-full font-bold shadow-md z-50 border border-rose-400 text-sm transition">✕</button>
         <button onclick="closeMenu()" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-500 text-white rounded-full font-bold shadow-md z-50 border border-rose-400 text-sm transition">✕</button>
-        <button onclick="closeMenu()" class="absolute bottom-3 left-3 w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-500 text-white rounded-full font-bold shadow-md z-50 border border-rose-400 text-sm transition">✕</button>
-        <button onclick="closeMenu()" class="absolute bottom-3 right-3 w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-500 text-white rounded-full font-bold shadow-md z-50 border border-rose-400 text-sm transition">✕</button>
 
         <div>
             <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950 px-2 py-1 rounded">Medical Sandbox</span>
@@ -217,7 +220,7 @@
         </div>
 
         <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">4. IN-MEMORY ASSET TEXTURES:</h3>
-        <div class="bg-slate-800 rounded-xl border border-slate-700 p-2 mt-2 space-y-2 mb-8">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-2 mt-2 space-y-2">
             <div class="grid grid-cols-2 gap-2 text-center text-[10px] font-mono">
                 <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
                     <div class="text-slate-400">Hero Atlas</div>
@@ -237,195 +240,221 @@
                 </div>
             </div>
         </div>
+
+        <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">5. MCP JSON METADATA:</h3>
+        <div class="bg-slate-950 rounded-xl border border-slate-700 p-2 mt-2 mb-8 relative">
+            <span class="absolute top-1 right-2 text-[8px] bg-cyan-900/50 text-cyan-300 px-1 rounded">Live Inspector</span>
+            <pre id="mcp-json-display" class="text-[9px] text-emerald-400 font-mono overflow-auto max-h-[160px] whitespace-pre-wrap leading-relaxed">Waiting for MCP Response...</pre>
+        </div>
     </div>
 
     <script>
         // ==========================================
-        // UI TOGGLES (MENU LEFT/RIGHT)
+        // GLOBAL VARIABLES & AI CAMERA STATE
+        // Định nghĩa trên cùng để tránh lỗi Hoisting (ReferenceError)
         // ==========================================
         let menuOpen = false;
         let isMenuRight = true; 
+        
+        // AI Camera Globals
+        let aiCameraInstance = null;
+        let activeAIKeys = { p1: null, p2: null };
+        let activeAiHandsMode = 0;
+        let isAiActive = false;
+        let currentFacingMode = 'user';
+        let cameraAsBackground = false;
+        let hideGestureSkeleton = false;
+        let hideCameraBox = false;
+        let lastMultiHandLandmarks = null;
+        
+        // MCP Integration Globals
+        let currentMCPData = null;
+        let audioCtx = null;
+        
+        // Game Logic Globals
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameMode = 'pve'; let gameState = 'waiting'; let startTime = 0; let elapsedTime = 0;
+        let envTheme = { name: "Hệ thần kinh", icon: "🧠", bg: "rgba(25, 10, 40, 0.7)", wall: "#4c1d95", border: "#8b5cf6", organColor: "#f472b6" };
+        
+        let p1 = { x: 50, y: 200, width: 24, height: 24, vx: 0, vy: 0, hp: 10, isGrounded: false, color: '#10b981', shieldActive: false, alive: true };
+        let p2 = { x: 100, y: 200, width: 24, height: 24, vx: 0, vy: 0, hp: 10, isGrounded: false, color: '#38bdf8', shieldActive: false, active: false, alive: true };
+        let boss = { x: 650, y: 150, radius: 25, vx: 0, vy: 2.5, hp: 10, maxHp: 10, dirY: 1, color: '#e11d48', shieldActive: false };
+        let organBase = { x: 10, y: 110, w: 60, h: 160, hp: 20, maxHp: 20 }; 
+        let projectiles = []; let platforms = []; let mapViruses = []; let mapHeals = []; let particles = [];
+        const GRAVITY = 0.4; const JUMP = -9; 
+        let p1LastShot = 0; let p2LastShot = 0; let bossLastShot = 0;
 
-        // Hàm Đổi vị trí Menu (Luôn mở menu khi bấm)
+        let keys = {};
+        
+        // Hero Selection Globals
+        let currentHeroStyle = 1; // 1: Khối cơ bản, 2: Pixel Art, 3: Upload
+        let uploadedAvatar = null;
+
+
+        // ==========================================
+        // UI TOGGLES (MENU LEFT/RIGHT)
+        // ==========================================
         function toggleMenuPosition() {
             isMenuRight = !isMenuRight;
             const menu = document.getElementById('sideMenu');
             const toggleBtn = document.getElementById('posToggleBtn');
-            
             menu.classList.remove('right-0', 'sm:right-4', 'left-0', 'sm:left-4');
             if(isMenuRight) {
-                menu.classList.add('right-0', 'sm:right-4'); 
-                toggleBtn.innerText = 'Đổi Menu Sang Trái';
+                menu.classList.add('right-0', 'sm:right-4'); toggleBtn.innerText = 'Đổi Menu Sang Trái';
             } else {
-                menu.classList.add('left-0', 'sm:left-4'); 
-                toggleBtn.innerText = 'Đổi Menu Sang Phải';
+                menu.classList.add('left-0', 'sm:left-4'); toggleBtn.innerText = 'Đổi Menu Sang Phải';
             }
-            openMenu(); // Ép mở menu khi bấm chuyển bên
+            openMenu();
         }
-
-        function openMenu() {
-            menuOpen = true;
-            const menu = document.getElementById('sideMenu');
-            menu.style.transform = 'translateX(0)';
-        }
-
-        function closeMenu() {
-            menuOpen = false;
-            const menu = document.getElementById('sideMenu');
-            // Trượt về phía tương ứng đang hiển thị để đóng popup
-            menu.style.transform = isMenuRight ? 'translateX(120%)' : 'translateX(-120%)';
-        }
+        function openMenu() { menuOpen = true; document.getElementById('sideMenu').style.transform = 'translateX(0)'; }
+        function closeMenu() { menuOpen = false; document.getElementById('sideMenu').style.transform = isMenuRight ? 'translateX(120%)' : 'translateX(-120%)'; }
 
         // ==========================================
-        // CÀI ĐẶT PHÍM & GESTURE MAPPING
+        // KEYBINDS & SETTINGS
         // ==========================================
-        const defaultMappings = {
-            p1_jump: 'w', p1_left: 'a', p1_shield: 'e', p1_right: 'd', p1_shoot: ' ',
-            p2_jump: 'arrowup', p2_left: 'arrowleft', p2_shield: 'm', p2_right: 'arrowright', p2_shoot: 'n'
-        };
+        const defaultMappings = { p1_jump: 'w', p1_left: 'a', p1_shield: 'e', p1_right: 'd', p1_shoot: ' ', p2_jump: 'arrowup', p2_left: 'arrowleft', p2_shield: 'm', p2_right: 'arrowright', p2_shoot: 'n' };
         let keyMappings = { ...defaultMappings };
         let listeningAction = null; let currentButton = null;
-
         const savedKeys = localStorage.getItem('gameCustomKeys_v3');
         if (savedKeys) keyMappings = JSON.parse(savedKeys);
 
-        function formatKeyName(k) {
-            if (k === ' ') return 'SPACE';
-            if (k.toLowerCase().startsWith('arrow')) return k.substring(5).toUpperCase();
-            return k.toUpperCase();
-        }
-
+        function formatKeyName(k) { if (k === ' ') return 'SPACE'; if (k.toLowerCase().startsWith('arrow')) return k.substring(5).toUpperCase(); return k.toUpperCase(); }
         function updateSettingsUI() {
-            document.querySelectorAll('.key-btn').forEach(btn => {
-                const action = btn.getAttribute('data-action');
-                if (keyMappings[action]) btn.innerText = formatKeyName(keyMappings[action]);
-            });
+            document.querySelectorAll('.key-btn').forEach(btn => { const action = btn.getAttribute('data-action'); if (keyMappings[action]) btn.innerText = formatKeyName(keyMappings[action]); });
             renderControlsUI();
         }
-
         function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); updateSettingsUI(); }
-        function closeSettings() { 
-            document.getElementById('settingsModal').classList.add('hidden'); 
-            localStorage.setItem('gameCustomKeys_v3', JSON.stringify(keyMappings));
-            if (currentButton) { currentButton.classList.remove('listening'); listeningAction = null; currentButton = null; }
-            updateSettingsUI(); 
-        }
+        function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); localStorage.setItem('gameCustomKeys_v3', JSON.stringify(keyMappings)); if (currentButton) { currentButton.classList.remove('listening'); listeningAction = null; currentButton = null; } updateSettingsUI(); }
         function resetToDefault() { keyMappings = { ...defaultMappings }; updateSettingsUI(); }
 
         document.querySelectorAll('.key-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (currentButton) { currentButton.classList.remove('listening'); currentButton.innerText = formatKeyName(keyMappings[listeningAction]); }
-                listeningAction = this.getAttribute('data-action');
-                currentButton = this; this.classList.add('listening'); this.innerText = '???';
+                listeningAction = this.getAttribute('data-action'); currentButton = this; this.classList.add('listening'); this.innerText = '???';
             });
         });
 
-        document.addEventListener('keydown', function(event) {
-            if (listeningAction) {
-                event.preventDefault(); 
-                keyMappings[listeningAction] = event.key.toLowerCase();
-                currentButton.classList.remove('listening');
-                listeningAction = null; currentButton = null;
+        window.addEventListener('keydown', e => { 
+            if (listeningAction) { 
+                e.preventDefault(); 
+                keyMappings[listeningAction] = e.key.toLowerCase(); 
+                currentButton.classList.remove('listening'); 
+                listeningAction = null; 
+                currentButton = null; 
                 updateSettingsUI(); 
+            } else {
+                keys[e.key] = true; 
+                keys[e.key.toLowerCase()] = true; 
+                if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault(); 
             }
         });
+        window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.key.toLowerCase()] = false; });
+        function setKey(k, val) { if(k) { keys[k] = val; keys[k.toLowerCase()] = val; } }
 
-        // ==========================================
-        // DYNAMIC UI RENDERING
-        // ==========================================
         function renderControlsUI() {
-            const p1Jump = formatKeyName(keyMappings.p1_jump);
-            const p1Left = formatKeyName(keyMappings.p1_left);
-            const p1Shield = formatKeyName(keyMappings.p1_shield);
-            const p1Right = formatKeyName(keyMappings.p1_right);
-            const p1Shoot = formatKeyName(keyMappings.p1_shoot);
-
-            const p2Jump = formatKeyName(keyMappings.p2_jump);
-            const p2Left = formatKeyName(keyMappings.p2_left);
-            const p2Shield = formatKeyName(keyMappings.p2_shield);
-            const p2Right = formatKeyName(keyMappings.p2_right);
-            const p2Shoot = formatKeyName(keyMappings.p2_shoot);
+            const p1Jump = formatKeyName(keyMappings.p1_jump); const p1Left = formatKeyName(keyMappings.p1_left); const p1Shield = formatKeyName(keyMappings.p1_shield); const p1Right = formatKeyName(keyMappings.p1_right); const p1Shoot = formatKeyName(keyMappings.p1_shoot);
+            const p2Jump = formatKeyName(keyMappings.p2_jump); const p2Left = formatKeyName(keyMappings.p2_left); const p2Shield = formatKeyName(keyMappings.p2_shield); const p2Right = formatKeyName(keyMappings.p2_right); const p2Shoot = formatKeyName(keyMappings.p2_shoot);
 
             document.getElementById('p1-control-label').innerText = `P1 - Phím: ${p1Jump}/${p1Left}/${p1Right}/${p1Shield}/${p1Shoot}`;
             document.getElementById('p1-controls').innerHTML = `
-                <div class="col-span-4 flex justify-center mb-0.5">
-                    <button class="ctrl-btn p1-btn w-full sm:w-1/2 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_jump}', true)" onmouseup="setKey('${keyMappings.p1_jump}', false)" ontouchstart="setKey('${keyMappings.p1_jump}', true)" ontouchend="setKey('${keyMappings.p1_jump}', false)">
-                        <span>${p1Jump} Nhảy:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-emerald-200">👆Ngón trỏ lên</span>
-                    </button>
-                </div>
-                <button class="ctrl-btn p1-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_left}', true)" onmouseup="setKey('${keyMappings.p1_left}', false)" ontouchstart="setKey('${keyMappings.p1_left}', true)" ontouchend="setKey('${keyMappings.p1_left}', false)">
-                    <span>${p1Left} Trái:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-emerald-200">👈Trỏ trái</span>
-                </button>
-                <button class="ctrl-btn p1-btn border-emerald-500 text-emerald-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_shield}', true)" onmouseup="setKey('${keyMappings.p1_shield}', false)" ontouchstart="setKey('${keyMappings.p1_shield}', true)" ontouchend="setKey('${keyMappings.p1_shield}', false)">
-                    <span>${p1Shield} Khiên:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-emerald-200">🖐️Xòe tay</span>
-                </button>
-                <button class="ctrl-btn p1-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_right}', true)" onmouseup="setKey('${keyMappings.p1_right}', false)" ontouchstart="setKey('${keyMappings.p1_right}', true)" ontouchend="setKey('${keyMappings.p1_right}', false)">
-                    <span>${p1Right} Phải:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-emerald-200">👉Trỏ phải</span>
-                </button>
-                <button class="ctrl-btn p1-btn bg-emerald-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_shoot}', true)" onmouseup="setKey('${keyMappings.p1_shoot}', false)" ontouchstart="setKey('${keyMappings.p1_shoot}', true)" ontouchend="setKey('${keyMappings.p1_shoot}', false)">
-                    <span>${p1Shoot} Bắn:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-emerald-200">✊Nắm đấm</span>
-                </button>
+                <div class="col-span-4 flex justify-center mb-0.5"><button class="ctrl-btn p1-btn w-full sm:w-1/2 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_jump}', true)" onmouseup="setKey('${keyMappings.p1_jump}', false)"><span>${p1Jump} Nhảy:</span></button></div>
+                <button class="ctrl-btn p1-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_left}', true)" onmouseup="setKey('${keyMappings.p1_left}', false)"><span>${p1Left} Trái</span></button>
+                <button class="ctrl-btn p1-btn border-emerald-500 text-emerald-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_shield}', true)" onmouseup="setKey('${keyMappings.p1_shield}', false)"><span>${p1Shield} Khiên</span></button>
+                <button class="ctrl-btn p1-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_right}', true)" onmouseup="setKey('${keyMappings.p1_right}', false)"><span>${p1Right} Phải</span></button>
+                <button class="ctrl-btn p1-btn bg-emerald-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p1_shoot}', true)" onmouseup="setKey('${keyMappings.p1_shoot}', false)"><span>${p1Shoot} Bắn</span></button>
             `;
+            const p2Label = document.getElementById('p2-control-label'); const p2Controls = document.getElementById('p2-controls');
+            if (gameMode === 'pve') { p2Label.innerText = "BOSS ĐƯỢC AI ĐIỀU KHIỂN"; p2Controls.innerHTML = `<div class="col-span-4 text-center text-[10px] text-slate-500 py-4">AI tự động điều khiển Boss.</div>`; } 
+            else if (gameMode === 'coop') { p2Label.innerText = `P2 - Phím: ${p2Jump}/${p2Left}/${p2Right}/${p2Shield}/${p2Shoot}`; p2Controls.innerHTML = `<div class="col-span-4 flex justify-center mb-0.5"><button class="ctrl-btn p2-btn w-full sm:w-1/2 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_jump}', true)" onmouseup="setKey('${keyMappings.p2_jump}', false)"><span>${p2Jump} Nhảy:</span></button></div><button class="ctrl-btn p2-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_left}', true)" onmouseup="setKey('${keyMappings.p2_left}', false)"><span>${p2Left} Trái</span></button><button class="ctrl-btn p2-btn border-sky-500 text-sky-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shield}', true)" onmouseup="setKey('${keyMappings.p2_shield}', false)"><span>${p2Shield} Khiên</span></button><button class="ctrl-btn p2-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_right}', true)" onmouseup="setKey('${keyMappings.p2_right}', false)"><span>${p2Right} Phải</span></button><button class="ctrl-btn p2-btn bg-sky-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shoot}', true)" onmouseup="setKey('${keyMappings.p2_shoot}', false)"><span>${p2Shoot} Bắn</span></button>`; } 
+            else if (gameMode === 'pvp') { p2Label.className = "text-[9px] sm:text-[11px] font-bold text-rose-400 mb-2 text-center"; p2Label.innerText = `BOSS - Phím: ${p2Left}/${p2Right}/${p2Shield}/${p2Shoot}`; p2Controls.innerHTML = `<div class="col-span-4 flex justify-center mb-0.5"><button class="ctrl-btn boss-btn w-full sm:w-1/2 bg-rose-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shoot}', true)" onmouseup="setKey('${keyMappings.p2_shoot}', false)"><span>${p2Shoot} Bắn Virus</span></button></div><button class="ctrl-btn boss-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_left}', true)" onmouseup="setKey('${keyMappings.p2_left}', false)"><span>${p2Left} Trái</span></button><button class="ctrl-btn boss-btn border-amber-500 text-amber-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shield}', true)" onmouseup="setKey('${keyMappings.p2_shield}', false)"><span>${p2Shield} Khiên</span></button><button class="ctrl-btn boss-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_right}', true)" onmouseup="setKey('${keyMappings.p2_right}', false)"><span>${p2Right} Phải</span></button><div></div>`; }
+        }
 
-            const p2Label = document.getElementById('p2-control-label');
-            const p2Controls = document.getElementById('p2-controls');
+        // ==========================================
+        // MCP INTEGRATION (AI DATA SIMULATOR)
+        // ==========================================
+        const mcpDatabase = {
+            brain: { c1: "#f472b6", c2: "#ec4899", t1: "#8b5cf6", t2: "#4c1d95", item: "#c084fc", sfx_freq: 600 },
+            lungs: { c1: "#7dd3fc", c2: "#38bdf8", t1: "#38bdf8", t2: "#0c4a6e", item: "#38bdf8", sfx_freq: 400 },
+            heart: { c1: "#fb7185", c2: "#ef4444", t1: "#ef4444", t2: "#7f1d1d", item: "#fca5a5", sfx_freq: 200 },
+            kidneys: { c1: "#6ee7b7", c2: "#34d399", t1: "#34d399", t2: "#1e3a8a", item: "#a7f3d0", sfx_freq: 800 },
+            stomach: { c1: "#fde047", c2: "#facc15", t1: "#10b981", t2: "#064e3b", item: "#fef08a", sfx_freq: 300 },
+            liver: { c1: "#d97706", c2: "#b45309", t1: "#fbbf24", t2: "#78350f", item: "#fcd34d", sfx_freq: 500 }
+        };
 
-            if (gameMode === 'pve') { 
-                p2Label.innerText = "BOSS ĐƯỢC AI ĐIỀU KHIỂN"; 
-                p2Controls.innerHTML = `<div class="col-span-4 text-center text-[10px] text-slate-500 py-4">AI tự động điều khiển Boss.</div>`; 
-            } 
-            else if (gameMode === 'coop') { 
-                p2Label.innerText = `P2 - Phím: ${p2Jump}/${p2Left}/${p2Right}/${p2Shield}/${p2Shoot}`; 
-                p2Controls.innerHTML = `
-                    <div class="col-span-4 flex justify-center mb-0.5">
-                        <button class="ctrl-btn p2-btn w-full sm:w-1/2 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_jump}', true)" onmouseup="setKey('${keyMappings.p2_jump}', false)" ontouchstart="setKey('${keyMappings.p2_jump}', true)" ontouchend="setKey('${keyMappings.p2_jump}', false)">
-                            <span>${p2Jump} Nhảy:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-sky-200">👆Ngón trỏ lên</span>
-                        </button>
-                    </div>
-                    <button class="ctrl-btn p2-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_left}', true)" onmouseup="setKey('${keyMappings.p2_left}', false)" ontouchstart="setKey('${keyMappings.p2_left}', true)" ontouchend="setKey('${keyMappings.p2_left}', false)">
-                        <span>${p2Left} Trái:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-sky-200">👈Trỏ trái</span>
-                    </button>
-                    <button class="ctrl-btn p2-btn border-sky-500 text-sky-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shield}', true)" onmouseup="setKey('${keyMappings.p2_shield}', false)" ontouchstart="setKey('${keyMappings.p2_shield}', true)" ontouchend="setKey('${keyMappings.p2_shield}', false)">
-                        <span>${p2Shield} Khiên:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-sky-200">🖐️Xòe tay</span>
-                    </button>
-                    <button class="ctrl-btn p2-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_right}', true)" onmouseup="setKey('${keyMappings.p2_right}', false)" ontouchstart="setKey('${keyMappings.p2_right}', true)" ontouchend="setKey('${keyMappings.p2_right}', false)">
-                        <span>${p2Right} Phải:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-sky-200">👉Trỏ phải</span>
-                    </button>
-                    <button class="ctrl-btn p2-btn bg-sky-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shoot}', true)" onmouseup="setKey('${keyMappings.p2_shoot}', false)" ontouchstart="setKey('${keyMappings.p2_shoot}', true)" ontouchend="setKey('${keyMappings.p2_shoot}', false)">
-                        <span>${p2Shoot} Bắn:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-sky-200">✊Nắm đấm</span>
-                    </button>
-                `; 
-            } 
-            else if (gameMode === 'pvp') { 
-                p2Label.className = "text-[9px] sm:text-[11px] font-bold text-rose-400 mb-2 text-center";
-                p2Label.innerText = `BOSS - Phím: ${p2Left}/${p2Right}/${p2Shield}/${p2Shoot}`; 
-                p2Controls.innerHTML = `
-                    <div class="col-span-4 flex justify-center mb-0.5">
-                        <button class="ctrl-btn boss-btn w-full sm:w-1/2 bg-rose-900/50 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shoot}', true)" onmouseup="setKey('${keyMappings.p2_shoot}', false)" ontouchstart="setKey('${keyMappings.p2_shoot}', true)" ontouchend="setKey('${keyMappings.p2_shoot}', false)">
-                            <span>${p2Shoot} Bắn Virus:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-rose-200">✊Nắm đấm</span>
-                        </button>
-                    </div>
-                    <button class="ctrl-btn boss-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_left}', true)" onmouseup="setKey('${keyMappings.p2_left}', false)" ontouchstart="setKey('${keyMappings.p2_left}', true)" ontouchend="setKey('${keyMappings.p2_left}', false)">
-                        <span>${p2Left} Trái:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-rose-200">👈Trỏ trái</span>
-                    </button>
-                    <button class="ctrl-btn boss-btn border-amber-500 text-amber-300 text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_shield}', true)" onmouseup="setKey('${keyMappings.p2_shield}', false)" ontouchstart="setKey('${keyMappings.p2_shield}', true)" ontouchend="setKey('${keyMappings.p2_shield}', false)">
-                        <span>${p2Shield} Khiên:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-amber-200">🖐️Xòe tay</span>
-                    </button>
-                    <button class="ctrl-btn boss-btn text-[9px] sm:text-[11px]" onmousedown="setKey('${keyMappings.p2_right}', true)" onmouseup="setKey('${keyMappings.p2_right}', false)" ontouchstart="setKey('${keyMappings.p2_right}', true)" ontouchend="setKey('${keyMappings.p2_right}', false)">
-                        <span>${p2Right} Phải:</span><span class="text-[8px] sm:text-[9px] font-normal opacity-80 text-rose-200">👉Trỏ phải</span>
-                    </button>
-                    <div></div>
-                `; 
+        function simulateMCPCall(themeKey, playSoundEffect = true) {
+            const colors = mcpDatabase[themeKey];
+            currentMCPData = {
+                "jsonrpc": "2.0",
+                "result": {
+                    "tool": "mcp__game_gen_assets",
+                    "status": "SUCCESS_INJECTED",
+                    "theme_preset": themeKey,
+                    "metadata": {
+                        "hero": { 
+                            "color_primary": colors.c1, 
+                            "color_accent": colors.c2,
+                            "animations": { "idle": [0], "run": [0,1,2,3] }
+                        },
+                        "tileset": { 
+                            "color_top": colors.t1, 
+                            "color_body": colors.t2, 
+                            "size": 16 
+                        },
+                        "vfx": { 
+                            "particle_color": colors.c1, 
+                            "trail_color": colors.c2, 
+                            "blend_mode": "ADDITIVE"
+                        },
+                        "item": { 
+                            "color": colors.item, 
+                            "radius": 5 
+                        },
+                        "audio_sfx": {
+                            "wave_type": "sine",
+                            "frequency_hz": colors.sfx_freq
+                        }
+                    }
+                }
+            };
+
+            document.getElementById('mcp-json-display').innerText = JSON.stringify(currentMCPData, null, 2);
+            if (playSoundEffect) { playMCPAudio('inject'); }
+        }
+
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        
+        function playMCPAudio(type) {
+            if(!currentMCPData) return;
+            initAudio();
+            
+            // Bypass if context isn't allowed to start yet
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            if (audioCtx.state !== 'running') return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            const baseFreq = currentMCPData.result.metadata.audio_sfx.frequency_hz;
+            
+            if(type === 'inject') {
+                osc.type = currentMCPData.result.metadata.audio_sfx.wave_type;
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, now + 0.15);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
             }
         }
 
         // ==========================================
-        // HERO SELECTION & IN-MEMORY ASSET COMPILERS
+        // HERO SELECTION & IN-MEMORY ASSET COMPILERS (WITH MCP)
         // ==========================================
-        let currentHeroStyle = 1; // 1: Khối cơ bản, 2: Pixel Art, 3: Upload
-        let uploadedAvatar = null;
-
         function selectHeroStyle(style) {
             if(style === 3 && !uploadedAvatar) {
                 alert("Vui lòng Upload Avatar của bạn trước!");
@@ -433,8 +462,6 @@
                 return;
             }
             currentHeroStyle = style;
-            
-            // Xử lý đổi class trên giao diện UI
             document.querySelectorAll('.hero-style-btn').forEach((btn, idx) => {
                 btn.classList.remove('active', 'border-white', 'bg-slate-700', 'text-white');
                 btn.classList.add('bg-slate-800', 'text-slate-400');
@@ -452,11 +479,7 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = new Image();
-                    img.onload = function() {
-                        uploadedAvatar = img;
-                        document.getElementById('upload-status').classList.remove('hidden');
-                        selectHeroStyle(3); // Tự động đổi qua chế độ Avatar sau khi Upload thành công
-                    }
+                    img.onload = function() { uploadedAvatar = img; document.getElementById('upload-status').classList.remove('hidden'); selectHeroStyle(3); }
                     img.src = e.target.result;
                 }
                 reader.readAsDataURL(file);
@@ -465,71 +488,71 @@
 
         function recompileHeroSprite() {
             const offscreen = document.getElementById('previewHeroCanvas');
-            if(!offscreen) return;
-            const ctx = offscreen.getContext('2d');
-            ctx.clearRect(0, 0, 64, 16);
+            if(!offscreen || !currentMCPData) return;
+            const ctxOff = offscreen.getContext('2d');
+            ctxOff.clearRect(0, 0, 64, 16);
             
+            const meta = currentMCPData.result.metadata.hero;
+
             for (let f = 0; f < 4; f++) {
                 const ox = f * 16;
-                
                 if (currentHeroStyle === 1) {
-                    // 1. Khối Cơ Bản
-                    ctx.fillStyle = '#10b981'; // Demo màu P1 cho Canvas Preview
-                    ctx.fillRect(ox + 2, 2, 12, 12);
-                    ctx.fillStyle = '#ffffff'; 
-                    ctx.fillRect(ox + 8, 4, 3, 3);
+                    ctxOff.fillStyle = '#10b981'; // Demo
+                    ctxOff.fillRect(ox + 2, 2, 12, 12);
+                    ctxOff.fillStyle = '#ffffff'; ctxOff.fillRect(ox + 8, 4, 3, 3);
                 } 
                 else if (currentHeroStyle === 2) {
-                    // 2. Pixel Art
-                    let c1 = envTheme.organColor || '#f472b6'; 
-                    let c2 = envTheme.border || '#ec4899';
-                    ctx.fillStyle = c1; ctx.fillRect(ox + 3, 3, 10, 10);
-                    ctx.fillStyle = c2; ctx.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
-                    ctx.fillStyle = '#ffffff';
-                    if (f === 0) { ctx.fillRect(ox + 4, 13, 3, 3); ctx.fillRect(ox + 9, 13, 3, 3); }
-                    else if (f === 1) { ctx.fillRect(ox + 3, 13, 3, 3); ctx.fillRect(ox + 10, 13, 3, 3); }
-                    else if (f === 2) { ctx.fillRect(ox + 5, 13, 3, 3); ctx.fillRect(ox + 8, 13, 3, 3); }
-                    else { ctx.fillRect(ox + 6, 13, 4, 3); }
+                    ctxOff.fillStyle = meta.color_primary; ctxOff.fillRect(ox + 3, 3, 10, 10);
+                    ctxOff.fillStyle = meta.color_accent; ctxOff.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
+                    ctxOff.fillStyle = '#ffffff';
+                    if (f === 0) { ctxOff.fillRect(ox + 4, 13, 3, 3); ctxOff.fillRect(ox + 9, 13, 3, 3); }
+                    else if (f === 1) { ctxOff.fillRect(ox + 3, 13, 3, 3); ctxOff.fillRect(ox + 10, 13, 3, 3); }
+                    else if (f === 2) { ctxOff.fillRect(ox + 5, 13, 3, 3); ctxOff.fillRect(ox + 8, 13, 3, 3); }
+                    else { ctxOff.fillRect(ox + 6, 13, 4, 3); }
                 } 
                 else if (currentHeroStyle === 3 && uploadedAvatar) {
-                    // 3. Render Custom Avatar
-                    ctx.drawImage(uploadedAvatar, ox, 0, 16, 16);
+                    ctxOff.drawImage(uploadedAvatar, ox, 0, 16, 16);
                 }
             }
         }
 
         function recompileTileset() {
             const offscreen = document.getElementById('previewTileCanvas');
-            if(!offscreen) return;
-            const ctx = offscreen.getContext('2d');
-            ctx.clearRect(0, 0, 64, 16);
-            let t1 = envTheme.border || '#8b5cf6'; 
-            let t2 = envTheme.wall || '#4c1d95'; 
-            let c1 = envTheme.organColor || '#f472b6';
-            ctx.fillStyle = t1; ctx.fillRect(0, 0, 16, 4);
-            ctx.fillStyle = t2; ctx.fillRect(0, 4, 16, 12);
-            ctx.fillStyle = t2; ctx.fillRect(16, 0, 16, 16);
-            ctx.fillStyle = t1; ctx.fillRect(18, 2, 12, 12);
-            ctx.fillStyle = t2; ctx.fillRect(32, 0, 16, 16);
-            ctx.fillStyle = c1; ctx.fillRect(34, 4, 12, 2); ctx.fillRect(34, 10, 12, 2);
+            if(!offscreen || !currentMCPData) return;
+            const ctxOff = offscreen.getContext('2d');
+            ctxOff.clearRect(0, 0, 64, 16);
+            
+            const metaTiles = currentMCPData.result.metadata.tileset;
+            const metaHero = currentMCPData.result.metadata.hero;
+
+            ctxOff.fillStyle = metaTiles.color_top; ctxOff.fillRect(0, 0, 16, 4);
+            ctxOff.fillStyle = metaTiles.color_body; ctxOff.fillRect(0, 4, 16, 12);
+            ctxOff.fillStyle = metaTiles.color_body; ctxOff.fillRect(16, 0, 16, 16);
+            ctxOff.fillStyle = metaTiles.color_top; ctxOff.fillRect(18, 2, 12, 12);
+            ctxOff.fillStyle = metaTiles.color_body; ctxOff.fillRect(32, 0, 16, 16);
+            ctxOff.fillStyle = metaHero.color_primary; ctxOff.fillRect(34, 4, 12, 2); ctxOff.fillRect(34, 10, 12, 2);
         }
 
         function recompileVfx() {
             const offscreen = document.getElementById('previewVfxCanvas');
-            if(!offscreen) return;
-            const ctx = offscreen.getContext('2d');
-            ctx.clearRect(0, 0, 32, 16);
-            ctx.fillStyle = envTheme.organColor || '#f472b6'; ctx.fillRect(4, 4, 8, 8);
-            ctx.fillStyle = envTheme.border || '#ec4899'; ctx.fillRect(20, 2, 12, 12);
+            if(!offscreen || !currentMCPData) return;
+            const ctxOff = offscreen.getContext('2d');
+            ctxOff.clearRect(0, 0, 32, 16);
+            
+            const meta = currentMCPData.result.metadata.vfx;
+            ctxOff.fillStyle = meta.particle_color; ctxOff.fillRect(4, 4, 8, 8);
+            ctxOff.fillStyle = meta.trail_color; ctxOff.fillRect(20, 2, 12, 12);
         }
 
         function recompileItem() {
             const offscreen = document.getElementById('previewItemCanvas');
-            if(!offscreen) return;
-            const ctx = offscreen.getContext('2d');
-            ctx.clearRect(0, 0, 16, 16);
-            ctx.fillStyle = envTheme.organColor || '#c084fc';
-            ctx.beginPath(); ctx.arc(8, 8, 5, 0, Math.PI * 2); ctx.fill();
+            if(!offscreen || !currentMCPData) return;
+            const ctxOff = offscreen.getContext('2d');
+            ctxOff.clearRect(0, 0, 16, 16);
+            
+            const meta = currentMCPData.result.metadata.item;
+            ctxOff.fillStyle = meta.color;
+            ctxOff.beginPath(); ctxOff.arc(8, 8, meta.radius, 0, Math.PI * 2); ctxOff.fill();
         }
 
         function compileAllAssets() {
@@ -539,55 +562,24 @@
             recompileItem();
         }
 
-        // ==========================================
-        // AI CAMERA STATE 
-        // ==========================================
-        let isAiActive = false;
-        let currentFacingMode = 'user';
-        let cameraAsBackground = false;
-        let hideGestureSkeleton = false;
-        let hideCameraBox = false;
-        let lastMultiHandLandmarks = null;
 
         // ==========================================
         // GAME LOGIC CORE
         // ==========================================
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let gameMode = 'pve'; let gameState = 'waiting'; let startTime = 0; let elapsedTime = 0;
-        let envTheme = { name: "Hệ thần kinh", icon: "🧠", bg: "rgba(25, 10, 40, 0.7)", wall: "#4c1d95", border: "#8b5cf6", organColor: "#f472b6" };
-        
-        let p1 = { x: 50, y: 200, width: 24, height: 24, vx: 0, vy: 0, hp: 10, isGrounded: false, color: '#10b981', shieldActive: false, alive: true };
-        let p2 = { x: 100, y: 200, width: 24, height: 24, vx: 0, vy: 0, hp: 10, isGrounded: false, color: '#38bdf8', shieldActive: false, active: false, alive: true };
-        let boss = { x: 650, y: 150, radius: 25, vx: 0, vy: 2.5, hp: 10, maxHp: 10, dirY: 1, color: '#e11d48', shieldActive: false };
-        let organBase = { x: 10, y: 110, w: 60, h: 160, hp: 20, maxHp: 20 }; 
-        let projectiles = []; let platforms = []; let mapViruses = []; let mapHeals = []; let particles = [];
-        const GRAVITY = 0.4; const JUMP = -9; 
-
-        let keys = {};
-        window.addEventListener('keydown', e => { 
-            if (!listeningAction) { keys[e.key] = true; keys[e.key.toLowerCase()] = true; if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault(); }
-        });
-        window.addEventListener('keyup', e => { keys[e.key] = false; keys[e.key.toLowerCase()] = false; });
-        function setKey(k, val) { if(k) { keys[k] = val; keys[k.toLowerCase()] = val; } }
-
         function setGameMode(mode, autoStart = true) {
             gameMode = mode;
             document.querySelectorAll('.mode-btn:not(.hero-style-btn)').forEach(btn => { btn.classList.remove('active', 'border-white'); btn.style.opacity = '0.5'; });
             document.getElementById('mode-' + mode).classList.add('active', 'border-white'); document.getElementById('mode-' + mode).style.opacity = '1';
-            
             const p2HpUi = document.getElementById('p2-hp-container');
-            if (mode === 'pve') { p2.active = false; p2HpUi.classList.add('hidden'); }
-            else if (mode === 'coop') { p2.active = true; p2HpUi.classList.remove('hidden'); }
-            else if (mode === 'pvp') { p2.active = false; p2HpUi.classList.add('hidden'); }
-
+            if (mode === 'pve') { p2.active = false; p2HpUi.classList.add('hidden'); } else if (mode === 'coop') { p2.active = true; p2HpUi.classList.remove('hidden'); } else if (mode === 'pvp') { p2.active = false; p2HpUi.classList.add('hidden'); }
             renderControlsUI();
             if (autoStart) { gameState = 'playing'; resetGame(); if(window.innerWidth < 640 && menuOpen) closeMenu(); }
         }
 
-        function selectOrgan(type, autoStart = true) {
+        function selectOrgan(type, isUserAction = true) {
             document.querySelectorAll('.organ-btn').forEach(btn => btn.classList.remove('selected'));
             document.getElementById('btn-' + type).classList.add('selected');
+            
             if(type === 'brain') { envTheme = { name: "Hệ thần kinh", icon: "🧠", bg: "rgba(25, 10, 40, 0.7)", wall: "#4c1d95", border: "#8b5cf6", organColor: "#f472b6" }; platforms = [{x: 140, y: 310, w: 100, h: 12, label: "Khe Synapse"}, {x: 320, y: 240, w: 150, h: 12, label: "Sợi trục"}, {x: 500, y: 160, w: 120, h: 12, label: "Tế bào đệm"}]; } 
             else if(type === 'lungs') { envTheme = { name: "Hệ hô hấp", icon: "🫁", bg: "rgba(10, 30, 50, 0.7)", wall: "#0c4a6e", border: "#38bdf8", organColor: "#7dd3fc" }; platforms = [{x: 140, y: 300, w: 120, h: 12, label: "Màng phổi"}, {x: 300, y: 220, w: 150, h: 12, label: "Cuống phổi"}, {x: 500, y: 140, w: 100, h: 12, label: "Phế nang"}]; } 
             else if(type === 'heart') { envTheme = { name: "Hệ tuần hoàn", icon: "🫀", bg: "rgba(40, 10, 15, 0.7)", wall: "#7f1d1d", border: "#ef4444", organColor: "#fb7185" }; platforms = [{x: 160, y: 290, w: 120, h: 12, label: "Hồng cầu"}, {x: 360, y: 210, w: 140, h: 12, label: "Tiểu cầu"}, {x: 540, y: 130, w: 100, h: 12, label: "Bạch cầu"}]; } 
@@ -595,9 +587,11 @@
             else if(type === 'stomach') { envTheme = { name: "Hệ tiêu hóa", icon: "🥩", bg: "rgba(6, 24, 15, 0.7)", wall: "#064e3b", border: "#10b981", organColor: "#fde047" }; platforms = [{x: 150, y: 300, w: 120, h: 12, label: "Dịch vị"}, {x: 320, y: 230, w: 140, h: 12, label: "Nhung mao"}, {x: 500, y: 160, w: 110, h: 12, label: "Lớp nhầy"}, {x: 270, y: 120, w: 130, h: 12, label: "Enzyme phân giải"}]; } 
             else if(type === 'liver') { envTheme = { name: "Hệ gan mật", icon: "🧫", bg: "rgba(30, 20, 10, 0.7)", wall: "#78350f", border: "#fbbf24", organColor: "#d97706" }; platforms = [{x: 160, y: 310, w: 130, h: 12, label: "Nhu mô gan"}, {x: 350, y: 220, w: 120, h: 12, label: "Ống mật"}, {x: 520, y: 140, w: 120, h: 12, label: "Tĩnh mạch"}]; }
             
+            // Kích hoạt MCP Pipeline Sinh JSON & Render Graphic. Chỉ play audio nếu đây là hành động chủ ý của user.
+            simulateMCPCall(type, isUserAction);
             compileAllAssets();
             
-            if(autoStart) { gameState = 'playing'; resetGame(); if(window.innerWidth < 640 && menuOpen) closeMenu(); }
+            if(isUserAction) { gameState = 'playing'; resetGame(); if(window.innerWidth < 640 && menuOpen) closeMenu(); }
         }
 
         function resetGame() {
@@ -610,11 +604,9 @@
             updateUI();
         }
 
-        let p1LastShot = 0; let p2LastShot = 0; let bossLastShot = 0;
-
         function applyPhysics(player, controls) {
             if (keys[controls.left]) player.vx = -4.5; else if (keys[controls.right]) player.vx = 4.5; else player.vx = 0;
-            if (keys[controls.jump] && player.isGrounded) { player.vy = JUMP; player.isGrounded = false; }
+            if (keys[controls.jump] && player.isGrounded) { player.vy = JUMP; player.isGrounded = false; playMCPAudio('inject'); } // MCP Audio Feedback on Jump
             player.shieldActive = !!keys[controls.shield];
             player.vy += GRAVITY; player.x += player.vx; player.y += player.vy;
             if (player.x < organBase.x + organBase.w) player.x = organBase.x + organBase.w;
@@ -622,11 +614,7 @@
             if (player.y <= 30) { player.y = 30; player.vy = 0; }
             player.isGrounded = false;
             if (player.y + player.height >= canvas.height - 30) { player.y = canvas.height - 30 - player.height; player.vy = 0; player.isGrounded = true; }
-            platforms.forEach(plat => {
-                if (player.x < plat.x + plat.w && player.x + player.width > plat.x && player.y + player.height > plat.y && player.y + player.height - player.vy <= plat.y + 14) {
-                    player.y = plat.y - player.height; player.vy = 0; player.isGrounded = true;
-                }
-            });
+            platforms.forEach(plat => { if (player.x < plat.x + plat.w && player.x + player.width > plat.x && player.y + player.height > plat.y && player.y + player.height - player.vy <= plat.y + 14) { player.y = plat.y - player.height; player.vy = 0; player.isGrounded = true; } });
         }
 
         function update() {
@@ -641,10 +629,7 @@
             if(p2.hp <= 0) p2.alive = false;
             if(p2.active && p2.alive) {
                 applyPhysics(p2, { left: keyMappings.p2_left, right: keyMappings.p2_right, jump: keyMappings.p2_jump, shield: keyMappings.p2_shield });
-                if (keys[keyMappings.p2_shoot] && Date.now() - p2LastShot > 350) { 
-                    let vX = gameMode === 'pvp' ? -8 : 8; let pX = gameMode === 'pvp' ? p2.x : p2.x + p2.width;
-                    projectiles.push({ x: pX, y: p2.y + p2.height/2, vx: vX, vy: 0, type: gameMode === 'pvp' ? 'boss_proj' : 'p2_proj', color: '#7dd3fc', r: 5 }); p2LastShot = Date.now();
-                }
+                if (keys[keyMappings.p2_shoot] && Date.now() - p2LastShot > 350) { let vX = gameMode === 'pvp' ? -8 : 8; let pX = gameMode === 'pvp' ? p2.x : p2.x + p2.width; projectiles.push({ x: pX, y: p2.y + p2.height/2, vx: vX, vy: 0, type: gameMode === 'pvp' ? 'boss_proj' : 'p2_proj', color: '#7dd3fc', r: 5 }); p2LastShot = Date.now(); }
             }
             
             if(gameMode === 'pve' || gameMode === 'coop') {
@@ -691,22 +676,18 @@
         function checkWin() {
             let defendersDead = p2.active ? (!p1.alive && !p2.alive) : (!p1.alive);
             if ((defendersDead || organBase.hp <= 0) && gameState === 'playing') { 
-                gameState = 'lose'; 
-                if(!menuOpen && window.innerWidth < 1024) openMenu(); 
+                gameState = 'lose'; if(!menuOpen && window.innerWidth < 1024) openMenu(); 
                 reportGameResult('lose', 0, elapsedTime, { reason: organBase.hp <= 0 ? 'wall_destroyed' : 'defenders_dead' });
             }
             else if (boss.hp <= 0 && gameState === 'playing') { 
-                gameState = 'win'; 
-                if(!menuOpen && window.innerWidth < 1024) openMenu(); 
+                gameState = 'win'; if(!menuOpen && window.innerWidth < 1024) openMenu(); 
                 reportGameResult('win', Math.max(10000 - Math.floor(elapsedTime * 150), 500), elapsedTime, { mode: gameMode, organ: envTheme.name });
             }
         }
 
         function updateUI() {
-            document.getElementById('p1-hp').innerText = Math.max(0, p1.hp);
-            if(p2.active) document.getElementById('p2-hp').innerText = Math.max(0, p2.hp);
-            document.getElementById('boss-hp').innerText = Math.max(0, boss.hp);
-            document.getElementById('boss-hp-desktop').innerText = Math.max(0, boss.hp);
+            document.getElementById('p1-hp').innerText = Math.max(0, p1.hp); if(p2.active) document.getElementById('p2-hp').innerText = Math.max(0, p2.hp);
+            document.getElementById('boss-hp').innerText = Math.max(0, boss.hp); document.getElementById('boss-hp-desktop').innerText = Math.max(0, boss.hp);
             document.getElementById('base-hp').innerText = Math.max(0, organBase.hp);
         }
 
@@ -717,14 +698,11 @@
                 if (camVideo && camVideo.readyState >= 2) {
                     ctx.save();
                     if (currentFacingMode === 'user') { ctx.scale(-1, 1); ctx.translate(-canvas.width, 0); }
-                    ctx.globalAlpha = 0.55;
-                    ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
-                    ctx.globalAlpha = 1;
+                    ctx.globalAlpha = 0.55; ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height); ctx.globalAlpha = 1;
                     if (!hideGestureSkeleton && lastMultiHandLandmarks) {
                         lastMultiHandLandmarks.forEach((lm, idx) => {
                             const handColor = idx === 0 ? '#10b981' : '#38bdf8';
-                            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color: handColor, lineWidth: 3});
-                            drawLandmarks(ctx, lm, {color: '#ffffff', lineWidth: 1, radius: 3});
+                            drawConnectors(ctx, lm, HAND_CONNECTIONS, {color: handColor, lineWidth: 3}); drawLandmarks(ctx, lm, {color: '#ffffff', lineWidth: 1, radius: 3});
                         });
                     }
                     ctx.restore();
@@ -732,28 +710,30 @@
             }
             ctx.fillStyle = envTheme.bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
             particles.forEach(p => { ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); });
-            ctx.fillStyle = envTheme.wall; ctx.fillRect(0, 0, canvas.width, 30); ctx.fillRect(0, canvas.height-30, canvas.width, 30);
-            ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 12px sans-serif'; ctx.fillText(`Thành Phía Trên`, 10, 20); ctx.fillText(`Thành Phía Dưới`, 10, canvas.height - 10);
-
+            
+            // Draw Tileset using MCP configuration via offscreen canvas
+            const tileOffscreen = document.getElementById('previewTileCanvas');
             platforms.forEach(plat => {
-                ctx.fillStyle = envTheme.wall; ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-                ctx.strokeStyle = envTheme.border; ctx.lineWidth = 1.5; ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
+                if(currentMCPData && currentMCPData.result.metadata.tileset) {
+                    ctx.drawImage(tileOffscreen, 16, 0, 16, 16, plat.x, plat.y, plat.w, plat.h); // Body
+                    ctx.drawImage(tileOffscreen, 0, 0, 16, 4, plat.x, plat.y, plat.w, 4); // Top
+                } else {
+                    ctx.fillStyle = envTheme.wall; ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+                }
                 ctx.fillStyle = '#cbd5e1'; ctx.font = '11px sans-serif'; ctx.fillText(plat.label, plat.x + 5, plat.y - 5);
             });
+
+            ctx.fillStyle = envTheme.wall; ctx.fillRect(0, 0, canvas.width, 30); ctx.fillRect(0, canvas.height-30, canvas.width, 30);
+            ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 12px sans-serif'; ctx.fillText(`Thành Phía Trên`, 10, 20); ctx.fillText(`Thành Phía Dưới`, 10, canvas.height - 10);
 
             let innerOrganW = organBase.w - 15;
             ctx.fillStyle = envTheme.organColor; ctx.fillRect(organBase.x, organBase.y, innerOrganW, organBase.h);
             ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif';
-            ctx.save(); 
-            ctx.translate(organBase.x + 24, organBase.y + 145); 
-            ctx.rotate(-Math.PI/2); 
-            ctx.fillText(`${envTheme.icon || ''} ${envTheme.name ? envTheme.name.toUpperCase() : "NỘI TẠNG"}`, 0, 0); 
-            ctx.restore();
+            ctx.save(); ctx.translate(organBase.x + 24, organBase.y + 145); ctx.rotate(-Math.PI/2); ctx.fillText(`${envTheme.icon || ''} ${envTheme.name ? envTheme.name.toUpperCase() : "NỘI TẠNG"}`, 0, 0); ctx.restore();
 
             let wallX = organBase.x + innerOrganW; let wallW = 15;
             ctx.fillStyle = '#b45309'; ctx.fillRect(wallX, organBase.y, wallW, organBase.h);
-            ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5;
-            for(let i=0; i<organBase.h; i+=12) { ctx.strokeRect(wallX, organBase.y + i, wallW, 12); }
+            ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5; for(let i=0; i<organBase.h; i+=12) { ctx.strokeRect(wallX, organBase.y + i, wallW, 12); }
             ctx.fillStyle = '#000'; ctx.fillRect(organBase.x, organBase.y - 15, organBase.w, 8);
             ctx.fillStyle = '#f43f5e'; ctx.fillRect(organBase.x, organBase.y - 15, (organBase.hp/organBase.maxHp)*organBase.w, 8);
             ctx.fillStyle = '#fff'; ctx.font = '9px sans-serif'; ctx.fillText(`BASE HP`, organBase.x, organBase.y - 18);
@@ -762,7 +742,7 @@
             mapHeals.forEach(m => { ctx.fillStyle='#34d399'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); });
             projectiles.forEach(p => { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); });
 
-            // DRAW PLAYERS (Với cơ chế đổi Skin)
+            // DRAW PLAYERS (Đổi Skin bằng MCP Data)
             const offscreen = document.getElementById('previewHeroCanvas');
             if(p1.alive) {
                 if(currentHeroStyle === 1) {
@@ -771,17 +751,11 @@
                 } else {
                     let frame = (Math.abs(p1.vx) > 0.1) ? Math.floor(Date.now() / 100) % 4 : 0;
                     ctx.save();
-                    if (p1.vx < -0.1) {
-                        ctx.translate(p1.x + p1.width, p1.y); ctx.scale(-1, 1);
-                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p1.width, p1.height);
-                    } else {
-                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p1.x, p1.y, p1.width, p1.height);
-                    }
+                    if (p1.vx < -0.1) { ctx.translate(p1.x + p1.width, p1.y); ctx.scale(-1, 1); ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p1.width, p1.height); } 
+                    else { ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p1.x, p1.y, p1.width, p1.height); }
                     ctx.restore();
-                    // Chấm nhận diện màu P1 trên đầu
                     ctx.fillStyle = p1.color; ctx.beginPath(); ctx.arc(p1.x + p1.width/2, p1.y - 6, 3, 0, Math.PI*2); ctx.fill();
                 }
-                
                 if(p1.shieldActive) { ctx.strokeStyle = '#34d399'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p1.x + p1.width/2, p1.y + p1.height/2, 25, -Math.PI/2, Math.PI/2); ctx.stroke(); }
             }
             if(p2.active && p2.alive) {
@@ -791,26 +765,17 @@
                 } else {
                     let frame = (Math.abs(p2.vx) > 0.1) ? Math.floor(Date.now() / 100) % 4 : 0;
                     ctx.save();
-                    if (p2.vx < -0.1) {
-                        ctx.translate(p2.x + p2.width, p2.y); ctx.scale(-1, 1);
-                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p2.width, p2.height);
-                    } else {
-                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p2.x, p2.y, p2.width, p2.height);
-                    }
+                    if (p2.vx < -0.1) { ctx.translate(p2.x + p2.width, p2.y); ctx.scale(-1, 1); ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p2.width, p2.height); } 
+                    else { ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p2.x, p2.y, p2.width, p2.height); }
                     ctx.restore();
-                    // Chấm nhận diện màu P2 trên đầu
                     ctx.fillStyle = p2.color; ctx.beginPath(); ctx.arc(p2.x + p2.width/2, p2.y - 6, 3, 0, Math.PI*2); ctx.fill();
                 }
-                
                 if(p2.shieldActive) { ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p2.x + p2.width/2, p2.y + p2.height/2, 25, -Math.PI/2, Math.PI/2); ctx.stroke(); }
             }
 
             if(boss.hp > 0) {
                 ctx.fillStyle = boss.color; ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI*2); ctx.fill();
-                for(let i=0; i<8; i++) {
-                    let a = (i * Math.PI) / 4 + Date.now()/500; ctx.strokeStyle = '#fca5a5'; ctx.lineWidth=2;
-                    ctx.beginPath(); ctx.moveTo(boss.x, boss.y); ctx.lineTo(boss.x + Math.cos(a)*(boss.radius+10), boss.y + Math.sin(a)*(boss.radius+10)); ctx.stroke();
-                }
+                for(let i=0; i<8; i++) { let a = (i * Math.PI) / 4 + Date.now()/500; ctx.strokeStyle = '#fca5a5'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(boss.x, boss.y); ctx.lineTo(boss.x + Math.cos(a)*(boss.radius+10), boss.y + Math.sin(a)*(boss.radius+10)); ctx.stroke(); }
                 ctx.fillStyle = '#000'; ctx.fillRect(boss.x - 30, boss.y - boss.radius - 22, 60, 6);
                 ctx.fillStyle = '#ef4444'; ctx.fillRect(boss.x - 30, boss.y - boss.radius - 22, (boss.hp/boss.maxHp)*60, 6);
                 ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('BOSS UNG THƯ', boss.x, boss.y - boss.radius - 28); ctx.textAlign = 'left';
@@ -818,25 +783,18 @@
             }
 
             if (gameState === 'waiting') {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 32px sans-serif'; ctx.fillText('SẴN SÀNG BẢO VỆ CƠ THỂ!', canvas.width/2, canvas.height/2 - 20);
-                ctx.fillStyle = '#38bdf8'; ctx.font = '16px sans-serif'; ctx.fillText('Chọn Chế độ chơi hoặc Nội tạng ở menu tay phải để Bắt đầu.', canvas.width/2, canvas.height/2 + 25); ctx.textAlign = 'left';
+                ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 32px sans-serif'; ctx.fillText('SẴN SÀNG BẢO VỆ CƠ THỂ!', canvas.width/2, canvas.height/2 - 20); ctx.fillStyle = '#38bdf8'; ctx.font = '16px sans-serif'; ctx.fillText('Chọn Chế độ chơi hoặc Nội tạng ở menu tay phải để Bắt đầu.', canvas.width/2, canvas.height/2 + 25); ctx.textAlign = 'left';
             }
-
             if (gameState === 'lose' || gameState === 'win') {
-                ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0,0,canvas.width,canvas.height);
-                ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; 
+                ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; 
                 if (gameState === 'win') {
-                    let score = Math.max(10000 - Math.floor(elapsedTime * 150), 500);
-                    let medal = elapsedTime <= 30 ? 'VÀNG 🥇' : (elapsedTime <= 60 ? 'BẠC 🥈' : 'ĐỒNG 🥉');
+                    let score = Math.max(10000 - Math.floor(elapsedTime * 150), 500); let medal = elapsedTime <= 30 ? 'VÀNG 🥇' : (elapsedTime <= 60 ? 'BẠC 🥈' : 'ĐỒNG 🥉');
                     ctx.fillStyle = '#10b981'; ctx.font = 'bold 36px sans-serif'; ctx.fillText("BẢO VỆ THÀNH CÔNG!", canvas.width/2, 160);
                     ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 22px sans-serif'; ctx.fillText(`Huy chương: ${medal}`, canvas.width/2, 210);
                     ctx.fillStyle = '#cbd5e1'; ctx.font = '18px sans-serif'; ctx.fillText(`Thời gian: ${elapsedTime.toFixed(1)}s - Điểm: ${score}`, canvas.width/2, 240);
                 } else {
-                    ctx.fillStyle = '#e11d48'; ctx.font = 'bold 32px sans-serif'; 
-                    let reason = organBase.hp <= 0 ? "TƯỜNG BẢO VỆ ĐÃ BỊ PHÁ HỦY!" : "TẤT CẢ NGƯỜI BẢO VỆ ĐÃ TỬ TRẬN!";
-                    ctx.fillText(reason, canvas.width/2, 170);
-                    ctx.fillStyle = '#fca5a5'; ctx.font = '20px sans-serif'; ctx.fillText("BOSS UNG THƯ ĐÃ CHIẾM CƠ THỂ!", canvas.width/2, 210);
+                    ctx.fillStyle = '#e11d48'; ctx.font = 'bold 32px sans-serif'; let reason = organBase.hp <= 0 ? "TƯỜNG BẢO VỆ ĐÃ BỊ PHÁ HỦY!" : "TẤT CẢ NGƯỜI BẢO VỆ ĐÃ TỬ TRẬN!";
+                    ctx.fillText(reason, canvas.width/2, 170); ctx.fillStyle = '#fca5a5'; ctx.font = '20px sans-serif'; ctx.fillText("BOSS UNG THƯ ĐÃ CHIẾM CƠ THỂ!", canvas.width/2, 210);
                 }
                 ctx.font = '14px sans-serif'; ctx.fillStyle='#94a3b8'; ctx.fillText("Mở Menu tay phải để chơi lại", canvas.width/2, 300); ctx.textAlign = 'left';
             }
@@ -848,215 +806,49 @@
         // ==========================================
         // AI CAMERA LOGIC
         // ==========================================
-        let aiCameraInstance = null;
-        let activeAIKeys = { p1: null, p2: null };
-        let activeAiHandsMode = 0;
+        const videoElement = document.getElementById('webcam'); const canvasElement = document.getElementById('output_canvas'); const canvasCtx = canvasElement.getContext('2d'); const loadingText = document.getElementById('cam-loading'); const camContainer = document.getElementById('ai-cam-container'); const btn1User = document.getElementById('btnStart1User'); const btn2User = document.getElementById('btnStart2User'); const btnBgToggle = document.getElementById('btnBgToggle'); const btnGestureHide = document.getElementById('btnGestureHide'); const btnCamBoxHide = document.getElementById('btnCamBoxHide');
 
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const loadingText = document.getElementById('cam-loading');
-        const camContainer = document.getElementById('ai-cam-container');
-        const btn1User = document.getElementById('btnStart1User');
-        const btn2User = document.getElementById('btnStart2User');
-        const btnBgToggle = document.getElementById('btnBgToggle');
-        const btnGestureHide = document.getElementById('btnGestureHide');
-        const btnCamBoxHide = document.getElementById('btnCamBoxHide');
-
-        function updateExtraTogglesUI() {
-            [btnBgToggle, btnGestureHide, btnCamBoxHide].forEach(b => b.disabled = !isAiActive);
-
-            btnBgToggle.classList.toggle('on', cameraAsBackground);
-            btnBgToggle.innerHTML = cameraAsBackground ? '✅ Đang dùng Camera làm nền' : '🖼️ Đưa Camera vào làm nền chơi Game';
-
-            btnGestureHide.classList.toggle('on', hideGestureSkeleton);
-            btnGestureHide.innerHTML = hideGestureSkeleton ? '👁️ Hiện lại cử chỉ 2 bàn tay' : '🙈 Tạm ẩn cử chỉ 2 bàn tay';
-
-            btnCamBoxHide.classList.toggle('on', hideCameraBox);
-            btnCamBoxHide.innerHTML = hideCameraBox ? '👁️ Hiện lại Camera toàn màn hình' : '📴 Tạm ẩn Camera trên toàn màn hình';
-        }
-
-        function updateSmallCamBoxVisibility() {
-            const shouldShow = isAiActive && !cameraAsBackground && !hideCameraBox;
-            camContainer.classList.toggle('hidden', !shouldShow);
-        }
-
-        function toggleCameraBackground() {
-            if (!isAiActive) return;
-            cameraAsBackground = !cameraAsBackground;
-            updateSmallCamBoxVisibility();
-            updateExtraTogglesUI();
-        }
-
-        function toggleGestureSkeleton() {
-            if (!isAiActive) return;
-            hideGestureSkeleton = !hideGestureSkeleton;
-            updateExtraTogglesUI();
-        }
-
-        function toggleCameraBoxVisibility() {
-            if (!isAiActive) return;
-            hideCameraBox = !hideCameraBox;
-            updateSmallCamBoxVisibility();
-            updateExtraTogglesUI();
-        }
-
-        function updateStatusUI(handsCount) {
-            btn1User.innerHTML = handsCount === 1 ? '🛑 Tắt Camera (User 1)' : '✋ Bật Camera Cử Chỉ (User 1)';
-            btn1User.className = handsCount === 1 
-                ? "w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-3 rounded-lg border border-red-600 transition-all text-sm shadow-md"
-                : "w-full bg-[#1b6b50] hover:bg-[#165a43] text-emerald-100 font-bold py-3 rounded-lg border border-[#238a67] transition-all text-sm shadow-md";
-
-            btn2User.innerHTML = handsCount === 2 ? '🛑 Tắt Camera (2 User)' : '✋ Bật Camera Cử Chỉ 2 User';
-            btn2User.className = handsCount === 2 
-                ? "w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-3 rounded-lg border border-red-600 transition-all text-sm shadow-md"
-                : "w-full bg-[#8b5a2b] hover:bg-[#7a4e25] text-amber-100 font-bold py-3 rounded-lg border border-[#a66c33] transition-all text-sm shadow-md";
-
-            document.getElementById('statusTxtP1').innerText = (handsCount >= 1) ? 'đang chạy' : 'chờ';
-            document.getElementById('statusTxtP1').className = (handsCount >= 1) ? 'text-emerald-400' : 'text-white';
-            document.getElementById('statusTxtP2').innerText = (handsCount === 2) ? 'đang chạy' : 'chờ';
-            document.getElementById('statusTxtP2').className = (handsCount === 2) ? 'text-sky-400' : 'text-white';
-
-            updateExtraTogglesUI();
-        }
-
-        function triggerVirtualKeyForPlayer(player, key) {
-            if (activeAIKeys[player] && activeAIKeys[player] !== key) setKey(activeAIKeys[player], false);
-            if (key) setKey(key, true);
-            activeAIKeys[player] = key;
-        }
+        function updateExtraTogglesUI() { [btnBgToggle, btnGestureHide, btnCamBoxHide].forEach(b => b.disabled = !isAiActive); btnBgToggle.classList.toggle('on', cameraAsBackground); btnBgToggle.innerHTML = cameraAsBackground ? '✅ Đang dùng Camera làm nền' : '🖼️ Đưa Camera vào làm nền chơi Game'; btnGestureHide.classList.toggle('on', hideGestureSkeleton); btnGestureHide.innerHTML = hideGestureSkeleton ? '👁️ Hiện lại cử chỉ 2 bàn tay' : '🙈 Tạm ẩn cử chỉ 2 bàn tay'; btnCamBoxHide.classList.toggle('on', hideCameraBox); btnCamBoxHide.innerHTML = hideCameraBox ? '👁️ Hiện lại Camera toàn màn hình' : '📴 Tạm ẩn Camera trên toàn màn hình'; }
+        function updateSmallCamBoxVisibility() { const shouldShow = isAiActive && !cameraAsBackground && !hideCameraBox; camContainer.classList.toggle('hidden', !shouldShow); }
+        function toggleCameraBackground() { if (!isAiActive) return; cameraAsBackground = !cameraAsBackground; updateSmallCamBoxVisibility(); updateExtraTogglesUI(); }
+        function toggleGestureSkeleton() { if (!isAiActive) return; hideGestureSkeleton = !hideGestureSkeleton; updateExtraTogglesUI(); }
+        function toggleCameraBoxVisibility() { if (!isAiActive) return; hideCameraBox = !hideCameraBox; updateSmallCamBoxVisibility(); updateExtraTogglesUI(); }
+        function updateStatusUI(handsCount) { btn1User.innerHTML = handsCount === 1 ? '🛑 Tắt Camera (User 1)' : '✋ Bật Camera Cử Chỉ (User 1)'; btn1User.className = handsCount === 1 ? "w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-3 rounded-lg border border-red-600 transition-all text-sm shadow-md" : "w-full bg-[#1b6b50] hover:bg-[#165a43] text-emerald-100 font-bold py-3 rounded-lg border border-[#238a67] transition-all text-sm shadow-md"; btn2User.innerHTML = handsCount === 2 ? '🛑 Tắt Camera (2 User)' : '✋ Bật Camera Cử Chỉ 2 User'; btn2User.className = handsCount === 2 ? "w-full bg-red-800 hover:bg-red-700 text-red-100 font-bold py-3 rounded-lg border border-red-600 transition-all text-sm shadow-md" : "w-full bg-[#8b5a2b] hover:bg-[#7a4e25] text-amber-100 font-bold py-3 rounded-lg border border-[#a66c33] transition-all text-sm shadow-md"; document.getElementById('statusTxtP1').innerText = (handsCount >= 1) ? 'đang chạy' : 'chờ'; document.getElementById('statusTxtP1').className = (handsCount >= 1) ? 'text-emerald-400' : 'text-white'; document.getElementById('statusTxtP2').innerText = (handsCount === 2) ? 'đang chạy' : 'chờ'; document.getElementById('statusTxtP2').className = (handsCount === 2) ? 'text-sky-400' : 'text-white'; updateExtraTogglesUI(); }
+        function triggerVirtualKeyForPlayer(player, key) { if (activeAIKeys[player] && activeAIKeys[player] !== key) setKey(activeAIKeys[player], false); if (key) setKey(key, true); activeAIKeys[player] = key; }
 
         function getGestureKey(landmarks, playerPrefix) {
-            const indexTip = landmarks[8]; const indexBase = landmarks[5];
-            const middleTip = landmarks[12]; const middleBase = landmarks[9];
-            const ringTip = landmarks[16]; const ringBase = landmarks[13];
-            const pinkyTip = landmarks[20]; const pinkyBase = landmarks[17];
+            const indexTip = landmarks[8]; const indexBase = landmarks[5]; const middleTip = landmarks[12]; const middleBase = landmarks[9]; const ringTip = landmarks[16]; const ringBase = landmarks[13]; const pinkyTip = landmarks[20]; const pinkyBase = landmarks[17];
             const upCount = [indexTip.y < indexBase.y, middleTip.y < middleBase.y, ringTip.y < ringBase.y, pinkyTip.y < pinkyBase.y].filter(Boolean).length;
-            
             if (upCount >= 3) return keyMappings[`${playerPrefix}_shield`];
             if (upCount === 0) return keyMappings[`${playerPrefix}_shoot`];
-            
-            if (upCount === 1 && indexTip.y < indexBase.y) {
-                const dx = indexTip.x - indexBase.x; 
-                const dy = indexTip.y - indexBase.y;
-                
-                if (Math.abs(dy) > Math.abs(dx)) return keyMappings[`${playerPrefix}_jump`];
-                
-                if (currentFacingMode === 'environment') {
-                    if (dx < -0.05) return keyMappings[`${playerPrefix}_left`];
-                    if (dx > 0.05) return keyMappings[`${playerPrefix}_right`];
-                } else {
-                    if (dx > 0.05) return keyMappings[`${playerPrefix}_left`];
-                    if (dx < -0.05) return keyMappings[`${playerPrefix}_right`];
-                }
-            }
+            if (upCount === 1 && indexTip.y < indexBase.y) { const dx = indexTip.x - indexBase.x; const dy = indexTip.y - indexBase.y; if (Math.abs(dy) > Math.abs(dx)) return keyMappings[`${playerPrefix}_jump`]; if (currentFacingMode === 'environment') { if (dx < -0.05) return keyMappings[`${playerPrefix}_left`]; if (dx > 0.05) return keyMappings[`${playerPrefix}_right`]; } else { if (dx > 0.05) return keyMappings[`${playerPrefix}_left`]; if (dx < -0.05) return keyMappings[`${playerPrefix}_right`]; } }
             return null;
         }
 
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        
         hands.onResults((results) => {
-            if (loadingText.style.display !== 'none') loadingText.style.display = 'none';
-            canvasCtx.save(); canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height); canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-            let p1DetectedKey = null; let p2DetectedKey = null;
-            lastMultiHandLandmarks = (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) ? results.multiHandLandmarks : null;
-
+            if (loadingText.style.display !== 'none') loadingText.style.display = 'none'; canvasCtx.save(); canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height); canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height); let p1DetectedKey = null; let p2DetectedKey = null; lastMultiHandLandmarks = (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) ? results.multiHandLandmarks : null;
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 let handsArray = results.multiHandLandmarks.map((lm) => { return { landmarks: lm, x: lm[0].x }; });
-                if (currentFacingMode === 'user') handsArray.sort((a, b) => b.x - a.x); 
-                else handsArray.sort((a, b) => a.x - b.x); 
-
+                if (currentFacingMode === 'user') handsArray.sort((a, b) => b.x - a.x); else handsArray.sort((a, b) => a.x - b.x); 
                 for (let i = 0; i < handsArray.length; i++) {
-                    const lm = handsArray[i].landmarks;
-                    let handColor = i === 0 ? '#10b981' : '#38bdf8';
-                    if (!hideGestureSkeleton) {
-                        drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: handColor, lineWidth: 2});
-                        drawLandmarks(canvasCtx, lm, {color: '#ffffff', lineWidth: 1, radius: 2});
-                    }
-                    
-                    if(activeAiHandsMode === 1 && i === 0) p1DetectedKey = getGestureKey(lm, 'p1');
-                    else if (activeAiHandsMode === 2) {
-                        if (i === 0) p1DetectedKey = getGestureKey(lm, 'p1');
-                        if (i === 1) p2DetectedKey = getGestureKey(lm, 'p2');
-                    }
+                    const lm = handsArray[i].landmarks; let handColor = i === 0 ? '#10b981' : '#38bdf8';
+                    if (!hideGestureSkeleton) { drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: handColor, lineWidth: 2}); drawLandmarks(canvasCtx, lm, {color: '#ffffff', lineWidth: 1, radius: 2}); }
+                    if(activeAiHandsMode === 1 && i === 0) p1DetectedKey = getGestureKey(lm, 'p1'); else if (activeAiHandsMode === 2) { if (i === 0) p1DetectedKey = getGestureKey(lm, 'p1'); if (i === 1) p2DetectedKey = getGestureKey(lm, 'p2'); }
                 }
             }
-            triggerVirtualKeyForPlayer('p1', p1DetectedKey);
-            triggerVirtualKeyForPlayer('p2', p2DetectedKey);
-            canvasCtx.restore();
+            triggerVirtualKeyForPlayer('p1', p1DetectedKey); triggerVirtualKeyForPlayer('p2', p2DetectedKey); canvasCtx.restore();
         });
 
-        function stopCamera() {
-            if (aiCameraInstance) {
-                aiCameraInstance.stop();
-                if(videoElement.srcObject) {
-                    videoElement.srcObject.getTracks().forEach(track => track.stop());
-                    videoElement.srcObject = null;
-                }
-            }
-            isAiActive = false; activeAiHandsMode = 0;
-            cameraAsBackground = false; hideGestureSkeleton = false; hideCameraBox = false;
-            lastMultiHandLandmarks = null;
-            updateSmallCamBoxVisibility(); updateStatusUI(0);
-        }
-
-        function toggleCameraFacingMode() {
-            if(!isAiActive) return;
-            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-            if (currentFacingMode === 'user') canvasElement.classList.add('scale-x-[-1]');
-            else canvasElement.classList.remove('scale-x-[-1]');
-            startMediaPipeEngine(); 
-        }
-
-        function startMediaPipeEngine() {
-            if (aiCameraInstance) {
-                aiCameraInstance.stop();
-                if(videoElement.srcObject) videoElement.srcObject.getTracks().forEach(track => track.stop());
-            }
-            loadingText.style.display = 'block'; 
-            aiCameraInstance = new Camera(videoElement, { 
-                onFrame: async () => { await hands.send({image: videoElement}); }, 
-                width: 320, height: 240, facingMode: currentFacingMode 
-            });
-            aiCameraInstance.start().catch(err => {
-                loadingText.innerText = "Lỗi: Camera bị chặn hoặc không tìm thấy!"; 
-                loadingText.className = "text-[10px] sm:text-xs text-red-500 font-bold absolute z-10 text-center";
-                stopCamera();
-            });
-        }
-
-        function startCamera(modeNumHands) {
-            if (activeAiHandsMode === modeNumHands) { stopCamera(); return; }
-            const firstActivation = !isAiActive;
-            if (firstActivation) {
-                cameraAsBackground = false; hideGestureSkeleton = false; hideCameraBox = false;
-                isAiActive = true;
-            }
-            updateSmallCamBoxVisibility();
-            activeAiHandsMode = modeNumHands; updateStatusUI(modeNumHands);
-            hands.setOptions({ maxNumHands: modeNumHands, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-            if (firstActivation) startMediaPipeEngine();
-        }
+        function stopCamera() { if (aiCameraInstance) { aiCameraInstance.stop(); if(videoElement.srcObject) { videoElement.srcObject.getTracks().forEach(track => track.stop()); videoElement.srcObject = null; } } isAiActive = false; activeAiHandsMode = 0; cameraAsBackground = false; hideGestureSkeleton = false; hideCameraBox = false; lastMultiHandLandmarks = null; updateSmallCamBoxVisibility(); updateStatusUI(0); }
+        function toggleCameraFacingMode() { if(!isAiActive) return; currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user'; if (currentFacingMode === 'user') canvasElement.classList.add('scale-x-[-1]'); else canvasElement.classList.remove('scale-x-[-1]'); startMediaPipeEngine(); }
+        function startMediaPipeEngine() { if (aiCameraInstance) { aiCameraInstance.stop(); if(videoElement.srcObject) videoElement.srcObject.getTracks().forEach(track => track.stop()); } loadingText.style.display = 'block'; aiCameraInstance = new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 320, height: 240, facingMode: currentFacingMode }); aiCameraInstance.start().catch(err => { loadingText.innerText = "Lỗi: Camera bị chặn hoặc không tìm thấy!"; loadingText.className = "text-[10px] sm:text-xs text-red-500 font-bold absolute z-10 text-center"; stopCamera(); }); }
+        function startCamera(modeNumHands) { if (activeAiHandsMode === modeNumHands) { stopCamera(); return; } const firstActivation = !isAiActive; if (firstActivation) { cameraAsBackground = false; hideGestureSkeleton = false; hideCameraBox = false; isAiActive = true; } updateSmallCamBoxVisibility(); activeAiHandsMode = modeNumHands; updateStatusUI(modeNumHands); hands.setOptions({ maxNumHands: modeNumHands, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 }); if (firstActivation) startMediaPipeEngine(); }
     
-    // ===== PORTAL BRIDGE (auto-injected) =====
-    window.__PORTAL_GAME_ID__ = 'camera-key';
-    window.__PORTAL_GAME_TITLE__ = 'Bảo Vệ Cơ Thể – Camera Cử Chỉ (Đầy đủ)';
-    function reportGameResult(status, score, timeSec, meta) {
-        try {
-            window.parent.postMessage({
-                type: 'PORTAL_GAME_RESULT',
-                gameId: window.__PORTAL_GAME_ID__,
-                gameTitle: window.__PORTAL_GAME_TITLE__,
-                status: status,
-                score: Math.round(score || 0),
-                timeSec: Math.round((timeSec || 0) * 10) / 10,
-                meta: meta || null,
-                ts: Date.now()
-            }, '*');
-        } catch(e) {}
-    }
+    // ===== PORTAL BRIDGE =====
+    window.__PORTAL_GAME_ID__ = 'camera-key'; window.__PORTAL_GAME_TITLE__ = 'Bảo Vệ Cơ Thể – Camera Cử Chỉ (Đầy đủ)';
+    function reportGameResult(status, score, timeSec, meta) { try { window.parent.postMessage({ type: 'PORTAL_GAME_RESULT', gameId: window.__PORTAL_GAME_ID__, gameTitle: window.__PORTAL_GAME_TITLE__, status: status, score: Math.round(score || 0), timeSec: Math.round((timeSec || 0) * 10) / 10, meta: meta || null, ts: Date.now() }, '*'); } catch(e) {} }
     try { window.parent.postMessage({ type: 'PORTAL_GAME_READY', gameId: window.__PORTAL_GAME_ID__, gameTitle: window.__PORTAL_GAME_TITLE__ }, '*'); } catch(e) {}
-    // ===== END PORTAL BRIDGE =====
 </script>
 </body>
 </html>
