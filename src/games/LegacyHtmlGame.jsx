@@ -28,18 +28,11 @@ function stripScripts(markup) {
 function loadScript({ src, crossOrigin }) {
   if (scriptCache.has(src)) return scriptCache.get(src)
 
-  const existing = document.querySelector(`script[src="${src}"]`)
-  if (existing) {
-    const promise = existing.dataset.loaded === 'true'
-      ? Promise.resolve()
-      : new Promise((resolve, reject) => {
-          existing.addEventListener('load', resolve, { once: true })
-          existing.addEventListener('error', reject, { once: true })
-        })
-    scriptCache.set(src, promise)
-    return promise
-  }
-
+  // NOTE: we deliberately do NOT look for/reuse a pre-existing <script src="...">
+  // tag on the page (e.g. one baked into the static HTML shim). Its 'load'/'error'
+  // event may already have fired before we get a chance to attach a listener,
+  // which leaves the promise hanging forever and the game script never runs.
+  // Always create our own tag so we fully control its lifecycle.
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = src
