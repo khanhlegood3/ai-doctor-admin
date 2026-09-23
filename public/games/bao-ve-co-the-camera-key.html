@@ -52,6 +52,12 @@
         .extra-toggle-btn:hover:not(:disabled) { background: #334155; border-color: #64748b; }
         .extra-toggle-btn.on { background: #0c4a6e; border-color: #38bdf8; color: #7dd3fc; box-shadow: 0 0 8px rgba(56,189,248,.4); }
         .extra-toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Pixelated Asset Canvas */
+        #previewHeroCanvas, #previewTileCanvas, #previewVfxCanvas, #previewItemCanvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col items-center p-2 sm:p-4 relative">
@@ -192,13 +198,35 @@
             </div>
         </div>
         <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">2. CHỌN HỆ CƠ QUAN:</h3>
-        <div class="grid grid-cols-2 gap-2 mt-2 pb-10 sm:pb-0">
+        <div class="grid grid-cols-2 gap-2 mt-2">
             <button id="btn-brain" class="organ-btn selected" onclick="selectOrgan('brain')"><span class="text-2xl mb-1">🧠</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ thần kinh</span></button>
             <button id="btn-lungs" class="organ-btn" onclick="selectOrgan('lungs')"><span class="text-2xl mb-1">🫁</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ hô hấp</span></button>
             <button id="btn-heart" class="organ-btn" onclick="selectOrgan('heart')"><span class="text-2xl mb-1">🫀</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ tuần hoàn</span></button>
             <button id="btn-kidneys" class="organ-btn" onclick="selectOrgan('kidneys')"><span class="text-2xl mb-1">💧</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ tiết niệu</span></button>
             <button id="btn-stomach" class="organ-btn" onclick="selectOrgan('stomach')"><span class="text-2xl mb-1">🥩</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ tiêu hóa</span></button>
             <button id="btn-liver" class="organ-btn" onclick="selectOrgan('liver')"><span class="text-2xl mb-1">🧫</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ gan mật</span></button>
+        </div>
+
+        <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">3. IN-MEMORY ASSET TEXTURES:</h3>
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-2 mt-2 space-y-2 mb-8">
+            <div class="grid grid-cols-2 gap-2 text-center text-[10px] font-mono">
+                <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
+                    <div class="text-slate-400">Hero Atlas</div>
+                    <canvas id="previewHeroCanvas" width="64" height="16" class="w-full h-8 bg-slate-950 rounded mx-auto border border-slate-800"></canvas>
+                </div>
+                <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
+                    <div class="text-slate-400">Tileset Sheet</div>
+                    <canvas id="previewTileCanvas" width="64" height="16" class="w-full h-8 bg-slate-950 rounded mx-auto border border-slate-800"></canvas>
+                </div>
+                <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
+                    <div class="text-slate-400">VFX Particles</div>
+                    <canvas id="previewVfxCanvas" width="32" height="16" class="w-full h-8 bg-slate-950 rounded mx-auto border border-slate-800"></canvas>
+                </div>
+                <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
+                    <div class="text-slate-400">Collectible Item</div>
+                    <canvas id="previewItemCanvas" width="16" height="16" class="w-full h-8 bg-slate-950 rounded mx-auto border border-slate-800"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -384,6 +412,69 @@
         }
 
         // ==========================================
+        // IN-MEMORY ASSET COMPILERS
+        // ==========================================
+        function recompileHeroSprite() {
+            const offscreen = document.getElementById('previewHeroCanvas');
+            if(!offscreen) return;
+            const ctx = offscreen.getContext('2d');
+            ctx.clearRect(0, 0, 64, 16);
+            let c1 = envTheme.organColor || '#f472b6'; 
+            let c2 = envTheme.border || '#ec4899';
+            for (let f = 0; f < 4; f++) {
+                const ox = f * 16;
+                ctx.fillStyle = c1; ctx.fillRect(ox + 3, 3, 10, 10);
+                ctx.fillStyle = c2; ctx.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
+                ctx.fillStyle = '#ffffff';
+                if (f === 0) { ctx.fillRect(ox + 4, 13, 3, 3); ctx.fillRect(ox + 9, 13, 3, 3); }
+                else if (f === 1) { ctx.fillRect(ox + 3, 13, 3, 3); ctx.fillRect(ox + 10, 13, 3, 3); }
+                else if (f === 2) { ctx.fillRect(ox + 5, 13, 3, 3); ctx.fillRect(ox + 8, 13, 3, 3); }
+                else { ctx.fillRect(ox + 6, 13, 4, 3); }
+            }
+        }
+
+        function recompileTileset() {
+            const offscreen = document.getElementById('previewTileCanvas');
+            if(!offscreen) return;
+            const ctx = offscreen.getContext('2d');
+            ctx.clearRect(0, 0, 64, 16);
+            let t1 = envTheme.border || '#8b5cf6'; 
+            let t2 = envTheme.wall || '#4c1d95'; 
+            let c1 = envTheme.organColor || '#f472b6';
+            ctx.fillStyle = t1; ctx.fillRect(0, 0, 16, 4);
+            ctx.fillStyle = t2; ctx.fillRect(0, 4, 16, 12);
+            ctx.fillStyle = t2; ctx.fillRect(16, 0, 16, 16);
+            ctx.fillStyle = t1; ctx.fillRect(18, 2, 12, 12);
+            ctx.fillStyle = t2; ctx.fillRect(32, 0, 16, 16);
+            ctx.fillStyle = c1; ctx.fillRect(34, 4, 12, 2); ctx.fillRect(34, 10, 12, 2);
+        }
+
+        function recompileVfx() {
+            const offscreen = document.getElementById('previewVfxCanvas');
+            if(!offscreen) return;
+            const ctx = offscreen.getContext('2d');
+            ctx.clearRect(0, 0, 32, 16);
+            ctx.fillStyle = envTheme.organColor || '#f472b6'; ctx.fillRect(4, 4, 8, 8);
+            ctx.fillStyle = envTheme.border || '#ec4899'; ctx.fillRect(20, 2, 12, 12);
+        }
+
+        function recompileItem() {
+            const offscreen = document.getElementById('previewItemCanvas');
+            if(!offscreen) return;
+            const ctx = offscreen.getContext('2d');
+            ctx.clearRect(0, 0, 16, 16);
+            ctx.fillStyle = envTheme.organColor || '#c084fc';
+            ctx.beginPath(); ctx.arc(8, 8, 5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        function compileAllAssets() {
+            recompileHeroSprite();
+            recompileTileset();
+            recompileVfx();
+            recompileItem();
+        }
+
+        // ==========================================
         // AI CAMERA STATE (khai báo sớm để tránh lỗi thứ tự biến khi draw() chạy)
         // ==========================================
         let isAiActive = false;
@@ -438,6 +529,9 @@
             else if(type === 'kidneys') { envTheme = { name: "Hệ tiết niệu", icon: "💧", bg: "rgba(20, 20, 50, 0.7)", wall: "#1e3a8a", border: "#34d399", organColor: "#6ee7b7" }; platforms = [{x: 140, y: 280, w: 110, h: 12, label: "Bể thận"}, {x: 310, y: 210, w: 130, h: 12, label: "Cầu thận"}, {x: 480, y: 150, w: 120, h: 12, label: "Ống thận"}]; } 
             else if(type === 'stomach') { envTheme = { name: "Hệ tiêu hóa", icon: "🥩", bg: "rgba(6, 24, 15, 0.7)", wall: "#064e3b", border: "#10b981", organColor: "#fde047" }; platforms = [{x: 150, y: 300, w: 120, h: 12, label: "Dịch vị"}, {x: 320, y: 230, w: 140, h: 12, label: "Nhung mao"}, {x: 500, y: 160, w: 110, h: 12, label: "Lớp nhầy"}, {x: 270, y: 120, w: 130, h: 12, label: "Enzyme phân giải"}]; } 
             else if(type === 'liver') { envTheme = { name: "Hệ gan mật", icon: "🧫", bg: "rgba(30, 20, 10, 0.7)", wall: "#78350f", border: "#fbbf24", organColor: "#d97706" }; platforms = [{x: 160, y: 310, w: 130, h: 12, label: "Nhu mô gan"}, {x: 350, y: 220, w: 120, h: 12, label: "Ống mật"}, {x: 520, y: 140, w: 120, h: 12, label: "Tĩnh mạch"}]; }
+            
+            compileAllAssets();
+            
             if(autoStart) { gameState = 'playing'; resetGame(); if(window.innerWidth < 640 && menuOpen) closeMenu(); }
         }
 
