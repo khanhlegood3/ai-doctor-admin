@@ -129,13 +129,11 @@
         <div class="bg-slate-900 border-x border-slate-800 p-2 sm:p-3 flex justify-between items-center">
             <div class="flex flex-col items-center w-1/2 border-r border-slate-700 pr-1 sm:pr-2">
                 <span class="text-[9px] sm:text-[11px] font-bold text-emerald-400 mb-2 text-center" id="p1-control-label">P1</span>
-                <div class="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-[300px]" id="p1-controls">
-                    </div>
+                <div class="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-[300px]" id="p1-controls"></div>
             </div>
             <div class="flex flex-col items-center w-1/2 pl-1 sm:pl-2">
                 <span class="text-[9px] sm:text-[11px] font-bold text-rose-400 mb-2 text-center" id="p2-control-label">P2</span>
-                <div class="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-[300px]" id="p2-controls">
-                    </div>
+                <div class="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-[300px]" id="p2-controls"></div>
             </div>
         </div>
 
@@ -197,6 +195,7 @@
                 <button id="mode-pvp" onclick="setGameMode('pvp')" class="mode-btn bg-rose-600 hover:bg-rose-500 text-white">⚔️ PvP (Người vs Người)</button>
             </div>
         </div>
+        
         <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">2. CHỌN HỆ CƠ QUAN:</h3>
         <div class="grid grid-cols-2 gap-2 mt-2">
             <button id="btn-brain" class="organ-btn selected" onclick="selectOrgan('brain')"><span class="text-2xl mb-1">🧠</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ thần kinh</span></button>
@@ -207,7 +206,17 @@
             <button id="btn-liver" class="organ-btn" onclick="selectOrgan('liver')"><span class="text-2xl mb-1">🧫</span><span class="text-[10px] font-bold text-slate-300 text-center">Hệ gan mật</span></button>
         </div>
 
-        <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">3. IN-MEMORY ASSET TEXTURES:</h3>
+        <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">3. CHỌN HÌNH DẠNG HERO:</h3>
+        <div class="flex flex-col gap-2 mt-2">
+            <button id="btn-hero-1" class="hero-style-btn mode-btn active border-white bg-slate-700 text-white" onclick="selectHeroStyle(1)">🧊 Khối Cơ Bản (Gốc)</button>
+            <button id="btn-hero-2" class="hero-style-btn mode-btn bg-slate-800 text-slate-400" onclick="selectHeroStyle(2)">👾 MCP Pixel Art</button>
+            <button id="btn-hero-3" class="hero-style-btn mode-btn bg-slate-800 text-slate-400 flex justify-center items-center gap-2" onclick="document.getElementById('avatar-upload').click()">
+                🖼️ Upload Avatar <span id="upload-status" class="text-[10px] text-emerald-400 font-bold hidden">(Đã tải)</span>
+            </button>
+            <input type="file" id="avatar-upload" class="hidden" accept="image/*" onchange="handleAvatarUpload(event)">
+        </div>
+
+        <h3 class="text-xs font-bold text-slate-400 mt-4 border-b border-slate-700 pb-1">4. IN-MEMORY ASSET TEXTURES:</h3>
         <div class="bg-slate-800 rounded-xl border border-slate-700 p-2 mt-2 space-y-2 mb-8">
             <div class="grid grid-cols-2 gap-2 text-center text-[10px] font-mono">
                 <div class="bg-slate-900 p-2 rounded border border-slate-700 space-y-1">
@@ -412,24 +421,80 @@
         }
 
         // ==========================================
-        // IN-MEMORY ASSET COMPILERS
+        // HERO SELECTION & IN-MEMORY ASSET COMPILERS
         // ==========================================
+        let currentHeroStyle = 1; // 1: Khối cơ bản, 2: Pixel Art, 3: Upload
+        let uploadedAvatar = null;
+
+        function selectHeroStyle(style) {
+            if(style === 3 && !uploadedAvatar) {
+                alert("Vui lòng Upload Avatar của bạn trước!");
+                document.getElementById('avatar-upload').click();
+                return;
+            }
+            currentHeroStyle = style;
+            
+            // Xử lý đổi class trên giao diện UI
+            document.querySelectorAll('.hero-style-btn').forEach((btn, idx) => {
+                btn.classList.remove('active', 'border-white', 'bg-slate-700', 'text-white');
+                btn.classList.add('bg-slate-800', 'text-slate-400');
+                if (idx + 1 === style) {
+                    btn.classList.add('active', 'border-white', 'bg-slate-700', 'text-white');
+                    btn.classList.remove('bg-slate-800', 'text-slate-400');
+                }
+            });
+            compileAllAssets();
+        }
+
+        function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        uploadedAvatar = img;
+                        document.getElementById('upload-status').classList.remove('hidden');
+                        selectHeroStyle(3); // Tự động đổi qua chế độ Avatar sau khi Upload thành công
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
         function recompileHeroSprite() {
             const offscreen = document.getElementById('previewHeroCanvas');
             if(!offscreen) return;
             const ctx = offscreen.getContext('2d');
             ctx.clearRect(0, 0, 64, 16);
-            let c1 = envTheme.organColor || '#f472b6'; 
-            let c2 = envTheme.border || '#ec4899';
+            
             for (let f = 0; f < 4; f++) {
                 const ox = f * 16;
-                ctx.fillStyle = c1; ctx.fillRect(ox + 3, 3, 10, 10);
-                ctx.fillStyle = c2; ctx.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
-                ctx.fillStyle = '#ffffff';
-                if (f === 0) { ctx.fillRect(ox + 4, 13, 3, 3); ctx.fillRect(ox + 9, 13, 3, 3); }
-                else if (f === 1) { ctx.fillRect(ox + 3, 13, 3, 3); ctx.fillRect(ox + 10, 13, 3, 3); }
-                else if (f === 2) { ctx.fillRect(ox + 5, 13, 3, 3); ctx.fillRect(ox + 8, 13, 3, 3); }
-                else { ctx.fillRect(ox + 6, 13, 4, 3); }
+                
+                if (currentHeroStyle === 1) {
+                    // 1. Khối Cơ Bản
+                    ctx.fillStyle = '#10b981'; // Demo màu P1 cho Canvas Preview
+                    ctx.fillRect(ox + 2, 2, 12, 12);
+                    ctx.fillStyle = '#ffffff'; 
+                    ctx.fillRect(ox + 8, 4, 3, 3);
+                } 
+                else if (currentHeroStyle === 2) {
+                    // 2. Pixel Art
+                    let c1 = envTheme.organColor || '#f472b6'; 
+                    let c2 = envTheme.border || '#ec4899';
+                    ctx.fillStyle = c1; ctx.fillRect(ox + 3, 3, 10, 10);
+                    ctx.fillStyle = c2; ctx.fillRect(ox + (f % 2 === 0 ? 8 : 9), 4, 4, 3);
+                    ctx.fillStyle = '#ffffff';
+                    if (f === 0) { ctx.fillRect(ox + 4, 13, 3, 3); ctx.fillRect(ox + 9, 13, 3, 3); }
+                    else if (f === 1) { ctx.fillRect(ox + 3, 13, 3, 3); ctx.fillRect(ox + 10, 13, 3, 3); }
+                    else if (f === 2) { ctx.fillRect(ox + 5, 13, 3, 3); ctx.fillRect(ox + 8, 13, 3, 3); }
+                    else { ctx.fillRect(ox + 6, 13, 4, 3); }
+                } 
+                else if (currentHeroStyle === 3 && uploadedAvatar) {
+                    // 3. Render Custom Avatar
+                    ctx.drawImage(uploadedAvatar, ox, 0, 16, 16);
+                }
             }
         }
 
@@ -475,7 +540,7 @@
         }
 
         // ==========================================
-        // AI CAMERA STATE (khai báo sớm để tránh lỗi thứ tự biến khi draw() chạy)
+        // AI CAMERA STATE 
         // ==========================================
         let isAiActive = false;
         let currentFacingMode = 'user';
@@ -508,7 +573,7 @@
 
         function setGameMode(mode, autoStart = true) {
             gameMode = mode;
-            document.querySelectorAll('.mode-btn').forEach(btn => { btn.classList.remove('active', 'border-white'); btn.style.opacity = '0.5'; });
+            document.querySelectorAll('.mode-btn:not(.hero-style-btn)').forEach(btn => { btn.classList.remove('active', 'border-white'); btn.style.opacity = '0.5'; });
             document.getElementById('mode-' + mode).classList.add('active', 'border-white'); document.getElementById('mode-' + mode).style.opacity = '1';
             
             const p2HpUi = document.getElementById('p2-hp-container');
@@ -697,16 +762,49 @@
             mapHeals.forEach(m => { ctx.fillStyle='#34d399'; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); });
             projectiles.forEach(p => { ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); });
 
+            // DRAW PLAYERS (Với cơ chế đổi Skin)
+            const offscreen = document.getElementById('previewHeroCanvas');
             if(p1.alive) {
-                ctx.fillStyle = p1.color; ctx.fillRect(p1.x, p1.y, p1.width, p1.height);
-                ctx.fillStyle = '#ffffff'; ctx.fillRect(p1.x + (p1.vx >= 0 ? 12 : 4), p1.y + 4, 6, 6);
+                if(currentHeroStyle === 1) {
+                    ctx.fillStyle = p1.color; ctx.fillRect(p1.x, p1.y, p1.width, p1.height);
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(p1.x + (p1.vx >= 0 ? 12 : 4), p1.y + 4, 6, 6);
+                } else {
+                    let frame = (Math.abs(p1.vx) > 0.1) ? Math.floor(Date.now() / 100) % 4 : 0;
+                    ctx.save();
+                    if (p1.vx < -0.1) {
+                        ctx.translate(p1.x + p1.width, p1.y); ctx.scale(-1, 1);
+                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p1.width, p1.height);
+                    } else {
+                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p1.x, p1.y, p1.width, p1.height);
+                    }
+                    ctx.restore();
+                    // Chấm nhận diện màu P1 trên đầu
+                    ctx.fillStyle = p1.color; ctx.beginPath(); ctx.arc(p1.x + p1.width/2, p1.y - 6, 3, 0, Math.PI*2); ctx.fill();
+                }
+                
                 if(p1.shieldActive) { ctx.strokeStyle = '#34d399'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p1.x + p1.width/2, p1.y + p1.height/2, 25, -Math.PI/2, Math.PI/2); ctx.stroke(); }
             }
             if(p2.active && p2.alive) {
-                ctx.fillStyle = p2.color; ctx.fillRect(p2.x, p2.y, p2.width, p2.height);
-                ctx.fillStyle = '#ffffff'; ctx.fillRect(p2.x + (p2.vx >= 0 ? 12 : 4), p2.y + 4, 6, 6);
+                if(currentHeroStyle === 1) {
+                    ctx.fillStyle = p2.color; ctx.fillRect(p2.x, p2.y, p2.width, p2.height);
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(p2.x + (p2.vx >= 0 ? 12 : 4), p2.y + 4, 6, 6);
+                } else {
+                    let frame = (Math.abs(p2.vx) > 0.1) ? Math.floor(Date.now() / 100) % 4 : 0;
+                    ctx.save();
+                    if (p2.vx < -0.1) {
+                        ctx.translate(p2.x + p2.width, p2.y); ctx.scale(-1, 1);
+                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, 0, 0, p2.width, p2.height);
+                    } else {
+                        ctx.drawImage(offscreen, frame * 16, 0, 16, 16, p2.x, p2.y, p2.width, p2.height);
+                    }
+                    ctx.restore();
+                    // Chấm nhận diện màu P2 trên đầu
+                    ctx.fillStyle = p2.color; ctx.beginPath(); ctx.arc(p2.x + p2.width/2, p2.y - 6, 3, 0, Math.PI*2); ctx.fill();
+                }
+                
                 if(p2.shieldActive) { ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p2.x + p2.width/2, p2.y + p2.height/2, 25, -Math.PI/2, Math.PI/2); ctx.stroke(); }
             }
+
             if(boss.hp > 0) {
                 ctx.fillStyle = boss.color; ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI*2); ctx.fill();
                 for(let i=0; i<8; i++) {
@@ -778,8 +876,6 @@
             btnCamBoxHide.innerHTML = hideCameraBox ? '👁️ Hiện lại Camera toàn màn hình' : '📴 Tạm ẩn Camera trên toàn màn hình';
         }
 
-        // Khung camera nhỏ nổi bên ngoài chỉ hiện khi: đang bật AI, KHÔNG ở chế độ camera-làm-nền,
-        // và người dùng chưa bấm ẩn thủ công. Camera + MediaPipe vẫn chạy nền bất kể trạng thái hiển thị này.
         function updateSmallCamBoxVisibility() {
             const shouldShow = isAiActive && !cameraAsBackground && !hideCameraBox;
             camContainer.classList.toggle('hidden', !shouldShow);
@@ -788,7 +884,6 @@
         function toggleCameraBackground() {
             if (!isAiActive) return;
             cameraAsBackground = !cameraAsBackground;
-            // Khi bật Camera làm nền chơi Game: tự động tắt khung camera nhỏ nổi bên ngoài.
             updateSmallCamBoxVisibility();
             updateExtraTogglesUI();
         }
@@ -802,8 +897,6 @@
         function toggleCameraBoxVisibility() {
             if (!isAiActive) return;
             hideCameraBox = !hideCameraBox;
-            // Chỉ ẩn/hiện (bằng CSS) khung camera nào đang còn hiển thị — khung nhỏ nổi bên ngoài
-            // hoặc lớp camera nền trong khung chơi Game. KHÔNG dừng camera hay dừng nhận diện cử chỉ.
             updateSmallCamBoxVisibility();
             updateExtraTogglesUI();
         }
@@ -843,7 +936,6 @@
             if (upCount >= 3) return keyMappings[`${playerPrefix}_shield`];
             if (upCount === 0) return keyMappings[`${playerPrefix}_shoot`];
             
-            // XỬ LÝ ĐIỀU HƯỚNG BẰNG NGÓN TRỎ
             if (upCount === 1 && indexTip.y < indexBase.y) {
                 const dx = indexTip.x - indexBase.x; 
                 const dy = indexTip.y - indexBase.y;
@@ -937,8 +1029,6 @@
             if (activeAiHandsMode === modeNumHands) { stopCamera(); return; }
             const firstActivation = !isAiActive;
             if (firstActivation) {
-                // Bật camera mới hoàn toàn: reset các tuỳ chọn nền/ẩn về mặc định, và đánh dấu AI đã active
-                // NGAY LẬP TỨC để 3 nút điều khiển hiển thị camera được bật (không disabled) ngay từ lần đầu.
                 cameraAsBackground = false; hideGestureSkeleton = false; hideCameraBox = false;
                 isAiActive = true;
             }
