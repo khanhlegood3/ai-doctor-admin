@@ -28,11 +28,22 @@ function stripScripts(markup) {
 function loadScript({ src, crossOrigin }) {
   if (scriptCache.has(src)) return scriptCache.get(src)
 
-  // NOTE: we deliberately do NOT look for/reuse a pre-existing <script src="...">
-  // tag on the page (e.g. one baked into the static HTML shim). Its 'load'/'error'
-  // event may already have fired before we get a chance to attach a listener,
-  // which leaves the promise hanging forever and the game script never runs.
-  // Always create our own tag so we fully control its lifecycle.
+  // CHÚ Ý: KHÔNG được tái sử dụng một thẻ <script src="..."> đã có sẵn
+  // trong trang (ví dụ script tải Tailwind trong <head> của
+  // body-protection-html.html) bằng cách gắn thêm addEventListener('load'/
+  // 'error', ...) vào nó — nếu thẻ đó đã tải xong (hoặc lỗi) TRƯỚC khi đoạn
+  // code này chạy, sự kiện 'load'/'error' đã bắn xong và sẽ KHÔNG bắn lại,
+  // khiến promise treo vĩnh viễn. Hệ quả thực tế: `Promise.all(...).then()`
+  // phía dưới (nơi các <script> nội tuyến của game — chứa các hàm như
+  // `setKey` — được chèn vào trang) không bao giờ chạy, người chơi bấm nút
+  // điều khiển thì gặp lỗi `setKey is not defined` dù khung game (canvas,
+  // nút bấm) vẫn hiển thị bình thường vì đó là markup tĩnh được chèn trước.
+  // Đây là lỗi có tính chất đua tài nguyên (race condition) — không phải
+  // lúc nào cũng xảy ra, tuỳ tốc độ tải bundle React so với script có sẵn.
+  // Cách sửa: luôn tự tạo một thẻ <script> mới do chính hàm này quản lý
+  // trọn vòng đời (gắn onload/onerror TRƯỚC khi chèn vào DOM), chấp nhận
+  // khả năng gọi lại network 1 lần nữa cho cùng URL (trình duyệt tự phục vụ
+  // từ cache nên chi phí không đáng kể) để đổi lấy việc luôn resolve đúng.
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = src
