@@ -31,7 +31,7 @@ import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
-import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
+import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, loadBringAnyIdeaToLifeCreationFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, createVideoToLearningSourceUploadUrl, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
@@ -325,10 +325,12 @@ export default async function handler(req, res) {
 
 
   if (body.provider === 'bring-any-idea-to-life-load-r2') {
-    console.log('[groq-proxy] (bring-any-idea-to-life-load-r2) load all creations')
+    console.log('[groq-proxy] (bring-any-idea-to-life-load-r2)', body.id ? `load id ${body.id}` : 'load all creations')
     try {
-      const payload = await loadAllBringAnyIdeaToLifeCreationsFromR2({})
-      return res.status(200).json(payload)
+      const payload = body.id
+        ? await loadBringAnyIdeaToLifeCreationFromR2({ id: body.id })
+        : await loadAllBringAnyIdeaToLifeCreationsFromR2({})
+      return res.status(200).json(body.id ? { creation: payload } : payload)
     } catch (err) {
       console.error('[groq-proxy] (bring-any-idea-to-life-load-r2) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeHistoryR2Error ? err.status : 500

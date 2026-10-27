@@ -705,6 +705,10 @@ export default defineConfig(({ mode }) => {
       format: 'es',
     },
     server: {
+      host: '0.0.0.0',
+      // Accept Arena's proxied preview host while keeping Vite's host checks
+      // enabled for all other non-local origins.
+      allowedHosts: ['.e2b.app'],
       proxy: {
         // Proxy /api/* (trừ /api/inbody-analyze đã được middleware ở trên xử
         // lý riêng) và /health sang FastAPI backend.

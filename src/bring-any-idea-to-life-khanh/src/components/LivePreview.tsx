@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useState, useRef } from 'react';
-import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon, TrashIcon, ArrowPathIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, PlusIcon, ViewColumnsIcon, DocumentIcon, CodeBracketIcon, XMarkIcon, ArrowUpTrayIcon, TrashIcon, ArrowPathIcon, LinkIcon, ShareIcon } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
@@ -73,6 +73,7 @@ interface LivePreviewProps {
   // nhật + lưu lại transcodedVideoUrl (IndexedDB + R2 creations/<id>.json),
   // giúp lần xem SAU không phải chuyển mã lại từ đầu.
   onTranscodedVideoUploaded?: (creation: Creation, publicUrl: string) => Promise<void>;
+  onShare?: (creation: Creation) => Promise<void>;
 }
 
 // Add type definition for the global pdfjsLib
@@ -228,8 +229,9 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}${videoInlineFixScript}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink, onTranscodedVideoUploaded }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink, onTranscodedVideoUploaded, onShare }) => {
     const [loadingStep, setLoadingStep] = useState(0);
+    const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle');
     const [showSplitView, setShowSplitView] = useState(false);
     const [isUploadingSource, setIsUploadingSource] = useState(false);
     const [isDeletingSource, setIsDeletingSource] = useState(false);
@@ -426,6 +428,20 @@ ${message}`);
     const canUploadMissingSource = Boolean(creation && !hasOriginalSource && onUploadMissingSource);
     const shouldShowOriginalPanel = showSplitView && Boolean(hasOriginalSource || canUploadMissingSource);
 
+    const handleShare = async () => {
+        if (!creation || !onShare) return;
+        setShareStatus('sharing');
+        try {
+            await onShare(creation);
+            setShareStatus('shared');
+            window.setTimeout(() => setShareStatus('idle'), 2200);
+        } catch (error) {
+            console.error('[GON] Could not share creation:', error);
+            window.alert('Không thể chia sẻ link GON. Vui lòng thử lại.');
+            setShareStatus('idle');
+        }
+    };
+
     const handleExport = () => {
         if (!creation) return;
         const dataStr = JSON.stringify(creation, null, 2);
@@ -530,6 +546,19 @@ ${message}`);
                             className="text-zinc-500 hover:text-red-300 transition-colors p-1.5 rounded-md hover:bg-zinc-800 disabled:opacity-50"
                         >
                             <TrashIcon className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {onShare && (
+                        <button
+                            type="button"
+                            onClick={handleShare}
+                            disabled={shareStatus === 'sharing'}
+                            title="Share this GON content with a direct link"
+                            className="inline-flex items-center gap-1 rounded-md bg-cyan-500/10 px-2 py-1.5 text-[10px] font-bold text-cyan-200 transition-colors hover:bg-cyan-500/20 disabled:opacity-50"
+                        >
+                            <ShareIcon className="h-4 w-4" />
+                            <span className="hidden lg:inline">{shareStatus === 'sharing' ? 'Preparing…' : shareStatus === 'shared' ? 'Shared' : 'Share'}</span>
                         </button>
                     )}
 

@@ -13,7 +13,7 @@ import { useApp } from '../context/AppContext'
 // api/_lib/bringAnyIdeaToLifeProxy.js.
 const BRING_ANY_IDEA_TO_LIFE_APP_URL = '/src/bring-any-idea-to-life-khanh/index.html'
 
-export default function BringAnyIdeaToLifePanel({ onNext, nextLabel, onPrev, prevLabel }) {
+export default function BringAnyIdeaToLifePanel({ onNext, nextLabel, onPrev, prevLabel, fullscreen = false }) {
   const { lang } = useApp()
   // Trước đây iframe (app con React 19 riêng, tải + khởi tạo cả 1 SPA:
   // IndexedDB history, demo templates, One Shot Arcade...) mount NGAY LẬP
@@ -26,6 +26,42 @@ export default function BringAnyIdeaToLifePanel({ onNext, nextLabel, onPrev, pre
   // thread bị chặn giữa chừng lúc đang render. Áp dụng đúng pattern đó ở
   // đây: chỉ mount iframe thật SAU KHI người dùng bấm nút "Mở công cụ".
   const [started, setStarted] = useState(false)
+  const appSrc = (() => {
+    if (typeof window === 'undefined') return BRING_ANY_IDEA_TO_LIFE_APP_URL
+    const url = new URL(BRING_ANY_IDEA_TO_LIFE_APP_URL, window.location.origin)
+    const linkId = new URLSearchParams(window.location.search).get('linkid')
+    if (linkId) url.searchParams.set('linkid', linkId)
+    return url.toString()
+  })()
+
+  // The landing-page menu is an explicit request to open the experience, so
+  // show the game itself immediately and let it occupy the entire viewport.
+  // Keep the regular in-app panel's lightweight click-to-load behavior below.
+  if (fullscreen) {
+    return (
+      <main
+        className="bring-any-idea-fullscreen"
+        aria-label={lang === 'vi' ? 'Trò chơi Bring Any Idea to Life' : 'Bring Any Idea to Life game'}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          width: '100vw',
+          height: '100dvh',
+          overflow: 'hidden',
+          background: '#080b14',
+        }}
+      >
+        <iframe
+          title="Bring Any Idea to Life"
+          src={appSrc}
+          allow="camera; microphone; fullscreen; clipboard-read; clipboard-write; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          style={{ display: 'block', width: '100%', height: '100%', border: 0 }}
+        />
+      </main>
+    )
+  }
 
   return (
     <div className="animate-fade ai-healthcare-vision-page bring-any-idea-landing-page">

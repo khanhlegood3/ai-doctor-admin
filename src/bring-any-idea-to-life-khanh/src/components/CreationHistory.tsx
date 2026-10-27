@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon, FilmIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, ArrowRightIcon, DocumentIcon, PhotoIcon, FilmIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon } from '@heroicons/react/24/outline';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
 export interface Creation {
@@ -28,6 +28,7 @@ interface CreationHistoryProps {
   onSelect: (creation: Creation) => void;
   onLoadR2: () => void;
   isLoadingR2: boolean;
+  onShare: (creation: Creation) => Promise<void>;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -135,8 +136,24 @@ const SourceThumbnail: React.FC<{ item: Creation; isPdf: boolean; isVideo: boole
   );
 };
 
-export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onLoadR2, isLoadingR2 }) => {
+export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSelect, onLoadR2, isLoadingR2, onShare }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [sharedId, setSharedId] = useState<string | null>(null);
+
+  const handleShare = async (creation: Creation) => {
+    setSharingId(creation.id);
+    try {
+      await onShare(creation);
+      setSharedId(creation.id);
+      window.setTimeout(() => setSharedId((current) => current === creation.id ? null : current), 2200);
+    } catch (error) {
+      console.error('[GON] Could not share creation:', error);
+      window.alert('Không thể chia sẻ link GON. Vui lòng thử lại.');
+    } finally {
+      setSharingId(null);
+    }
+  };
   const groupedHistory = useMemo(() => groupCreationsBySource(history), [history]);
   const pageCount = Math.max(1, Math.ceil(groupedHistory.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -204,8 +221,8 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
             const isPdf = isPdfSource(item);
             const isVideo = isVideoSource(item);
             return (
+              <div key={group.key} className="flex min-w-0 flex-col gap-2">
               <button
-                key={group.key}
                 onClick={() => onSelect(item)}
                 className="group relative flex min-h-[21rem] flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/50 text-left transition-all duration-200 hover:-translate-y-1 hover:border-blue-500/60 hover:bg-zinc-900 hover:shadow-2xl hover:shadow-blue-950/20"
               >
@@ -260,6 +277,17 @@ export const CreationHistory: React.FC<CreationHistoryProps> = ({ history, onSel
                   </div>
                 </div>
               </button>
+              <button
+                type="button"
+                onClick={() => void handleShare(item)}
+                disabled={sharingId === item.id}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-bold text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
+                title="Share this GON content with a direct link"
+              >
+                <ShareIcon className="h-4 w-4" />
+                {sharingId === item.id ? 'Preparing link…' : sharedId === item.id ? 'Link shared!' : 'Share GON'}
+              </button>
+              </div>
             );
           })}
         </div>

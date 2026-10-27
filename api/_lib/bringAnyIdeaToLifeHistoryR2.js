@@ -137,6 +137,40 @@ export async function loadAllBringAnyIdeaToLifeCreationsFromR2({ envSource = pro
   return { creations, count: creations.length }
 }
 
+/** Load one shared creation by its unique link id without listing the archive. */
+export async function loadBringAnyIdeaToLifeCreationFromR2({ id, envSource = process.env } = {}) {
+  const safeId = String(id || '').trim()
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(safeId)) {
+    throw new BringAnyIdeaToLifeHistoryR2Error('Link GON không hợp lệ.', 400)
+  }
+
+  const key = `bring-any-idea-to-life/creations/${safeId}.json`
+  const url = getR2PublicUrl(key, { envSource })
+  let response
+  try {
+    response = await fetch(url)
+  } catch (error) {
+    throw new BringAnyIdeaToLifeHistoryR2Error('Không tải được nội dung GON. Vui lòng thử lại.', 502)
+  }
+  if (response.status === 404) {
+    throw new BringAnyIdeaToLifeHistoryR2Error('Không tìm thấy nội dung GON cho link này.', 404)
+  }
+  if (!response.ok) {
+    throw new BringAnyIdeaToLifeHistoryR2Error(`Không tải được nội dung GON (HTTP ${response.status}).`, 502)
+  }
+
+  let creation
+  try {
+    creation = await response.json()
+  } catch {
+    throw new BringAnyIdeaToLifeHistoryR2Error('Dữ liệu GON trong link không hợp lệ.', 502)
+  }
+  if (!creation?.id || !creation?.html) {
+    throw new BringAnyIdeaToLifeHistoryR2Error('Không tìm thấy nội dung GON cho link này.', 404)
+  }
+  return creation
+}
+
 
 /**
  * Tạo presigned URL để client upload trực tiếp file gốc (ảnh/video/PDF) lên R2.

@@ -65,6 +65,20 @@ export async function loadAllCreationsFromR2(): Promise<R2CreationRecord[]> {
   return Array.isArray(data?.creations) ? data.creations : [];
 }
 
+/** Load exactly one shared creation directly by link id (without listing history). */
+export async function loadCreationFromR2(id: string): Promise<R2CreationRecord> {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-load-r2', id }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.creation?.id || !data?.creation?.html) {
+    throw new Error(data?.error || `Không tải được nội dung được chia sẻ (HTTP ${res.status}).`);
+  }
+  return data.creation as R2CreationRecord;
+}
+
 
 export interface SourceUploadUrlResult {
   uploadUrl: string;

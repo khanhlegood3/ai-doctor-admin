@@ -14,7 +14,8 @@ import { bringToLife, uploadVideoFileToGemini } from './lib/api';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { extractVideoFrames } from './lib/videoFrames';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
-import { saveCreationToR2, loadAllCreationsFromR2, uploadSourceFileToR2 } from './lib/historyR2Client';
+import { saveCreationToR2, loadAllCreationsFromR2, loadCreationFromR2, uploadSourceFileToR2 } from './lib/historyR2Client';
+import { shareGonCreation } from './lib/shareLink';
 import { DemoTemplate } from './lib/demoTemplates';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
@@ -97,7 +98,13 @@ const App: React.FC = () => {
   // creation JSONs that were already backed up in R2 so the landing-page embed
   // shows previous work without requiring a manual click.
   useEffect(() => {
+    const linkId = new URLSearchParams(window.location.search).get('linkid')?.trim();
     const initHistory = async () => {
+      if (linkId) {
+        setIsGenerating(true);
+        setLoadingLabel('Đang mở nội dung GON được chia sẻ...');
+      }
+
       try {
         await migrateFromLocalStorageOnce();
         const rows = await getAllCreations();
@@ -111,6 +118,42 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.error('Failed to load history from IndexedDB', e);
+      }
+
+      if (linkId) {
+        try {
+          const row = await loadCreationFromR2(linkId);
+          const sharedCreation: Creation = {
+            id: row.id,
+            name: row.name || 'GON',
+            html: row.html,
+            originalImage: row.imageUrl || undefined,
+            mimeType: row.mimeType || null,
+            videoUrl: row.videoUrl || undefined,
+            transcodedVideoUrl: row.transcodedVideoUrl || undefined,
+            timestamp: new Date(row.timestamp || Date.now()),
+          };
+          setHistory((prev) => [sharedCreation, ...prev.filter((item) => item.id !== sharedCreation.id)]);
+          setActiveCreation(sharedCreation);
+          await putCreation({
+            id: sharedCreation.id,
+            name: sharedCreation.name,
+            html: sharedCreation.html,
+            originalImage: sharedCreation.originalImage,
+            mimeType: sharedCreation.mimeType,
+            videoUrl: sharedCreation.videoUrl,
+            transcodedVideoUrl: sharedCreation.transcodedVideoUrl,
+            timestamp: sharedCreation.timestamp.toISOString(),
+          }).catch((error) => console.warn('[GON] Could not cache shared content locally:', error));
+        } catch (error) {
+          console.error('[GON] Could not open shared content:', error);
+          const message = error instanceof Error ? error.message : String(error);
+          window.alert(message);
+        } finally {
+          setIsGenerating(false);
+          setLoadingLabel(undefined);
+        }
+        return; // Direct share links load just the requested item, not the archive.
       }
 
       setIsLoadingR2History(true);
@@ -136,17 +179,29 @@ const App: React.FC = () => {
   // AI chưa hề được gọi. Sửa lại: R2 chỉ là bản sao lưu bền, không phải điều
   // kiện để tạo app — giống hệt persistCreation() bên dưới, vốn đã đúng kiểu
   // fire-and-forget từ đầu.
-  const uploadSourceInBackground = (creationId: string, file: File) => {
-    uploadSourceFileToR2(creationId, file)
+  const uploadSourceInBackground = (creation: Creation, file: File) => {
+    uploadSourceFileToR2(creation.id, file)
       .then((uploaded) => {
         // Ảnh/PDF/video gốc đã có sẵn cục bộ (data URL) để hiển thị ngay từ
         // lúc tạo app — khi R2 upload xong, thay bằng URL R2 (nhẹ hơn nhiều
         // cho IndexedDB) nhưng không chặn hay ảnh hưởng gì tới creation đã hiển thị.
-        patchCreation(creationId, { originalImage: uploaded.publicUrl }).catch((e) =>
+        patchCreation(creation.id, { originalImage: uploaded.publicUrl, r2ImageUrl: uploaded.publicUrl }).catch((e) =>
           console.warn('[bring-any-idea-to-life] Failed to patch IndexedDB with R2 source url', e)
         );
-        setHistory((prev) => prev.map((c) => (c.id === creationId ? { ...c, originalImage: uploaded.publicUrl } : c)));
-        setActiveCreation((prev) => (prev && prev.id === creationId ? { ...prev, originalImage: uploaded.publicUrl } : prev));
+        setHistory((prev) => prev.map((c) => (c.id === creation.id ? { ...c, originalImage: uploaded.publicUrl } : c)));
+        setActiveCreation((prev) => (prev && prev.id === creation.id ? { ...prev, originalImage: uploaded.publicUrl } : prev));
+        // Update the shared JSON after upload so recipients get both the
+        // original video/image and its generated app from one link.
+        saveCreationToR2({
+          id: creation.id,
+          name: creation.name,
+          html: creation.html,
+          sourceUrl: uploaded.publicUrl,
+          mimeType: creation.mimeType || file.type,
+          videoUrl: creation.videoUrl,
+          transcodedVideoUrl: creation.transcodedVideoUrl,
+          timestamp: creation.timestamp.toISOString(),
+        }).catch((error) => console.warn('[GON] Could not refresh shared source data:', error));
       })
       .catch((uploadErr) => {
         // Chỉ log — app đã tạo xong và hiển thị rồi, mất bản sao lưu R2 của
@@ -191,6 +246,38 @@ const App: React.FC = () => {
         );
       }
     });
+  };
+
+  const handleShareCreation = async (creation: Creation) => {
+    let sourceUrl: string | undefined;
+    let mimeType = creation.mimeType || undefined;
+    const originalImage = creation.originalImage || '';
+    const dataUrlMatch = originalImage.match(/^data:([^;]+);base64,/);
+    if (dataUrlMatch) {
+      mimeType = mimeType || dataUrlMatch[1];
+      // Upload the original directly from the browser so large videos/PDFs do
+      // not have to pass through the serverless JSON body size limit.
+      const sourceBlob = await (await fetch(originalImage)).blob();
+      const uploaded = await uploadSourceFileToR2(creation.id, sourceBlob);
+      sourceUrl = uploaded.publicUrl;
+    } else if (originalImage) {
+      sourceUrl = originalImage;
+    }
+
+    const saved = await saveCreationToR2({
+      id: creation.id,
+      name: creation.name,
+      html: creation.html,
+      sourceUrl,
+      mimeType,
+      videoUrl: creation.videoUrl,
+      transcodedVideoUrl: creation.transcodedVideoUrl,
+      timestamp: creation.timestamp.toISOString(),
+    });
+    if (!saved?.jsonUrl) {
+      throw new Error('Không lưu được nội dung GON lên đám mây nên chưa thể tạo link chia sẻ.');
+    }
+    await shareGonCreation(creation.id, creation.name);
   };
 
   // Helper to convert file to base64
@@ -329,7 +416,7 @@ const App: React.FC = () => {
         // App đã tạo xong và hiển thị rồi — GIỜ MỚI upload file gốc lên R2,
         // chạy nền, không chặn và không throw khi lỗi.
         if (file) {
-          uploadSourceInBackground(creationId, file);
+          uploadSourceInBackground(newCreation, file);
         }
       }
 
@@ -649,7 +736,7 @@ ${message}`);
         {/* 3. History Section & Footer - Stays at bottom */}
         <div className="flex-shrink-0 pb-6 w-full mt-auto flex flex-col items-center gap-6">
             <div className="w-full px-2 md:px-0">
-                <CreationHistory history={history} onSelect={handleSelectCreation} onLoadR2={handleLoadR2History} isLoadingR2={isLoadingR2History} />
+                <CreationHistory history={history} onSelect={handleSelectCreation} onLoadR2={handleLoadR2History} isLoadingR2={isLoadingR2History} onShare={handleShareCreation} />
             </div>
             
             <a 
@@ -675,6 +762,7 @@ ${message}`);
         onDeleteUploadedSource={handleDeleteUploadedSource}
         onRegenerateFromUploadedSource={handleRegenerateFromUploadedSource}
         onCreateFromLink={handleCreateFromLink}
+        onShare={handleShareCreation}
       />
 
       {/* Subtle Import Button (Bottom Right) */}

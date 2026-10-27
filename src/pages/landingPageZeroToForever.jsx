@@ -26,6 +26,7 @@ import AnatomyHoverOverlay from '../components/AnatomyHoverOverlay.jsx'
 import HeroPopupCornerCloseButtons from '../components/heroPanels/HeroPopupCornerCloseButtons.jsx'
 import PoseCameraDinoJumpSection from '../components/health-games/PoseCameraDinoJumpSection.jsx'
 import BringAnyIdeaToLifeEmbedSection from '../components/health-games/BringAnyIdeaToLifeEmbedSection.jsx'
+import BringAnyIdeaToLifePanel from '../components/BringAnyIdeaToLifePanel.jsx'
 import { VibeTrackingEmbedSection } from '../components/VibeTrackingPanel.jsx'
 
 /**
@@ -91,6 +92,7 @@ function getNavItems(t) {
         { key: 'products', label: t.nav.remixSucKhoe },
       ],
     },
+    { key: 'bringAnyIdeaToLife', label: t.nav.bringAnyIdeaToLife },
   ]
 }
 
@@ -759,7 +761,7 @@ export default function LandingPageZeroToForever({
   // "Game sức khỏe" trong caption cuối game Dino Jump trỏ về
   // "/?page=gameSucKhoe"). Chỉ nhận các key hợp lệ đã biết, còn lại rơi
   // về 'home' như cũ để không bị phá bởi giá trị lạ.
-  const VALID_PAGE_KEYS = ['home', 'zofoToken', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe']
+  const VALID_PAGE_KEYS = ['home', 'zofoToken', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe', 'bringAnyIdeaToLife']
   const [page, setPage] = useState(() => {
     if (typeof window === 'undefined') return 'home'
     try {
@@ -876,17 +878,19 @@ export default function LandingPageZeroToForever({
         .zofo-hero-glow { background: radial-gradient(circle at 50% 50%, rgba(139, 77, 255, 0.15) 0%, rgba(11, 19, 43, 0) 60%); }
       `}</style>
 
-      <NavBar
-        page={page}
-        setPage={setPage}
-        onLogin={onLogin}
-        onGetStarted={onGetStarted}
-        t={t}
-        language={language}
-        setLanguage={setLanguage}
-        theme={theme}
-        setTheme={setTheme}
-      />
+      {page !== 'bringAnyIdeaToLife' && (
+        <NavBar
+          page={page}
+          setPage={setPage}
+          onLogin={onLogin}
+          onGetStarted={onGetStarted}
+          t={t}
+          language={language}
+          setLanguage={setLanguage}
+          theme={theme}
+          setTheme={setTheme}
+        />
+      )}
 
       {/* ══════════════════════════ TRANG CHỦ ══════════════════════════ */}
       {page === 'home' && (
@@ -2167,7 +2171,9 @@ export default function LandingPageZeroToForever({
         </>
       )}
 
-      <LandingFooter t={t} setPage={setPage} />
+      {page === 'bringAnyIdeaToLife' && <BringAnyIdeaToLifePanel fullscreen />}
+
+      {page !== 'bringAnyIdeaToLife' && <LandingFooter t={t} setPage={setPage} />}
 
       {/* ── Popup: Game bảo vệ cơ thể — mở khi bấm ô "Cộng đồng / Tích cực"
           trong Feature Pillars. Cùng trò chơi + kiểu popup với thẻ Cấp 1
