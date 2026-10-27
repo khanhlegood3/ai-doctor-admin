@@ -762,15 +762,41 @@ export default function LandingPageZeroToForever({
   // "/?page=gameSucKhoe"). Chỉ nhận các key hợp lệ đã biết, còn lại rơi
   // về 'home' như cũ để không bị phá bởi giá trị lạ.
   const VALID_PAGE_KEYS = ['home', 'zofoToken', 'aikolToken', 'about', 'journey', 'community', 'technology', 'partners', 'products', 'gameSucKhoe', 'bringAnyIdeaToLife']
-  const [page, setPage] = useState(() => {
+  const [page, setPageState] = useState(() => {
     if (typeof window === 'undefined') return 'home'
     try {
       const requested = new URLSearchParams(window.location.search).get('page')
-      return VALID_PAGE_KEYS.includes(requested) ? requested : 'home'
+      // Alias "gon" (?page=gon) — trùng tên menu GON, gọn hơn key đầy đủ
+      // 'bringAnyIdeaToLife' khi gõ tay/chia sẻ link.
+      if (String(requested || '').toLowerCase() === 'gon') return 'bringAnyIdeaToLife'
+      if (VALID_PAGE_KEYS.includes(requested)) return requested
+      // Link gọn chứa chữ GON: https://<domain>/gon (vd:
+      // https://hienmaunhanvan.com/gon?linkid=...) — shareLink.ts của app GON
+      // trỏ về đây, vercel.json rewrite /gon về index.html của SPA.
+      if (/^\/gon\/?$/i.test(window.location.pathname)) return 'bringAnyIdeaToLife'
+      return 'home'
     } catch {
       return 'home'
     }
   })
+  // Đồng bộ URL thanh địa chỉ khi chuyển trang: vào trang GON thì URL hiện
+  // "/gon" (để copy/chia sẻ link chứa chữ GON ngay từ menu); rời GON thì trả
+  // về "/". Dùng replaceState (không tạo history entry) để không phá hành vi
+  // nút Back hiện có và không ảnh hưởng các trang con khác.
+  const setPage = (key) => {
+    setPageState(key)
+    try {
+      if (typeof window === 'undefined') return
+      const isGonPath = /^\/gon\/?$/i.test(window.location.pathname)
+      if (key === 'bringAnyIdeaToLife') {
+        if (!isGonPath) window.history.replaceState({}, '', '/gon')
+      } else if (isGonPath) {
+        window.history.replaceState({}, '', '/')
+      }
+    } catch {
+      // Trình duyệt chặn history API (vd file://) thì bỏ qua, chuyển trang vẫn chạy
+    }
+  }
   const [showVideoHelp, setShowVideoHelp] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   // Popup "Game bảo vệ cơ thể" mở khi bấm ô "Cộng đồng / Tích cực" trong
