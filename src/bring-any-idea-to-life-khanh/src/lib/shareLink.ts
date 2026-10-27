@@ -1,6 +1,10 @@
+// URL chia sẻ của một tác phẩm GON: dùng path "/gon" (chứa chữ GON, gọn để
+// đăng caption/QR) thay vì query "?page=bringAnyIdeaToLife" dài dòng. Route
+// /gon được vercel.json rewrite về index.html, và landingPageZeroToForever.jsx
+// map pathname đó sang page 'bringAnyIdeaToLife' (xem VALID_PAGE_KEYS + alias
+// ?page=gon). Ví dụ: https://hienmaunhanvan.com/gon?linkid=<id>
 export function getGonShareUrl(linkId: string): string {
-  const url = new URL('/', window.location.origin);
-  url.searchParams.set('page', 'bringAnyIdeaToLife');
+  const url = new URL('/gon', window.location.origin);
   url.searchParams.set('linkid', linkId);
   return url.toString();
 }
