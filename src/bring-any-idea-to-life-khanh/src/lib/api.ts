@@ -112,18 +112,33 @@ export async function bringToLife(
   // video upload trực tiếp — cho phép server thử Groq (miễn phí) TRƯỚC cho cả
   // video, chỉ dùng Gemini khi Groq lỗi hoàn toàn (App.tsx tự fallback bằng
   // cách gọi lại bringToLife với geminiFileUri sau khi bắt được lỗi này).
-  frameImages?: string[]
+  frameImages?: string[],
+  // Chế độ GON ARENA (xem components/ArenaDuel.tsx): ép server chạy ĐÚNG 1
+  // engine ('groq' | 'gemini') thay vì chuỗi fallback tự động — để 2 request
+  // song song từ cùng 1 input luôn là 2 model khác nhau thật sự.
+  engine?: ArenaEngine
 ): Promise<string> {
   const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
 
-  // Strong directive for file/video/image-link-only inputs with emphasis on NO external images
-  const finalPrompt = videoUrl || isVideoFile
+  // Strong directive for file/video/image-link-only inputs with emphasis on NO external images.
+  // Khi người dùng NHẬP KÈM mô tả (chế độ Arena: "mô tả + link video"), ghép
+  // mô tả đó vào SAU directive thay vì bỏ rơi — trước đây prompt text bị thay
+  // thế hoàn toàn bởi directive mỗi khi có videoUrl/file/URL, khiến mô tả của
+  // người dùng không bao giờ tới được model. Với các luồng cũ (prompt = "")
+  // kết quả vẫn y hệt như trước.
+  const baseDirective = videoUrl || isVideoFile
     ? 'Watch this video. Identify the key subject, action, process, or steps shown across it (not just one frame). If it is a tutorial/demo, turn it into an interactive step-by-step walkthrough or simulator of that process. If it is a real-world scene or activity, gamify it (e.g., a themed mini-game) or build a utility inspired by it. Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate any visuals using CSS, SVGs, or Emojis.'
     : fileBase64 || imageUrl
       ? 'Analyze this image/document. Detect what functionality is implied. If it is a real-world object (like a desk), gamify it (e.g., a cleanup game). Build a fully interactive web app. IMPORTANT: Do NOT use external image URLs. Recreate the visuals using CSS, SVGs, or Emojis.'
       : webUrl
         ? 'Analyze the linked webpage/channel/homepage content and turn its main idea, brand, sections, or workflow into a fully interactive web app. If the page is sparse, infer a useful app from the URL and available text. IMPORTANT: Do NOT use external image URLs. Recreate visuals using CSS, SVGs, or Emojis.'
-        : prompt || 'Create a demo app that shows off your capabilities.';
+        : '';
+  const userNote = prompt?.trim();
+  const finalPrompt = baseDirective
+    ? userNote
+      ? `${baseDirective}\n\nADDITIONAL USER REQUIREMENTS/DESCRIPTION (prioritize these when shaping the app):\n${userNote}`
+      : baseDirective
+    : userNote || 'Create a demo app that shows off your capabilities.';
 
   const ENDPOINT = '/api/groq-proxy';
   const PROVIDER = 'bring-any-idea-to-life';
@@ -138,6 +153,7 @@ export async function bringToLife(
     hasImageUrl: Boolean(imageUrl),
     hasWebUrl: Boolean(webUrl),
     frameImagesCount: frameImages?.length || 0,
+    forcedEngine: engine || undefined, // chỉ có ở chế độ GON Arena
   });
 
   let res: Response;
@@ -157,6 +173,7 @@ export async function bringToLife(
         geminiFileMimeType,
         geminiKeyLabel,
         frameImages,
+        engine,
       }),
     });
   } catch (networkErr) {
@@ -196,4 +213,59 @@ export async function bringToLife(
   console.log(`[bringToLife] Success via ${ENDPOINT} (provider: "${PROVIDER}", source: "${data?.source || 'unknown'}")`);
 
   return data.html;
+}
+
+// ---------------------------------------------------------------------------
+// GON ARENA — so sánh ẩn danh 2 model AI (Groq vs Gemini) kiểu arena.ai
+// ---------------------------------------------------------------------------
+
+// Engine bị ép phía server cho TỪNG request arena (xem comment tham số
+// `engine` của bringToLife ở trên, và forcedEngine trong
+// api/_lib/bringAnyIdeaToLifeProxy.js).
+export type ArenaEngine = 'groq' | 'gemini';
+
+export type FoundVideoLink = { url: string; title: string };
+
+// Tìm tối đa `limit` link video YouTube phù hợp với text mô tả (server scrape
+// trang kết quả YouTube — không cần YOUTUBE_API_KEY, xem
+// api/_lib/youtubeSearchScrape.js). Arena giới hạn TỐI ĐA 2 link/lần.
+export async function searchVideoLinks(query: string, limit = 2): Promise<FoundVideoLink[]> {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-video-search', query, limit }),
+  });
+  const data = await res.json().catch(() => ({} as any));
+  if (!res.ok) {
+    throw new Error(data?.error || `Không tìm được video (HTTP ${res.status})`);
+  }
+  const videos: FoundVideoLink[] = (Array.isArray(data?.videos) ? data.videos : [])
+    .map((v: any) => ({ url: String(v?.url || ''), title: String(v?.title || 'Video') }))
+    .filter((v: FoundVideoLink) => v.url)
+    .slice(0, limit);
+  if (videos.length === 0) {
+    throw new Error('Không tìm thấy video nào phù hợp với mô tả.');
+  }
+  return videos;
+}
+
+// Ghi vote ẩn danh của 1 trận đấu lên R2 (xem api/_lib/gonArenaVotesR2.js).
+// Phía caller dùng kiểu fire-and-forget — lỗi lưu vote KHÔNG ảnh hưởng việc
+// hiển thị kết quả đấu.
+export async function recordArenaVote(payload: {
+  vote: 'a' | 'b' | 'tie';
+  modelA: ArenaEngine;
+  modelB: ArenaEngine;
+  description?: string;
+  videoUrls?: string[];
+}): Promise<void> {
+  const res = await fetch('/api/groq-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: 'bring-any-idea-to-life-arena-vote', action: 'record', ...payload }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({} as any));
+    throw new Error(data?.error || `Không ghi được vote (HTTP ${res.status})`);
+  }
 }

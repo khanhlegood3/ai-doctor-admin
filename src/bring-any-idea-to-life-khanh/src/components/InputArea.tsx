@@ -46,6 +46,11 @@ interface InputAreaProps {
   // `imageUrl` được truyền khi người dùng dán link ẢNH trực tiếp; `webUrl`
   // dùng cho mọi trang/kênh/link web bất kỳ (trang chủ, YouTube channel...).
   onGenerate: (prompt: string, file?: File, videoUrl?: string, imageUrl?: string, webUrl?: string) => void;
+  // GON ARENA (xem components/ArenaDuel.tsx): bắt đầu 1 trận đấu so sánh ẩn
+  // danh Groq vs Gemini — description là text người dùng nhập, videoUrls là
+  // TỐI ĐA 2 link video (YouTube/Facebook); videoUrls rỗng nghĩa là "chỉ có
+  // text" và App.tsx sẽ TỰ TÌM tối đa 2 video phù hợp trước khi đấu.
+  onBattle?: (description: string, videoUrls: string[]) => void;
   isGenerating: boolean;
   disabled?: boolean;
 }
@@ -80,10 +85,18 @@ const CyclingText = () => {
     );
 };
 
-export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, disabled = false }) => {
+export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, onBattle, isGenerating, disabled = false }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
+  // GON Arena — so sánh ẩn danh 2 model AI: ô MÔ TẢ + ô LINK VIDEO (tối đa 2
+  // link, mỗi dòng 1 link). Để trống ô link thì App.tsx tự tìm video từ mô tả.
+  const [arenaOpen, setArenaOpen] = useState(false);
+  const [arenaDescription, setArenaDescription] = useState('');
+  const [arenaLinks, setArenaLinks] = useState('');
+  const [arenaError, setArenaError] = useState<string | null>(null);
+
+  const MAX_ARENA_VIDEO_LINKS = 2;
 
   const handleFile = (file: File) => {
     if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.startsWith('video/')) {
@@ -127,6 +140,38 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
   const handleTryDemoImage = () => {
     setLinkValue(DEMO_IMAGE_URL);
     setLinkError(null);
+  };
+
+  // GON Arena: user có thể nhập "mô tả + link video", hoặc CHỈ text mô tả để
+  // GON tự tìm tối đa 2 video. Tối đa 2 link video mỗi lần đấu — đủ để tạo
+  // bối cảnh cho 2 phiên bản game so sánh 2 model AI.
+  const handleArenaSubmit = () => {
+    if (disabled || isGenerating || !onBattle) return;
+
+    const lines = arenaLinks.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (lines.length > MAX_ARENA_VIDEO_LINKS) {
+      setArenaError(`Tối đa ${MAX_ARENA_VIDEO_LINKS} link video mỗi lần đấu — hiện đang có ${lines.length} link, hãy bớt lại.`);
+      return;
+    }
+
+    const videoUrls: string[] = [];
+    for (const line of lines) {
+      const classified = classifyVideoUrl(line);
+      if (!classified) {
+        setArenaError(`"${line.length > 60 ? `${line.slice(0, 60)}...` : line}" không phải link video YouTube/Facebook hợp lệ.`);
+        return;
+      }
+      videoUrls.push(classified.url);
+    }
+
+    const description = arenaDescription.trim();
+    if (!description && videoUrls.length === 0) {
+      setArenaError('Nhập mô tả ý tưởng/video muốn tìm, hoặc dán ít nhất 1 link video.');
+      return;
+    }
+
+    setArenaError(null);
+    onBattle(description, videoUrls);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -287,6 +332,69 @@ export const InputArea: React.FC<InputAreaProps> = ({ onGenerate, isGenerating, 
           Try YouTube demo URL
         </button>
       </div>
+
+      {/* ── GON Arena: so sánh ẨN DANH 2 model AI (Groq vs Gemini) cùng tạo
+          game/app từ MỘT input — kiểu arena.ai. Input: mô tả + tối đa 2 link
+          video, hoặc chỉ mô tả để GON tự tìm video. ── */}
+      {onBattle && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => setArenaOpen((open) => !open)}
+            disabled={isGenerating || disabled}
+            className="w-full flex items-center justify-between gap-3 rounded-xl border border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 disabled:opacity-40 px-4 py-3 text-left transition-colors"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-purple-200">
+              <SparklesIcon className="w-4 h-4" />
+              GON Arena — đấu 2 AI ẩn danh (kiểu arena.ai)
+            </span>
+            <span className="text-xs text-zinc-500 font-mono">{arenaOpen ? '▲ thu gọn' : '▼ mở rộng'}</span>
+          </button>
+
+          {arenaOpen && (
+            <div className="mt-3 rounded-xl border border-purple-500/25 bg-zinc-900/40 p-4 space-y-3">
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Nhập <span className="text-zinc-200 font-medium">mô tả + link video</span> (tối đa 2 link) —
+                hoặc <span className="text-zinc-200 font-medium">chỉ nhập text mô tả</span> để GON tự tìm tối đa 2 video phù hợp.
+                Hai model AI <span className="text-purple-300 font-medium">ẩn danh</span> (Model A / Model B) sẽ cùng tạo 2 phiên
+                bản game khác nhau từ input đó. Bạn chơi thử cả hai rồi vote bản tốt hơn — danh tính
+                model chỉ lộ sau khi vote.
+              </p>
+              <textarea
+                rows={2}
+                value={arenaDescription}
+                onChange={(e) => {
+                  setArenaDescription(e.target.value);
+                  if (arenaError) setArenaError(null);
+                }}
+                disabled={isGenerating || disabled}
+                placeholder="Mô tả ý tưởng game/app, hoặc loại video muốn tìm — vd: 'game đá bóng', 'video nấu phở', 'vũ điệu dân gian'..."
+                className="w-full rounded-lg bg-zinc-900/50 border border-zinc-700 focus:border-purple-500 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50 resize-y"
+              />
+              <textarea
+                rows={2}
+                value={arenaLinks}
+                onChange={(e) => {
+                  setArenaLinks(e.target.value);
+                  if (arenaError) setArenaError(null);
+                }}
+                disabled={isGenerating || disabled}
+                placeholder={`Dán tối đa ${MAX_ARENA_VIDEO_LINKS} link video (YouTube/Facebook), mỗi dòng 1 link — để trống thì GON tự tìm video từ mô tả ở trên`}
+                className="w-full rounded-lg bg-zinc-900/50 border border-zinc-700 focus:border-purple-500 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition-colors disabled:opacity-50 resize-y font-mono"
+              />
+              {arenaError && <p className="text-xs text-red-400">{arenaError}</p>}
+              <button
+                type="button"
+                onClick={handleArenaSubmit}
+                disabled={isGenerating || disabled}
+                className="w-full sm:w-auto rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+              >
+                ⚔️ Tạo 2 phiên bản đấu
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
