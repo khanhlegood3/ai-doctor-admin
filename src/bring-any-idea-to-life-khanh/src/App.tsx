@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Hero } from './components/Hero';
 import { InputArea } from './components/InputArea';
 import { LivePreview } from './components/LivePreview';
-import { CreationHistory, Creation } from './components/CreationHistory';
+import { CreationHistory, Creation, getCreationSourceKey } from './components/CreationHistory';
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
@@ -175,7 +175,14 @@ const App: React.FC = () => {
           setIsGenerating(false);
           setLoadingLabel(undefined);
         }
-        return; // Direct share links load just the requested item, not the archive.
+        // Link chia sẻ (?linkid=...): item được yêu cầu đã hiển thị xong ở
+        // trên — giờ nạp nốt TOÀN BỘ archive từ R2 CHẠY NỀN (không spinner,
+        // không chặn UI) để khung chi tiết liệt kê/so sánh được các PHIÊN BẢN
+        // khác cùng nguồn (v1..vn, xem thanh version trong LivePreview.tsx).
+        // Trước đây nhánh này return luôn nên người nhận link chỉ thấy đúng 1
+        // phiên bản, không so sánh được với các version còn lại.
+        importR2Creations().catch((e) => console.warn('[GON] Background archive import failed (share link view):', e));
+        return; // Direct share links show the requested item first; the archive hydrates silently in the background.
       }
 
       setIsLoadingR2History(true);
@@ -599,6 +606,21 @@ const App: React.FC = () => {
     ? { a: ARENA_ENGINE_LABELS[arena.mapping.a], b: ARENA_ENGINE_LABELS[arena.mapping.b] }
     : null;
 
+  // Các phiên bản CÙNG NGUỒN với creation đang mở — dùng ĐÚNG hàm gom nhóm
+  // của Archive (getCreationSourceKey trong CreationHistory.tsx) nên thứ tự
+  // và cách đánh số v1..vn khớp 100% với thẻ trong Archive (mới nhất đứng
+  // đầu, đánh số vn). LivePreview dùng danh sách này cho thanh chuyển
+  // version + chế độ so sánh 2 phiên bản song song.
+  const activeVersions: Creation[] = (() => {
+    if (!activeCreation) return [];
+    const key = getCreationSourceKey(activeCreation);
+    const siblings = history.filter((item) => getCreationSourceKey(item) === key);
+    // Creation vừa tạo xong (chưa kịp ghi IndexedDB/persist có thể trễ 1
+    // nhịp) đôi khi chưa có trong history — bảo đảm bản thân nó luôn có mặt.
+    if (!siblings.some((item) => item.id === activeCreation.id)) siblings.push(activeCreation);
+    return siblings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  })();
+
   const handleReset = () => {
     setActiveCreation(null);
     setIsGenerating(false);
@@ -918,6 +940,8 @@ ${message}`);
         onRegenerateFromUploadedSource={handleRegenerateFromUploadedSource}
         onCreateFromLink={handleCreateFromLink}
         onShare={handleShareCreation}
+        versions={activeVersions}
+        onSelectVersion={handleSelectCreation}
       />
 
       {/* GON Arena — overlay đấu trường 2 model AI ẩn danh (song song với

@@ -33,7 +33,11 @@ interface CreationHistoryProps {
 
 const ITEMS_PER_PAGE = 5;
 
-function getCreationSourceKey(item: Creation): string {
+// Export để App.tsx tái dùng ĐÚNG cùng logic gom nhóm khi liệt kê các phiên
+// bản cùng nguồn của creation đang mở trong LivePreview (thanh chuyển version
+// v1..vn + chế độ so sánh song song) — tránh trôi lệch cách đánh số/nhóm giữa
+// thẻ Archive và khung chi tiết.
+export function getCreationSourceKey(item: Creation): string {
   if (item.videoUrl) return `video:${item.videoUrl}`;
   if (item.originalImage && !item.originalImage.startsWith('data:')) return `source:${item.originalImage}`;
   return `single:${item.id}`;
