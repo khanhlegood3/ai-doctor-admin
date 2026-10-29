@@ -228,7 +228,135 @@ export async function bringToLife(
 // Engine bị ép phía server cho TỪNG request arena (xem comment tham số
 // `engine` của bringToLife ở trên, và forcedEngine trong
 // api/_lib/bringAnyIdeaToLifeProxy.js).
-export type ArenaEngine = 'groq' | 'gemini';
+// Danh sách phải khớp tuyệt đối với ARENA_ENGINE_NAMES trong
+// api/_lib/arenaUserKeyEngines.js phía server (server cũng tự validate lại).
+export type ArenaEngine =
+  | 'groq'
+  | 'gemini'
+  | 'openai'
+  | 'openrouter'
+  | 'anthropic'
+  | 'xai'
+  | 'deepseek'
+  | 'perplexity'
+  | 'fireworks'
+  | 'mistral'
+  | 'cerebras'
+  | 'githubmodels'
+  | 'huggingface'
+  | 'together';
+
+// Bảng thông tin hiển thị + nhận diện của TẤT CẢ engine arena. Với 2 engine
+// chạy bằng key pool server (groq/gemini) user vẫn có thể nhập key riêng khi
+// pool server lỗi; 12 engine còn lại LUÔN chạy bằng key của user.
+// `prefixes`: tiền tố đặc trưng của key (autoDetect=false nghĩa là key không
+// có tiền tố nhận diện được/trùng provider khác → user tự chọn bằng tay).
+export const ARENA_PROVIDER_INFO: Record<
+  ArenaEngine,
+  { label: string; modelLabel: string; prefixes: string[]; autoDetect: boolean; keyPageUrl: string }
+> = {
+  groq: {
+    label: 'Groq',
+    modelLabel: 'Qwen 3.6 27B', // khớp GROQ_VISION_MODEL (qwen/qwen3.6-27b) phía server
+    prefixes: ['gsk_'],
+    autoDetect: true,
+    keyPageUrl: 'console.groq.com/keys',
+  },
+  gemini: {
+    label: 'Gemini (Google)',
+    modelLabel: 'Gemini 3.6 Flash', // khớp GEMINI_MODEL (gemini-3.6-flash) phía server
+    prefixes: ['AIza'],
+    autoDetect: true,
+    keyPageUrl: 'aistudio.google.com/apikey',
+  },
+  openai: {
+    label: 'OpenAI',
+    modelLabel: 'gpt-4.1-mini',
+    prefixes: ['sk-proj-', 'sk-svcacct-', 'sk-'],
+    autoDetect: true,
+    keyPageUrl: 'platform.openai.com/api-keys',
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    modelLabel: 'openai/gpt-4o-mini',
+    prefixes: ['sk-or-'],
+    autoDetect: true,
+    keyPageUrl: 'openrouter.ai/keys',
+  },
+  anthropic: {
+    label: 'Anthropic Claude',
+    modelLabel: 'claude-sonnet-4-5',
+    prefixes: ['sk-ant-'],
+    autoDetect: true,
+    keyPageUrl: 'console.anthropic.com/settings/keys',
+  },
+  xai: {
+    label: 'xAI Grok',
+    modelLabel: 'grok-3-mini',
+    prefixes: ['xai-'],
+    autoDetect: true,
+    keyPageUrl: 'console.x.ai',
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    modelLabel: 'deepseek-chat',
+    prefixes: ['sk-'],
+    autoDetect: false, // cùng bắt đầu bằng "sk-" như OpenAI → không thể phân biệt tự động
+    keyPageUrl: 'platform.deepseek.com/api_keys',
+  },
+  perplexity: {
+    label: 'Perplexity',
+    modelLabel: 'sonar',
+    prefixes: ['pplx-'],
+    autoDetect: true,
+    keyPageUrl: 'perplexity.ai/settings/api',
+  },
+  fireworks: {
+    label: 'Fireworks AI',
+    modelLabel: 'llama-v3p3-70b-instruct',
+    prefixes: ['fw_'],
+    autoDetect: true,
+    keyPageUrl: 'fireworks.ai/api-keys',
+  },
+  mistral: {
+    label: 'Mistral AI',
+    modelLabel: 'mistral-small-latest',
+    prefixes: [],
+    autoDetect: false, // key Mistral là chuỗi ngẫu nhiên không tiền tố cố định
+    keyPageUrl: 'console.mistral.ai/api-keys',
+  },
+  cerebras: {
+    label: 'Cerebras',
+    modelLabel: 'llama-3.3-70b',
+    prefixes: ['csk-'],
+    autoDetect: true,
+    keyPageUrl: 'cloud.cerebras.ai',
+  },
+  githubmodels: {
+    label: 'GitHub Models',
+    modelLabel: 'gpt-4o-mini',
+    prefixes: ['github_pat_', 'ghp_'],
+    autoDetect: true,
+    keyPageUrl: 'github.com/settings/tokens (bật quyền Models)',
+  },
+  huggingface: {
+    label: 'Hugging Face',
+    modelLabel: 'Llama-3.3-70B-Instruct',
+    prefixes: ['hf_'],
+    autoDetect: true,
+    keyPageUrl: 'huggingface.co/settings/tokens',
+  },
+  together: {
+    label: 'Together AI',
+    modelLabel: 'Llama-3.3-70B-Instruct-Turbo',
+    prefixes: [],
+    autoDetect: false, // key Together không có tiền tố đặc trưng
+    keyPageUrl: 'api.together.ai/settings/api-keys',
+  },
+};
+
+// Danh sách engine arena (thứ tự = thứ tự hiển thị trong dropdown chọn tay).
+export const ARENA_ENGINES = Object.keys(ARENA_PROVIDER_INFO) as ArenaEngine[];
 
 export type FoundVideoLink = { url: string; title: string };
 
@@ -278,15 +406,26 @@ export async function recordArenaVote(payload: {
 
 // --- Arena + API key của chính user (khi engine server-side lỗi) -----------
 
-// Đoán model AI từ FORMAT TIỀN TỐ của API key user dán vào:
-//   - Groq (console.groq.com): key bắt đầu bằng "gsk_"
-//   - Gemini (Google AI Studio / GCP): key bắt đầu bằng "AIza"
-// Server (bringAnyIdeaToLifeProxy.js) cũng tự validate lại prefix này trước
-// khi dùng, nên 2 phía luôn khớp nhau.
+// Đoán model AI từ FORMAT TIỀN TỐ của API key user dán vào — quét BẢNG
+// ARENA_PROVIDER_INFO ở trên, TIỀN TỐ DÀI NHẤT THẮNG khi nhiều engine cùng
+// khớp (vd "sk-or-..." khớp cả OpenAI "sk-" lẫn OpenRouter "sk-or-" → chọn
+// OpenRouter; "github_pat_..." khớp "ghp_"? không — nhưng nguyên tắc này xử
+// lý đúng cả "sk-ant-" vs "sk-"). Key không có tiền tố nhận diện được
+// (Mistral/Together, hoặc "sk-" thuần của DeepSeek trùng OpenAI) trả về
+// null → UI hiện dropdown chọn provider bằng tay.
+// Server (arenaUserKeyEngines.js) cũng tự validate lại tiền tố trước khi
+// gọi provider thật, nên 2 phía luôn khớp nhau.
+const DETECT_CANDIDATES: Array<{ engine: ArenaEngine; prefix: string }> = ARENA_ENGINES
+  .filter((engine) => ARENA_PROVIDER_INFO[engine].autoDetect)
+  .flatMap((engine) => ARENA_PROVIDER_INFO[engine].prefixes.map((prefix) => ({ engine, prefix })))
+  .sort((a, b) => b.prefix.length - a.prefix.length); // dài nhất xét trước
+
 export function detectEngineFromApiKey(key: string): ArenaEngine | null {
   const trimmed = key.trim();
-  if (trimmed.startsWith('gsk_')) return 'groq';
-  if (trimmed.startsWith('AIza')) return 'gemini';
+  if (!trimmed) return null;
+  for (const candidate of DETECT_CANDIDATES) {
+    if (trimmed.startsWith(candidate.prefix)) return candidate.engine;
+  }
   return null;
 }
 

@@ -14,9 +14,13 @@
 //   3. battling   — 2 model chạy song song, xem kết quả, vote, lộ danh tính
 //
 // Khi 1 model gặp sự cố (timeout, hết quota, video không có phụ đề...), user
-// có thể dán API KEY CỦA CHÍNH MÌNH để chạy lại bên đó — hệ thống tự đoán
-// model theo prefix key (gsk_ = Groq, AIza = Gemini). Key chỉ giữ trong
-// sessionStorage của tab (dùng tiếp trong session), KHÔNG lưu DB/cloud.
+// có thể dán API KEY CỦA CHÍNH MÌNH (mọi nhà cung cấp AI phổ biến — OpenAI,
+// Claude/Anthropic, Grok, Gemini, Groq, DeepSeek, Mistral, Perplexity, xem
+// bảng ARENA_PROVIDER_INFO/lib/api.ts) để chạy lại bên đó — hệ thống tự đoán
+// model theo prefix key (gsk_ = Groq, AIza = Gemini, sk-ant- = Anthropic...),
+// key không có prefix (DeepSeek sk-thuần, Mistral, Together) thì chọn tay.
+// Key chỉ giữ trong sessionStorage của tab (dùng tiếp trong session), KHÔNG
+// lưu DB/cloud.
 //
 // Luồng dữ liệu: InputArea.tsx -> App.tsx handleArenaBattle() (search ->
 // confirm -> gọi bringToLife engine='groq'/'gemini' song song) -> component
@@ -24,7 +28,7 @@
 
 import React, { useState } from 'react';
 import { XMarkIcon, CpuChipIcon, TrophyIcon, ScaleIcon, KeyIcon, MagnifyingGlassIcon, PlayIcon } from '@heroicons/react/24/outline';
-import { detectEngineFromApiKey } from '../lib/api';
+import { detectEngineFromApiKey, ARENA_PROVIDER_INFO, ARENA_ENGINES, type ArenaEngine } from '../lib/api';
 import { classifyVideoUrl, getVideoEmbedUrl } from '../lib/videoLink';
 
 export type ArenaSideName = 'a' | 'b';
@@ -59,8 +63,9 @@ export interface ArenaDuelProps {
   // Phase confirming: nhập mô tả mới để tìm lại video, HOẶC dán tối đa 2
   // link video khác (mỗi dòng 1 link) -> quay lại xác nhận lần nữa.
   onResearch: (input: string) => void;
-  // Bên lỗi: chạy lại bằng API key của chính user (đoán model từ prefix).
-  onRetryWithKey: (side: ArenaSideName, apiKey: string) => void;
+  // Bên lỗi: chạy lại bằng API key của chính user — engine đã được UI xác
+  // định sẵn (tự đoán từ prefix HOẶC user chọn tay khi key không prefix).
+  onRetryWithKey: (side: ArenaSideName, apiKey: string, engine: ArenaEngine) => void;
   onClose: () => void;
 }
 
@@ -75,31 +80,43 @@ const SidePanel: React.FC<{
   wonVote: boolean;
   canUse: boolean;
   onUseVersion: (side: ArenaSideName) => void;
-  onRetryWithKey: (side: ArenaSideName, apiKey: string) => void;
+  onRetryWithKey: (side: ArenaSideName, apiKey: string, engine: ArenaEngine) => void;
 }> = ({ side, state, revealedLabel, wonVote, canUse, onUseVersion, onRetryWithKey }) => {
   const [keyValue, setKeyValue] = useState('');
   const [keyError, setKeyError] = useState<string | null>(null);
+  // Provider user tự chọn khi key KHÔNG nhận diện được từ prefix (Mistral/
+  // Together/DeepSeek sk-thuần...), hoặc khi user muốn sửa kết quả auto-detect
+  // (vd key "sk-..." của DeepSeek bị đoán thành OpenAI → bấm "đổi provider").
+  const [manualEngine, setManualEngine] = useState<ArenaEngine | ''>('');
+  const [pickerForcedOpen, setPickerForcedOpen] = useState(false);
 
-  // Đoán model theo prefix khi user gõ — hiện nhãn gợi ý ngay trong ô.
+  // Đoán model theo prefix khi user gõ — tiền tố DÀI NHẤT thắng (xem
+  // detectEngineFromApiKey trong lib/api.ts).
   const detected = detectEngineFromApiKey(keyValue);
-  const detectedHint = keyValue.trim()
-    ? detected === 'groq'
-      ? '→ sẽ chạy lại bằng Groq (key gsk_...)'
-      : detected === 'gemini'
-        ? '→ sẽ chạy lại bằng Gemini (key AIza...)'
-        : '⚠ Không nhận diện được key — cần gsk_... (Groq) hoặc AIza... (Gemini)'
-    : null;
+  const detectedInfo = detected ? ARENA_PROVIDER_INFO[detected] : null;
+  const pickerVisible = keyValue.trim() !== '' && (!detected || pickerForcedOpen);
+  const effectiveEngine: ArenaEngine | null = detected ?? (manualEngine || null);
+
+  const onKeyInput = (raw: string) => {
+    setKeyValue(raw);
+    // Key mới → bỏ lựa chọn tay/chế độ đổi provider của key cũ, tránh nhầm.
+    setManualEngine('');
+    setPickerForcedOpen(false);
+    if (keyError) setKeyError(null);
+  };
 
   const submitKey = () => {
     const trimmed = keyValue.trim();
     if (!trimmed) return;
-    if (!detected) {
-      setKeyError('Key không đúng format đã biết — Groq bắt đầu bằng "gsk_", Gemini bắt đầu bằng "AIza".');
+    if (!effectiveEngine) {
+      setKeyError('Key này không có tiền tố nhận diện được — hãy chọn nhà cung cấp của nó ở dropdown bên dưới (DeepSeek, Mistral, Together...).');
       return;
     }
     setKeyError(null);
-    onRetryWithKey(side, trimmed);
+    onRetryWithKey(side, trimmed, effectiveEngine);
     setKeyValue('');
+    setManualEngine('');
+    setPickerForcedOpen(false);
   };
 
   return (
@@ -150,30 +167,63 @@ const SidePanel: React.FC<{
                 <input
                   type="password"
                   value={keyValue}
-                  onChange={(event) => {
-                    setKeyValue(event.target.value);
-                    if (keyError) setKeyError(null);
-                  }}
-                  placeholder="gsk_... (Groq) hoặc AIza... (Gemini)"
+                  onChange={(event) => onKeyInput(event.target.value)}
+                  placeholder="Dán API key: gsk_..., AIza..., sk-..., sk-ant-..., xai-..., hf_..."
                   autoComplete="off"
                   className="min-w-0 flex-1 rounded-lg bg-zinc-900/70 border border-zinc-700 focus:border-emerald-500 px-3 py-2 text-xs text-zinc-200 placeholder:text-zinc-600 outline-none font-mono transition-colors"
                 />
                 <button
                   type="button"
                   onClick={submitKey}
-                  disabled={!keyValue.trim()}
+                  disabled={!keyValue.trim() || (pickerVisible && !effectiveEngine)}
                   className="shrink-0 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 text-xs font-semibold text-white transition-colors"
                 >
                   Chạy lại
                 </button>
               </div>
-              {detectedHint && (
-                <p className={`text-[10px] font-mono ${detected ? 'text-emerald-400' : 'text-amber-400'}`}>{detectedHint}</p>
+              {detectedInfo && !pickerForcedOpen && (
+                <p className="text-[10px] font-mono text-emerald-400">
+                  → sẽ chạy lại bằng {detectedInfo.label} ({detectedInfo.modelLabel}){' '}
+                  <button
+                    type="button"
+                    onClick={() => setPickerForcedOpen(true)}
+                    className="underline decoration-dotted text-emerald-200/70 hover:text-emerald-200"
+                    title="Key của provider khác mà trùng tiền tố? (vd DeepSeek cũng bắt đầu bằng sk-)"
+                  >
+                    đổi provider
+                  </button>
+                </p>
+              )}
+              {pickerVisible && (
+                <div className="space-y-1">
+                  {!detected && (
+                    <p className="text-[10px] font-mono text-amber-400">
+                      ⚠ Tiền tố key không nhận diện được tự động — chọn đúng nhà cung cấp bằng tay:
+                    </p>
+                  )}
+                  <select
+                    value={manualEngine}
+                    onChange={(event) => setManualEngine(event.target.value as ArenaEngine | '')}
+                    className="w-full rounded-lg bg-zinc-900/70 border border-zinc-700 focus:border-emerald-500 px-2.5 py-2 text-xs text-zinc-200 outline-none transition-colors"
+                  >
+                    <option value="">— Chọn nhà cung cấp của key này —</option>
+                    {ARENA_ENGINES.map((engine) => (
+                      <option key={engine} value={engine}>
+                        {ARENA_PROVIDER_INFO[engine].label} — {ARENA_PROVIDER_INFO[engine].modelLabel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
               {keyError && <p className="text-xs text-red-400">{keyError}</p>}
               <p className="text-[10px] leading-4 text-zinc-600">
                 🔒 Key chỉ giữ trong phiên trình duyệt (sessionStorage — tự xoá khi đóng tab) để dùng tiếp cho các lần
                 đấu sau; KHÔNG lưu lên database/cloud, KHÔNG hiện trong lịch sử hay link chia sẻ.
+              </p>
+              <p className="text-[10px] leading-4 text-zinc-600">
+                🔑 Hỗ trợ: Groq (gsk_), Google Gemini (AIza), OpenAI (sk-...), OpenRouter (sk-or-), Anthropic Claude
+                (sk-ant-), xAI Grok (xai-), Perplexity (pplx-), Fireworks (fw_), Cerebras (csk-), GitHub Models
+                (ghp_/github_pat_), Hugging Face (hf_) — tự nhận diện; DeepSeek, Mistral, Together — chọn tay ở dropdown.
               </p>
             </div>
           </div>
