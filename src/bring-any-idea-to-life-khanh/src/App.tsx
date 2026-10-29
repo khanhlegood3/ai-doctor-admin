@@ -10,7 +10,10 @@ import { CreationHistory, Creation } from './components/CreationHistory';
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
-import { bringToLife, uploadVideoFileToGemini } from './lib/api';
+import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote } from './lib/api';
+import type { ArenaEngine } from './lib/api';
+import { ArenaDuel } from './components/ArenaDuel';
+import type { ArenaSideState, ArenaVoteChoice } from './components/ArenaDuel';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { extractVideoFrames } from './lib/videoFrames';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
@@ -26,6 +29,25 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<Creation[]>([]);
   const [isLoadingR2History, setIsLoadingR2History] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // ── GON ARENA: so sánh ẨN DANH 2 model AI (Groq vs Gemini) kiểu arena.ai ──
+  // Cùng 1 input (mô tả + tối đa 2 link video, hoặc chỉ text để GON tự tìm
+  // video) -> GỌI SONG SONG 2 request: 1 ép engine Groq, 1 ép engine Gemini
+  // (server KHÔNG fallback chéo khi engine bị ép — xem forcedEngine trong
+  // api/_lib/bringAnyIdeaToLifeProxy.js — nên 2 bên luôn là 2 model khác nhau
+  // thật sự). Vị trí Model A/B được random để không ai biết trước bên nào là
+  // model nào; danh tính chỉ lộ SAU KHI người dùng vote.
+  interface ArenaState {
+    description: string;
+    videoUrls: string[];
+    videoTitles: string[];
+    phase: 'searching' | 'battling';
+    sides: { a: ArenaSideState; b: ArenaSideState };
+    mapping: { a: ArenaEngine; b: ArenaEngine };
+    vote: ArenaVoteChoice | null;
+    voteSaved: boolean;
+  }
+  const [arena, setArena] = useState<ArenaState | null>(null);
 
   const importR2Creations = async () => {
     const rows = await loadAllCreationsFromR2();
@@ -447,6 +469,136 @@ const App: React.FC = () => {
     await handleGenerate('', undefined, isVideoLink ? normalized : undefined, isVideoLink ? undefined : normalized);
   };
 
+  // Nhãn hiển thị khi LỘ DANH TÍNH model sau vote (trước đó mọi thứ chỉ là
+  // "Model A"/"Model B"). Tên model chi tiết khớp đúng hằng số phía server:
+  // GROQ_VISION_MODEL (api/_lib/groqModels.js) và GEMINI_MODEL
+  // (api/_lib/bringAnyIdeaToLifeProxy.js).
+  const ARENA_ENGINE_LABELS: Record<ArenaEngine, string> = {
+    groq: 'Groq (Qwen 3.6 27B)',
+    gemini: 'Gemini 3.6 Flash',
+  };
+
+  // Bắt đầu 1 trận đấu arena. videoUrls rỗng = user chỉ nhập text mô tả ->
+  // GON tự tìm tối đa 2 link video YouTube phù hợp trước rồi mới đấu.
+  const handleArenaBattle = async (description: string, videoUrls: string[]) => {
+    if (arena || isGenerating) return;
+    setActiveCreation(null);
+
+    let urls = videoUrls;
+    let titles: string[] = [];
+
+    if (urls.length === 0) {
+      setArena({
+        description,
+        videoUrls: [],
+        videoTitles: [],
+        phase: 'searching',
+        sides: { a: { status: 'loading' }, b: { status: 'loading' } },
+        mapping: { a: 'groq', b: 'gemini' },
+        vote: null,
+        voteSaved: false,
+      });
+      try {
+        const found = await searchVideoLinks(description, 2);
+        urls = found.map((video) => video.url);
+        titles = found.map((video) => video.title);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        alert(`Không tìm được video từ mô tả:\n\n${message}\n\nBạn có thể tự dán tối đa 2 link video thay vì để GON tự tìm.`);
+        setArena(null);
+        return;
+      }
+    }
+
+    // Random hoá vị trí để giữ so sánh MÙ — kể cả người xem network log cũng
+    // không đoán trước được bên nào là model nào (mapping chỉ lộ sau vote).
+    const aEngine: ArenaEngine = Math.random() < 0.5 ? 'groq' : 'gemini';
+    const bEngine: ArenaEngine = aEngine === 'groq' ? 'gemini' : 'groq';
+    const mapping: { a: ArenaEngine; b: ArenaEngine } = { a: aEngine, b: bEngine };
+
+    setArena({
+      description,
+      videoUrls: urls,
+      videoTitles: titles,
+      phase: 'battling',
+      sides: { a: { status: 'loading' }, b: { status: 'loading' } },
+      mapping,
+      vote: null,
+      voteSaved: false,
+    });
+
+    // Link thứ 2 (nếu có): server proxy chỉ "xem" trực tiếp 1 video URL, nên
+    // link còn lại được ghép vào prompt text để CẢ 2 model cùng tham khảo —
+    // giữ input giống hệt nhau giữa 2 bên cho phép so sánh công bằng.
+    const extraLinks = urls.slice(1);
+    const basePrompt = extraLinks.length
+      ? `${description || ''}${description ? '\n\n' : ''}Additional reference video link(s) on the same topic (use as extra inspiration/context): ${extraLinks.join(', ')}`
+      : description;
+
+    const runSide = async (side: 'a' | 'b', engine: ArenaEngine) => {
+      try {
+        const html = await bringToLife(basePrompt, undefined, undefined, urls[0], undefined, undefined, undefined, undefined, undefined, undefined, engine);
+        setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'done', html } } } : prev));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`[GON Arena] Engine "${engine}" (Model ${side.toUpperCase()}) failed:`, message);
+        setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'error', error: message } } } : prev));
+      }
+    };
+    // Song song hoá thật sự — 2 request độc lập, bên nào xong trước hiện trước.
+    runSide('a', aEngine);
+    runSide('b', bEngine);
+  };
+
+  const handleArenaVote = (choice: ArenaVoteChoice) => {
+    if (!arena || arena.vote) return; // chỉ vote 1 lần/trận
+    const { mapping, description, videoUrls } = arena;
+    setArena((prev) => (prev ? { ...prev, vote: choice } : prev));
+    // Lưu vote ẩn danh lên R2 — fire-and-forget: lỗi lưu KHÔNG ảnh hưởng việc
+    // lộ kết quả (vote chỉ phục vụ thống kê Groq vs Gemini sau này).
+    recordArenaVote({
+      vote: choice,
+      modelA: mapping.a,
+      modelB: mapping.b,
+      description: description.slice(0, 500),
+      videoUrls,
+    })
+      .then(() => setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev)))
+      .catch((err) => {
+        console.warn('[GON Arena] Không lưu được vote lên R2 (kết quả hiển thị không bị ảnh hưởng):', err?.message || err);
+        setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev));
+      });
+  };
+
+  // "Dùng phiên bản này": chuyển phiên bản được chọn thành 1 creation bình
+  // thường trong lịch sử GON (IndexedDB + R2) rồi mở ở LivePreview đầy đủ.
+  const handleArenaUseVersion = (side: 'a' | 'b') => {
+    if (!arena) return;
+    const sideState = arena.sides[side];
+    if (sideState.status !== 'done' || !sideState.html) return;
+    const engine = arena.mapping[side];
+    const baseName = (arena.description || arena.videoUrls[0] || 'GON Arena').slice(0, 120) || 'GON Arena';
+    const newCreation: Creation = {
+      id: crypto.randomUUID(),
+      name: `${baseName} • ${ARENA_ENGINE_LABELS[engine].split(' ')[0]}`,
+      html: sideState.html,
+      mimeType: null,
+      videoUrl: arena.videoUrls[0],
+      timestamp: new Date(),
+    };
+    setActiveCreation(newCreation);
+    setHistory((prev) => [newCreation, ...prev]);
+    persistCreation(newCreation, undefined, undefined, undefined);
+    setArena(null);
+  };
+
+  const handleArenaClose = () => setArena(null);
+
+  // Nhãn lộ danh tính model — CHỈ tính sau khi đã vote (giữ so sánh mù).
+  const arenaRevealedLabels = arena && arena.vote
+    ? { a: ARENA_ENGINE_LABELS[arena.mapping.a], b: ARENA_ENGINE_LABELS[arena.mapping.b] }
+    : null;
+
   const handleReset = () => {
     setActiveCreation(null);
     setIsGenerating(false);
@@ -697,17 +849,20 @@ ${message}`);
   };
 
   const isFocused = !!activeCreation || isGenerating;
+  // Arena là overlay riêng (ArenaDuel) nên KHÔNG tính vào isFocused (vốn điều
+  // khiển LivePreview) — chỉ dùng để làm mờ/khoá nội dung phía sau.
+  const isDimmed = isFocused || Boolean(arena);
 
   return (
     <div className="h-[100dvh] bg-zinc-950 bg-dot-grid text-zinc-50 selection:bg-blue-500/30 overflow-y-auto overflow-x-hidden relative flex flex-col">
-      
+
       {/* Centered Content Container */}
-      <div 
+      <div
         className={`
-          min-h-full flex flex-col w-full max-w-[96rem] mx-auto px-4 sm:px-6 relative z-10 
+          min-h-full flex flex-col w-full max-w-[96rem] mx-auto px-4 sm:px-6 relative z-10
           transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1)
-          ${isFocused 
-            ? 'opacity-0 scale-95 blur-sm pointer-events-none h-[100dvh] overflow-hidden' 
+          ${isDimmed
+            ? 'opacity-0 scale-95 blur-sm pointer-events-none h-[100dvh] overflow-hidden'
             : 'opacity-100 scale-100 blur-0'
           }
         `}
@@ -722,14 +877,14 @@ ${message}`);
 
           {/* 2. Input Section */}
           <div className="w-full flex justify-center mb-8">
-              <InputArea onGenerate={handleGenerate} isGenerating={isGenerating} disabled={isFocused} />
+              <InputArea onGenerate={handleGenerate} onBattle={handleArenaBattle} isGenerating={isGenerating} disabled={isDimmed} />
           </div>
 
           {/* 2b. Demo template gallery — xem ngay các mẫu có sẵn, không cần AI */}
-          <DemoTemplates onSelect={handleSelectDemo} disabled={isFocused} />
+          <DemoTemplates onSelect={handleSelectDemo} disabled={isDimmed} />
 
           {/* 2c. One Shot Arcade — mini-game AI thật, tách riêng khỏi gallery ở trên */}
-          <OneShotArcadeCard onSelect={handleOpenOneShotArcade} disabled={isFocused} />
+          <OneShotArcadeCard onSelect={handleOpenOneShotArcade} disabled={isDimmed} />
 
         </div>
         
@@ -764,6 +919,24 @@ ${message}`);
         onCreateFromLink={handleCreateFromLink}
         onShare={handleShareCreation}
       />
+
+      {/* GON Arena — overlay đấu trường 2 model AI ẩn danh (song song với
+          LivePreview, chỉ mount khi có trận). */}
+      {arena && (
+        <ArenaDuel
+          description={arena.description}
+          videoUrls={arena.videoUrls}
+          videoTitles={arena.videoTitles}
+          phase={arena.phase}
+          sides={arena.sides}
+          vote={arena.vote}
+          voteSaved={arena.voteSaved}
+          revealedLabels={arenaRevealedLabels}
+          onVote={handleArenaVote}
+          onUseVersion={handleArenaUseVersion}
+          onClose={handleArenaClose}
+        />
+      )}
 
       {/* Subtle Import Button (Bottom Right) */}
       <div className="fixed bottom-4 right-4 z-50">

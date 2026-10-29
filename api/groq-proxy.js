@@ -32,6 +32,8 @@ import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningP
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './_lib/bringAnyIdeaToLifeProxy.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, loadBringAnyIdeaToLifeCreationFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
+import { searchYoutubeVideoLinks, YoutubeSearchScrapeError } from './_lib/youtubeSearchScrape.js'
+import { recordGonArenaVote, GonArenaVoteError } from './_lib/gonArenaVotesR2.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, createVideoToLearningSourceUploadUrl, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
@@ -226,12 +228,54 @@ export default async function handler(req, res) {
         // upload trực tiếp — cho phép thử Groq (miễn phí) trước cho cả video,
         // thay vì luôn đi thẳng Gemini. Xem ghi chú đầy đủ trong bringAnyIdeaToLifeProxy.js.
         frameImages: Array.isArray(body.frameImages) ? body.frameImages : undefined,
+        // Chế độ GON ARENA: client ÉP đúng 1 engine ('groq' | 'gemini') cho
+        // từng request song song để so sánh ẩn danh 2 model — server sẽ không
+        // fallback chéo khi engine bị ép (xem forcedEngine trong proxy).
+        engine: body.engine === 'groq' || body.engine === 'gemini' ? body.engine : undefined,
       })
       return res.status(200).json(payload)
     } catch (err) {
       console.error('[groq-proxy] (bring-any-idea-to-life) error:', err?.message || err)
       const status = err instanceof BringAnyIdeaToLifeProxyError ? err.status : 500
       return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life proxy error' })
+    }
+  }
+
+  // --- GON Arena: tìm TỐI ĐA 2 link video YouTube theo text mô tả (scrape
+  // trang kết quả YouTube, không cần YOUTUBE_API_KEY — xem
+  // api/_lib/youtubeSearchScrape.js). Client: lib/api.ts searchVideoLinks(). ---
+  if (body.provider === 'bring-any-idea-to-life-video-search') {
+    try {
+      const limit = Math.min(Math.max(Number(body.limit) || 2, 1), 2)
+      const videos = await searchYoutubeVideoLinks(body.query, limit)
+      return res.status(200).json({ videos })
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-video-search) error:', err?.message || err)
+      const status = err instanceof YoutubeSearchScrapeError ? err.status : 502
+      return res.status(status).json({ error: err?.message || 'Bring Any Idea to Life video search error' })
+    }
+  }
+
+  // --- GON Arena: ghi vote ẨN DANH (người dùng chọn Model A / Model B / hoà)
+  // lên R2 để sau này tổng hợp bảng xếp hạng Groq vs Gemini — xem
+  // api/_lib/gonArenaVotesR2.js. Client: lib/api.ts recordArenaVote(). ---
+  if (body.provider === 'bring-any-idea-to-life-arena-vote') {
+    if (body.action !== 'record') {
+      return res.status(400).json({ error: 'Unknown bring-any-idea-to-life-arena-vote action' })
+    }
+    try {
+      const result = await recordGonArenaVote({
+        vote: body.vote,
+        modelA: body.modelA,
+        modelB: body.modelB,
+        description: body.description,
+        videoUrls: body.videoUrls,
+      })
+      return res.status(200).json({ ok: true, url: result.url })
+    } catch (err) {
+      console.error('[groq-proxy] (bring-any-idea-to-life-arena-vote) error:', err?.message || err)
+      const status = err instanceof GonArenaVoteError ? err.status : 500
+      return res.status(status).json({ error: err?.message || 'GON Arena vote error' })
     }
   }
 

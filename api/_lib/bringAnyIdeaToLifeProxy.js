@@ -761,7 +761,7 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages, engine }) {
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch
@@ -802,6 +802,22 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     )
   }
 
+  // engine = 'groq' | 'gemini' — chế độ GON ARENA (xem components/ArenaDuel.tsx):
+  // client chủ động ÉP CHẠY ĐÚNG 1 engine, bỏ qua chuỗi fallback tự động, để
+  // gọi song song 2 request từ CÙNG 1 input (1 ép Groq, 1 ép Gemini) rồi hiển
+  // thị 2 kết quả ẩn danh Model A/B cho người dùng vote (giống arena.ai).
+  // Nếu không ép ở server, khi 1 model lỗi code fallback bên dưới sẽ LẶNG LẼ
+  // đổi sang model còn lại — khiến 2 "đấu thủ ẩn danh" vô tình là CÙNG 1
+  // model, phá vỡ phép so sánh. Không truyền engine (mặc định, mọi luồng cũ)
+  // thì hành vi Groq-trước/Gemini-dự-phòng giữ nguyên 100%.
+  const forcedEngine = engine === 'groq' || engine === 'gemini' ? engine : null
+  if (forcedEngine === 'groq' && !hasGroq) {
+    throw new BringAnyIdeaToLifeProxyError('Arena yêu cầu Groq nhưng chưa cấu hình GROQ_API_KEY (hoặc GROQ_API_KEY1, ...) trên server.', 501)
+  }
+  if (forcedEngine === 'gemini' && !hasGemini) {
+    throw new BringAnyIdeaToLifeProxyError('Arena yêu cầu Gemini nhưng chưa cấu hình GEMINI_API_KEY (hoặc GEMINI_API_KEY1, ...) trên server.', 501)
+  }
+
   // Video: Groq vision (qwen) không nhận input video trực tiếp, CHỈ ảnh — vì
   // vậy link YouTube/Facebook hoặc video đã upload sẵn lên Gemini Files API
   // (geminiFileUri) bắt buộc đi thẳng Gemini như trước. NHƯNG nếu client đã
@@ -815,7 +831,9 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
   // video lên Gemini Files API rồi gọi lại với geminiFileUri.
   const isVideo = Boolean(videoUrl) || Boolean(geminiFileUri) || /^video\//i.test(mimeType || '')
   if (isVideo) {
-    if (Array.isArray(frameImages) && frameImages.length > 0 && hasGroq && !geminiFileUri && !videoUrl) {
+    // Arena ép Gemini: bỏ qua mọi nhánh Groq (khung hình + transcript) để đi
+    // thẳng xuống Gemini "xem" video — còn Arena ép Groq thì xử lý bên dưới.
+    if (forcedEngine !== 'gemini' && Array.isArray(frameImages) && frameImages.length > 0 && hasGroq && !geminiFileUri && !videoUrl) {
       const html = cleanHtml(await callGroqVideoFrames({ prompt, frameImages, envSource }))
       if (html) return { html, source: 'groq-video-frames' }
     }
@@ -830,13 +848,18 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     // Lưu `facebookDirectUrl` để tái dùng cho nhánh Gemini bên dưới nếu vẫn
     // cần rơi xuống đó, tránh phải resolveFacebookVideo() lần 2.
     let facebookDirectUrl
-    if (videoUrl && hasGroq && !geminiFileUri) {
+    if (videoUrl && hasGroq && !geminiFileUri && forcedEngine !== 'gemini') {
       const isFacebook = isFacebookVideoUrl(videoUrl)
       let transcriptResult = null
       try {
         transcriptResult = isFacebook ? await fetchFacebookTranscript(videoUrl) : await fetchYoutubeTranscript(videoUrl)
         facebookDirectUrl = transcriptResult?.directUrl
       } catch (transcriptErr) {
+        // Arena ép Groq mà không lấy được transcript -> báo lỗi luôn, KHÔNG
+        // lặng lẽ đổi sang Gemini (xem ghi chú forcedEngine ở trên).
+        if (forcedEngine === 'groq') {
+          throw new BringAnyIdeaToLifeProxyError(`Groq không xem được video trực tiếp và không lấy được transcript/phụ đề của video này (${transcriptErr?.message || transcriptErr}).`, 422)
+        }
         console.warn('[bring-any-idea-to-life] Không lấy được transcript video, chuyển sang Gemini (xem video trực tiếp):', transcriptErr?.message || transcriptErr)
       }
 
@@ -846,11 +869,24 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
           const html = cleanHtml(await callGroqVideoTranscript({ prompt, transcript: transcriptResult.transcript, envSource }))
           if (html) return { html, source: 'groq-video-transcript' }
         } catch (err) {
+          if (forcedEngine === 'groq') {
+            throw new BringAnyIdeaToLifeProxyError(`Groq lỗi ở tất cả key khi tạo app từ transcript video: ${err?.message || err}`, err?.status || 502)
+          }
           console.warn('[bring-any-idea-to-life] Groq (transcript video) lỗi ở tất cả key, chuyển sang Gemini:', err?.message || err)
         }
       } else if (transcriptResult) {
+        if (forcedEngine === 'groq') {
+          throw new BringAnyIdeaToLifeProxyError('Video không có transcript/phụ đề đủ dài để Groq phân tích (Groq chỉ đọc được TEXT transcript, không xem được video trực tiếp). Thử video có phụ đề CC.', 422)
+        }
         console.warn('[bring-any-idea-to-life] Transcript quá ngắn, chuyển sang Gemini (xem video trực tiếp)')
       }
+    }
+
+    // Arena ép Groq mà đến được đây = không còn đường nào cho Groq xử lý
+    // video (vd video upload qua geminiFileUri — Groq vision không nhận input
+    // video) -> báo lỗi rõ ràng thay vì rơi xuống Gemini bên dưới.
+    if (forcedEngine === 'groq') {
+      throw new BringAnyIdeaToLifeProxyError('Groq không xem được video trực tiếp (chỉ đọc transcript hoặc khung hình) — nguồn video này không có dạng dữ liệu phù hợp để Groq xử lý.', 422)
     }
 
     if (!hasGemini) {
@@ -897,14 +933,22 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
   // thực ra có thể Groq đã thử và lỗi trước — gộp cả 2 giúp chẩn đoán đúng
   // (thiếu GROQ_API_KEY trên Vercel? hay Groq key cũng hết quota?).
   let groqErrorMessage
-  if (hasGroq) {
+  if (hasGroq && forcedEngine !== 'gemini') {
     try {
       const html = cleanHtml(await callGroqVision({ prompt, fileBase64, mimeType, envSource }))
       if (html) return { html, source: 'groq' }
     } catch (err) {
       groqErrorMessage = err?.message || String(err)
-      console.warn('[bring-any-idea-to-life] Groq failed on all keys, falling back to Gemini:', groqErrorMessage)
+      console.warn(`[bring-any-idea-to-life] Groq failed on all keys${forcedEngine === 'groq' ? ' (Arena ép Groq — KHÔNG fallback Gemini)' : ', falling back to Gemini'}:`, groqErrorMessage)
     }
+  }
+
+  // Arena ép Groq mà Groq thất bại -> báo lỗi luôn, KHÔNG lặng lẽ đổi sang
+  // Gemini (tránh 2 đấu thủ ẩn danh vô tình là cùng 1 model — xem ghi chú
+  // forcedEngine ở trên). hasGroq đã được kiểm tra 501 ở đầu hàm cho trường
+  // hợp này rồi nên ở đây chỉ cần ném lỗi Groq cuối cùng.
+  if (forcedEngine === 'groq') {
+    throw new BringAnyIdeaToLifeProxyError(`Groq lỗi ở tất cả key: ${groqErrorMessage || 'không rõ lỗi'}`, 502)
   }
 
   if (!hasGemini) {
@@ -916,7 +960,9 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
 
   try {
     const html = cleanHtml(await callGemini({ prompt, fileBase64, mimeType, envSource }))
-    return { html, source: 'gemini-fallback' }
+    // Arena ép Gemini thì source báo 'gemini' thay vì 'gemini-fallback' (đúng
+    // bản chất: đây là lựa chọn chủ động, không phải dự phòng sau khi Groq lỗi).
+    return { html, source: forcedEngine === 'gemini' ? 'gemini' : 'gemini-fallback' }
   } catch (err) {
     if (!hasGroq) throw err // Groq chưa cấu hình -> không có gì để gộp, giữ nguyên lỗi Gemini
     const geminiMsg = err?.message || String(err)
