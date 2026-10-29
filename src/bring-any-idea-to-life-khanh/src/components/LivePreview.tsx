@@ -74,6 +74,12 @@ interface LivePreviewProps {
   // giúp lần xem SAU không phải chuyển mã lại từ đầu.
   onTranscodedVideoUploaded?: (creation: Creation, publicUrl: string) => Promise<void>;
   onShare?: (creation: Creation) => Promise<void>;
+  // Các phiên bản CÙNG NGUỒN với creation đang xem (v1..vn, mới nhất đứng đầu
+  // — đúng thứ tự/đánh số của thẻ Archive, xem getCreationSourceKey trong
+  // CreationHistory.tsx). >1 phiên bản thì hiện thanh chuyển version + nút
+  // "So sánh" 2 phiên bản song song.
+  versions?: Creation[];
+  onSelectVersion?: (creation: Creation) => void;
 }
 
 // Add type definition for the global pdfjsLib
@@ -229,10 +235,26 @@ function buildSafeSrcDoc(html: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${baseStyle}${videoInlineFixScript}<style>body{margin:0;padding:24px;font-family:ui-monospace,monospace;white-space:pre-wrap;line-height:1.6;}</style></head><body>${html}</body></html>`;
 }
 
-export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink, onTranscodedVideoUploaded, onShare }) => {
+export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, isFocused, loadingLabel, onReset, onUploadMissingSource, onDeleteUploadedSource, onRegenerateFromUploadedSource, onCreateFromLink, onTranscodedVideoUploaded, onShare, versions, onSelectVersion }) => {
     const [loadingStep, setLoadingStep] = useState(0);
     const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'shared'>('idle');
     const [showSplitView, setShowSplitView] = useState(false);
+    // So sánh 2 phiên bản cùng nguồn song song (overlay trong khung preview):
+    // chọn phiên bản cho pane trái/phải bằng chip v1..vn — chip đang được chọn
+    // ở pane kia bị khoá để không so 1 phiên bản với chính nó.
+    const [compareOpen, setCompareOpen] = useState(false);
+    const [compareLeftId, setCompareLeftId] = useState<string | null>(null);
+    const [compareRightId, setCompareRightId] = useState<string | null>(null);
+
+    const openVersionCompare = () => {
+        if (!creation || !versions || versions.length < 2) return;
+        const currentIndex = versions.findIndex((v) => v.id === creation.id);
+        const leftIndex = currentIndex >= 0 ? currentIndex : 0;
+        const fallbackRight = versions.find((_, index) => index !== leftIndex);
+        setCompareLeftId(versions[leftIndex].id);
+        setCompareRightId(fallbackRight ? fallbackRight.id : versions[versions.length - 1].id);
+        setCompareOpen(true);
+    };
     const [isUploadingSource, setIsUploadingSource] = useState(false);
     const [isDeletingSource, setIsDeletingSource] = useState(false);
     const [isEditingLink, setIsEditingLink] = useState(false);
@@ -583,6 +605,50 @@ ${message}`);
         </div>
       </div>
 
+      {/* Thanh phiên bản cùng nguồn (v1..vn): chỉ hiện khi artifact có > 1
+          phiên bản — bấm để chuyển nhanh giữa các version, hoặc mở chế độ
+          "So sánh" 2 phiên bản song song (giống xem 2 link ?linkid khác nhau
+          nhưng ngay trong 1 khung). Đánh số khớp thẻ Archive: mới nhất = vn. */}
+      {!isLoading && creation && versions && versions.length > 1 && (
+        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-zinc-800 bg-[#101013] px-4 py-2">
+          <span className="shrink-0 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            {versions.length} phiên bản:
+          </span>
+          {versions.map((version, index) => {
+            const label = `v${versions.length - index}`;
+            const isActiveVersion = version.id === creation.id;
+            return (
+              <button
+                key={version.id}
+                type="button"
+                disabled={isActiveVersion}
+                onClick={() => onSelectVersion?.(version)}
+                title={`${version.name} · ${version.timestamp.toLocaleString()}`}
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-colors ${
+                  isActiveVersion
+                    ? 'cursor-default border-blue-400 bg-blue-500/20 text-blue-100'
+                    : 'border-zinc-700 bg-zinc-950/80 text-zinc-300 hover:border-blue-400 hover:text-blue-200'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+          <span className="flex-1" />
+          {onSelectVersion && (
+            <button
+              type="button"
+              onClick={openVersionCompare}
+              title="Xem 2 phiên bản song song để so sánh kết quả"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-200 transition-colors hover:bg-blue-500/20"
+            >
+              <ViewColumnsIcon className="h-3.5 w-3.5" />
+              So sánh
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="relative w-full flex-1 bg-[#09090b] flex overflow-hidden">
         {isLoading ? (
@@ -836,6 +902,80 @@ ${message}`);
             onChange={handleMissingSourceChange}
         />
       </div>
+
+      {/* Overlay SO SÁNH 2 phiên bản song song (cùng nguồn): mỗi pane chọn 1
+          version bằng chip v1..vn + iframe xem/chơi thử độc lập — tương đương
+          mở 2 link ?linkid khác nhau cạnh nhau nhưng ngay trong 1 khung. */}
+      {compareOpen && creation && versions && versions.length > 1 && (
+        <div className="absolute inset-0 z-30 flex flex-col bg-[#0b0b0d]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-800 bg-[#121214] px-4 py-2.5">
+            <span className="truncate text-xs font-mono uppercase tracking-wider text-zinc-400">
+              So sánh phiên bản · {creation.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCompareOpen(false)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1 text-[11px] font-semibold text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+            >
+              <XMarkIcon className="h-3.5 w-3.5" />
+              Đóng
+            </button>
+          </div>
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
+            {(['left', 'right'] as const).map((slot) => {
+              const selectedId = slot === 'left' ? compareLeftId : compareRightId;
+              const otherId = slot === 'left' ? compareRightId : compareLeftId;
+              const selected = versions.find((v) => v.id === selectedId) || versions[0];
+              const setSelected = slot === 'left' ? setCompareLeftId : setCompareRightId;
+              return (
+                <div key={slot} className={`flex min-h-0 flex-col border-zinc-800 ${slot === 'left' ? 'border-b md:border-b-0 md:border-r' : ''}`}>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-zinc-800/70 bg-zinc-950/60 px-3 py-2">
+                    <span className="mr-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                      {slot === 'left' ? 'Trái' : 'Phải'}
+                    </span>
+                    {versions.map((version, index) => {
+                      const label = `v${versions.length - index}`;
+                      const isActiveVersion = version.id === selected.id;
+                      const usedByOtherPane = version.id === otherId;
+                      return (
+                        <button
+                          key={version.id}
+                          type="button"
+                          disabled={isActiveVersion || usedByOtherPane}
+                          onClick={() => setSelected(version.id)}
+                          title={
+                            usedByOtherPane
+                              ? `${label} đang hiển thị ở pane bên kia`
+                              : `${version.name} · ${version.timestamp.toLocaleString()}`
+                          }
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-colors ${
+                            isActiveVersion
+                              ? 'cursor-default border-blue-400 bg-blue-500/20 text-blue-100'
+                              : usedByOtherPane
+                                ? 'cursor-not-allowed border-zinc-800 text-zinc-600 opacity-50'
+                                : 'border-zinc-700 bg-zinc-950/80 text-zinc-300 hover:border-blue-400 hover:text-blue-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="relative min-h-[16rem] flex-1 bg-white">
+                    <iframe
+                      key={selected.id}
+                      title={`So sánh ${selected.name}`}
+                      srcDoc={buildSafeSrcDoc(selected.html)}
+                      className="absolute inset-0 h-full w-full"
+                      sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
