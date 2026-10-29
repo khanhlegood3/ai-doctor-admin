@@ -761,7 +761,34 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
-export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages, engine }) {
+export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages, engine, userApiKey }) {
+  // Chế độ GON ARENA "dùng API key của chính user": khi engine server-side lỗi
+  // (hết quota/timeout/không đọc được video...), client cho user dán API key
+  // CỦA MÌNH để chạy lại. Client đoán model từ prefix key (gsk_... = Groq,
+  // AIza... = Gemini, xem detectEngineFromApiKey trong lib/api.ts) và gửi kèm
+  // `engine` tương ứng + `userApiKey`. Ở đây key của user THAY THẾ TOÀN BỘ
+  // key pool (bản + các biến đánh số GROQ_API_KEY1..n / GEMINI_API_KEY1..n,
+  // xem api/_lib/apiKeyPool.js) CHỈ trong request này — dùng xong quên ngay:
+  // KHÔNG log, KHÔNG lưu database/cloud (client giữ ở sessionStorage của tab).
+  if (envSource === undefined) envSource = process.env
+  const forcedEngineForKey = engine === 'groq' || engine === 'gemini' ? engine : null
+  if (userApiKey && forcedEngineForKey) {
+    const keyString = String(userApiKey).trim()
+    const baseKeyName = forcedEngineForKey === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'
+    const expectedPrefix = forcedEngineForKey === 'groq' ? 'gsk_' : 'AIza'
+    if (!keyString.startsWith(expectedPrefix)) {
+      throw new BringAnyIdeaToLifeProxyError(
+        `API key không đúng định dạng của ${forcedEngineForKey === 'groq' ? 'Groq (bắt đầu bằng "gsk_")' : 'Gemini/Google (bắt đầu bằng "AIza")'}.`,
+        400,
+      )
+    }
+    const overridden = { ...envSource, [baseKeyName]: keyString }
+    const numberedPattern = new RegExp(`^${baseKeyName}\\d+$`)
+    for (const name of Object.keys(overridden)) {
+      if (numberedPattern.test(name)) delete overridden[name]
+    }
+    envSource = overridden
+  }
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
   // "Đọc hình từ URL": tải ảnh về SERVER trước (tránh CORS/hotlink khi fetch

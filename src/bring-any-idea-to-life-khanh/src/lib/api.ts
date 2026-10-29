@@ -116,7 +116,11 @@ export async function bringToLife(
   // Chế độ GON ARENA (xem components/ArenaDuel.tsx): ép server chạy ĐÚNG 1
   // engine ('groq' | 'gemini') thay vì chuỗi fallback tự động — để 2 request
   // song song từ cùng 1 input luôn là 2 model khác nhau thật sự.
-  engine?: ArenaEngine
+  engine?: ArenaEngine,
+  // Arena: API key CỦA CHÍNH USER khi engine mặc định lỗi (xem
+  // detectEngineFromApiKey/sessionStorage helpers ở cuối file) — server dùng
+  // cho đúng request này rồi quên, KHÔNG lưu/log.
+  userApiKey?: string
 ): Promise<string> {
   const isVideoFile = Boolean(mimeType?.toLowerCase().startsWith('video/'));
 
@@ -154,6 +158,7 @@ export async function bringToLife(
     hasWebUrl: Boolean(webUrl),
     frameImagesCount: frameImages?.length || 0,
     forcedEngine: engine || undefined, // chỉ có ở chế độ GON Arena
+    hasUserApiKey: Boolean(userApiKey), // KHÔNG bao giờ log giá trị key
   });
 
   let res: Response;
@@ -174,6 +179,7 @@ export async function bringToLife(
         geminiKeyLabel,
         frameImages,
         engine,
+        userApiKey,
       }),
     });
   } catch (networkErr) {
@@ -267,5 +273,41 @@ export async function recordArenaVote(payload: {
   if (!res.ok) {
     const data = await res.json().catch(() => ({} as any));
     throw new Error(data?.error || `Không ghi được vote (HTTP ${res.status})`);
+  }
+}
+
+// --- Arena + API key của chính user (khi engine server-side lỗi) -----------
+
+// Đoán model AI từ FORMAT TIỀN TỐ của API key user dán vào:
+//   - Groq (console.groq.com): key bắt đầu bằng "gsk_"
+//   - Gemini (Google AI Studio / GCP): key bắt đầu bằng "AIza"
+// Server (bringAnyIdeaToLifeProxy.js) cũng tự validate lại prefix này trước
+// khi dùng, nên 2 phía luôn khớp nhau.
+export function detectEngineFromApiKey(key: string): ArenaEngine | null {
+  const trimmed = key.trim();
+  if (trimmed.startsWith('gsk_')) return 'groq';
+  if (trimmed.startsWith('AIza')) return 'gemini';
+  return null;
+}
+
+// Giữ key của user ĐỂ DÙNG TIẾP trong phiên — sessionStorage (tự xoá khi đóng
+// tab), TUYỆT ĐỐI KHÔNG localStorage (sống sót sau đóng trình duyệt) và cũng
+// không gửi lên R2/history/vote (không lưu Database/Cloud — yêu cầu owner).
+const USER_KEY_SESSION_PREFIX = 'gon-arena-user-api-key:';
+
+export function getSessionUserApiKey(engine: ArenaEngine): string | undefined {
+  try {
+    const value = window.sessionStorage.getItem(USER_KEY_SESSION_PREFIX + engine);
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function setSessionUserApiKey(engine: ArenaEngine, key: string): void {
+  try {
+    window.sessionStorage.setItem(USER_KEY_SESSION_PREFIX + engine, key.trim());
+  } catch {
+    // sessionStorage bị chặn (private mode...) — key chỉ dùng cho lần retry đó
   }
 }

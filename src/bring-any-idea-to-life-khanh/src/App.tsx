@@ -10,10 +10,11 @@ import { CreationHistory, Creation, getCreationSourceKey } from './components/Cr
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
-import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote } from './lib/api';
+import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote, getSessionUserApiKey, setSessionUserApiKey, detectEngineFromApiKey } from './lib/api';
 import type { ArenaEngine } from './lib/api';
 import { ArenaDuel } from './components/ArenaDuel';
 import type { ArenaSideState, ArenaVoteChoice } from './components/ArenaDuel';
+import { classifyVideoUrl } from './lib/videoLink';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
 import { extractVideoFrames } from './lib/videoFrames';
 import { getAllCreations, putCreation, patchCreation, migrateFromLocalStorageOnce } from './lib/historyStorage';
@@ -41,7 +42,11 @@ const App: React.FC = () => {
     description: string;
     videoUrls: string[];
     videoTitles: string[];
-    phase: 'searching' | 'battling';
+    // searching: đang tìm video từ text | confirming: user XEM TRƯỚC + xác
+    // nhận video (bắt buộc trước khi đấu — yêu cầu owner) | battling: 2 model
+    // đang/đã tạo game song song.
+    phase: 'searching' | 'confirming' | 'battling';
+    searchError?: string | null;
     sides: { a: ArenaSideState; b: ArenaSideState };
     mapping: { a: ArenaEngine; b: ArenaEngine };
     vote: ArenaVoteChoice | null;
@@ -485,76 +490,152 @@ const App: React.FC = () => {
     gemini: 'Gemini 3.6 Flash',
   };
 
-  // Bắt đầu 1 trận đấu arena. videoUrls rỗng = user chỉ nhập text mô tả ->
-  // GON tự tìm tối đa 2 link video YouTube phù hợp trước rồi mới đấu.
+  const newArenaState = (description: string, phase: ArenaState['phase'], videoUrls: string[], videoTitles: string[]): ArenaState => ({
+    description,
+    videoUrls,
+    videoTitles,
+    phase,
+    searchError: null,
+    sides: { a: { status: 'loading' }, b: { status: 'loading' } },
+    mapping: { a: 'groq', b: 'gemini' }, // placeholder — random hoá lại lúc xác nhận đấu thật
+    vote: null,
+    voteSaved: false,
+  });
+
+  // Link thứ 2 (nếu có): server proxy chỉ "xem" trực tiếp 1 video URL, nên
+  // link còn lại được ghép vào prompt text để CẢ 2 model cùng tham khảo —
+  // giữ input giống hệt nhau giữa 2 bên cho phép so sánh công bằng.
+  const buildArenaPrompt = (description: string, urls: string[]): string => {
+    const extraLinks = urls.slice(1);
+    return extraLinks.length
+      ? `${description || ''}${description ? '\n\n' : ''}Additional reference video link(s) on the same topic (use as extra inspiration/context): ${extraLinks.join(', ')}`
+      : description;
+  };
+
+  // Tìm video bằng text mô tả -> XONG chuyển sang phase CONFIRMING để user
+  // xem trước + xác nhận, KHÔNG đấu ngay. Lỗi tìm kiếm -> quay lại confirming
+  // kèm lỗi, GIỮ nguyên video cũ (nếu có) thay vì đóng mất arena.
+  const startArenaSearch = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setArena((prev) => ({
+      ...(prev ?? newArenaState(trimmed, 'searching', [], [])),
+      description: trimmed,
+      phase: 'searching' as const,
+      searchError: null,
+    }));
+    try {
+      const found = await searchVideoLinks(trimmed, 2);
+      setArena((prev) =>
+        prev
+          ? {
+              ...prev,
+              phase: 'confirming' as const,
+              videoUrls: found.map((video) => video.url),
+              videoTitles: found.map((video) => video.title),
+              searchError: null,
+            }
+          : prev,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setArena((prev) => (prev ? { ...prev, phase: 'confirming' as const, searchError: message } : prev));
+    }
+  };
+
+  // Bắt đầu flow arena từ InputArea. DÙ user đã dán sẵn link hay chỉ nhập
+  // text, cũng phải qua bước XEM TRƯỚC + XÁC NHẬN video (phase 'confirming')
+  // trước khi 2 model thật sự chạy — yêu cầu owner: tránh đấu trên video sai.
   const handleArenaBattle = async (description: string, videoUrls: string[]) => {
     if (arena || isGenerating) return;
     setActiveCreation(null);
+    if (videoUrls.length > 0) {
+      setArena(newArenaState(description, 'confirming', videoUrls, []));
+      return;
+    }
+    await startArenaSearch(description);
+  };
 
-    let urls = videoUrls;
-    let titles: string[] = [];
-
-    if (urls.length === 0) {
-      setArena({
-        description,
-        videoUrls: [],
-        videoTitles: [],
-        phase: 'searching',
-        sides: { a: { status: 'loading' }, b: { status: 'loading' } },
-        mapping: { a: 'groq', b: 'gemini' },
-        vote: null,
-        voteSaved: false,
-      });
-      try {
-        const found = await searchVideoLinks(description, 2);
-        urls = found.map((video) => video.url);
-        titles = found.map((video) => video.title);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        alert(`Không tìm được video từ mô tả:\n\n${message}\n\nBạn có thể tự dán tối đa 2 link video thay vì để GON tự tìm.`);
-        setArena(null);
+  // Phase confirming, ô "Tìm lại / đổi video": TOÀN BỘ dòng đều là link video
+  // hợp lệ thì dùng thẳng các link đó (xác nhận lại lần nữa); ngược lại coi
+  // là mô tả mới và tìm bằng text.
+  const handleArenaResearch = async (input: string) => {
+    const lines = input.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (lines.length > 0 && lines.every((line) => Boolean(classifyVideoUrl(line)))) {
+      if (lines.length > 2) {
+        setArena((prev) => (prev ? { ...prev, searchError: 'Tối đa 2 link video mỗi lần đấu — hãy xoá bớt bớt rồi thử lại.' } : prev));
         return;
       }
+      const urls = lines.map((line) => classifyVideoUrl(line)!.url);
+      setArena((prev) => (prev ? { ...prev, phase: 'confirming' as const, videoUrls: urls, videoTitles: [], searchError: null } : prev));
+      return;
     }
+    await startArenaSearch(input);
+  };
 
-    // Random hoá vị trí để giữ so sánh MÙ — kể cả người xem network log cũng
-    // không đoán trước được bên nào là model nào (mapping chỉ lộ sau vote).
+  // Chạy 1 bên của trận đấu. Dùng key của user (nếu vừa dán HOẶC đã giữ trong
+  // sessionStorage từ lần retry trước) thay cho key pool server — xem
+  // userApiKey trong lib/api.ts + bringAnyIdeaToLifeProxy.js.
+  const runArenaSide = async (side: 'a' | 'b', engine: ArenaEngine, basePrompt: string, urls: string[], explicitUserApiKey?: string) => {
+    try {
+      const userApiKey = explicitUserApiKey || getSessionUserApiKey(engine);
+      const html = await bringToLife(basePrompt, undefined, undefined, urls[0], undefined, undefined, undefined, undefined, undefined, undefined, engine, userApiKey);
+      setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'done', html } } } : prev));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[GON Arena] Engine "${engine}" (Model ${side.toUpperCase()}) failed:`, message);
+      setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'error', error: message } } } : prev));
+    }
+  };
+
+  // User XÁC NHẬN video đúng -> bắt đầu đấu thật: random hoá vị trí A/B để
+  // giữ so sánh MÙ, rồi bắn 2 request song song (mỗi bên ép đúng 1 engine).
+  const handleArenaConfirmBattle = () => {
+    if (!arena || arena.phase !== 'confirming' || arena.videoUrls.length === 0) return;
+    const { description, videoUrls: urls } = arena;
     const aEngine: ArenaEngine = Math.random() < 0.5 ? 'groq' : 'gemini';
     const bEngine: ArenaEngine = aEngine === 'groq' ? 'gemini' : 'groq';
     const mapping: { a: ArenaEngine; b: ArenaEngine } = { a: aEngine, b: bEngine };
 
-    setArena({
-      description,
-      videoUrls: urls,
-      videoTitles: titles,
-      phase: 'battling',
-      sides: { a: { status: 'loading' }, b: { status: 'loading' } },
-      mapping,
-      vote: null,
-      voteSaved: false,
-    });
+    setArena((prev) =>
+      prev
+        ? {
+            ...prev,
+            phase: 'battling' as const,
+            mapping,
+            sides: { a: { status: 'loading' }, b: { status: 'loading' } },
+            vote: null,
+            voteSaved: false,
+            searchError: null,
+          }
+        : prev,
+    );
 
-    // Link thứ 2 (nếu có): server proxy chỉ "xem" trực tiếp 1 video URL, nên
-    // link còn lại được ghép vào prompt text để CẢ 2 model cùng tham khảo —
-    // giữ input giống hệt nhau giữa 2 bên cho phép so sánh công bằng.
-    const extraLinks = urls.slice(1);
-    const basePrompt = extraLinks.length
-      ? `${description || ''}${description ? '\n\n' : ''}Additional reference video link(s) on the same topic (use as extra inspiration/context): ${extraLinks.join(', ')}`
-      : description;
-
-    const runSide = async (side: 'a' | 'b', engine: ArenaEngine) => {
-      try {
-        const html = await bringToLife(basePrompt, undefined, undefined, urls[0], undefined, undefined, undefined, undefined, undefined, undefined, engine);
-        setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'done', html } } } : prev));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`[GON Arena] Engine "${engine}" (Model ${side.toUpperCase()}) failed:`, message);
-        setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'error', error: message } } } : prev));
-      }
-    };
+    const basePrompt = buildArenaPrompt(description, urls);
     // Song song hoá thật sự — 2 request độc lập, bên nào xong trước hiện trước.
-    runSide('a', aEngine);
-    runSide('b', bEngine);
+    runArenaSide('a', aEngine, basePrompt, urls);
+    runArenaSide('b', bEngine, basePrompt, urls);
+  };
+
+  // Bên lỗi: user dán API key CỦA CHÍNH MÌNH để chạy lại. Prefix key quyết
+  // định model (gsk_ = Groq, AIza = Gemini — xem detectEngineFromApiKey).
+  // Nếu key thuộc engine KHÁC bên đang lỗi, bên đó đổi hẳn sang engine của
+  // key và mapping cập nhật tương ứng — để lúc lộ danh tính vẫn trung thực.
+  const handleArenaRetryWithKey = (side: 'a' | 'b', apiKey: string) => {
+    if (!arena || arena.phase !== 'battling') return;
+    const detected = detectEngineFromApiKey(apiKey);
+    if (!detected) return; // ArenaDuel đã chặn; server cũng tự validate prefix
+    setSessionUserApiKey(detected, apiKey);
+    setArena((prev) =>
+      prev
+        ? {
+            ...prev,
+            mapping: { ...prev.mapping, [side]: detected },
+            sides: { ...prev.sides, [side]: { status: 'loading' } },
+          }
+        : prev,
+    );
+    runArenaSide(side, detected, buildArenaPrompt(arena.description, arena.videoUrls), arena.videoUrls, apiKey);
   };
 
   const handleArenaVote = (choice: ArenaVoteChoice) => {
@@ -952,12 +1033,16 @@ ${message}`);
           videoUrls={arena.videoUrls}
           videoTitles={arena.videoTitles}
           phase={arena.phase}
+          searchError={arena.searchError}
           sides={arena.sides}
           vote={arena.vote}
           voteSaved={arena.voteSaved}
           revealedLabels={arenaRevealedLabels}
           onVote={handleArenaVote}
           onUseVersion={handleArenaUseVersion}
+          onConfirmBattle={handleArenaConfirmBattle}
+          onResearch={handleArenaResearch}
+          onRetryWithKey={handleArenaRetryWithKey}
           onClose={handleArenaClose}
         />
       )}
