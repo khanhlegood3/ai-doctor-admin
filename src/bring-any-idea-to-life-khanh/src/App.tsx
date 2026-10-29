@@ -10,7 +10,7 @@ import { CreationHistory, Creation, getCreationSourceKey } from './components/Cr
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
-import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote, getSessionUserApiKey, setSessionUserApiKey, detectEngineFromApiKey } from './lib/api';
+import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote, getSessionUserApiKey, setSessionUserApiKey, ARENA_PROVIDER_INFO, ARENA_ENGINES } from './lib/api';
 import type { ArenaEngine } from './lib/api';
 import { ArenaDuel } from './components/ArenaDuel';
 import type { ArenaSideState, ArenaVoteChoice } from './components/ArenaDuel';
@@ -482,13 +482,11 @@ const App: React.FC = () => {
   };
 
   // Nhãn hiển thị khi LỘ DANH TÍNH model sau vote (trước đó mọi thứ chỉ là
-  // "Model A"/"Model B"). Tên model chi tiết khớp đúng hằng số phía server:
-  // GROQ_VISION_MODEL (api/_lib/groqModels.js) và GEMINI_MODEL
-  // (api/_lib/bringAnyIdeaToLifeProxy.js).
-  const ARENA_ENGINE_LABELS: Record<ArenaEngine, string> = {
-    groq: 'Groq (Qwen 3.6 27B)',
-    gemini: 'Gemini 3.6 Flash',
-  };
+  // "Model A"/"Model B"). Tên lấy từ bảng ARENA_PROVIDER_INFO (lib/api.ts) —
+  // nguồn chân lý DUY NHẤT của mọi engine arena, đổi ở đó thì ở đây tự khớp.
+  const ARENA_ENGINE_LABELS = Object.fromEntries(
+    ARENA_ENGINES.map((engine) => [engine, `${ARENA_PROVIDER_INFO[engine].label} (${ARENA_PROVIDER_INFO[engine].modelLabel})`]),
+  ) as Record<ArenaEngine, string>;
 
   const newArenaState = (description: string, phase: ArenaState['phase'], videoUrls: string[], videoTitles: string[]): ArenaState => ({
     description,
@@ -617,25 +615,27 @@ const App: React.FC = () => {
     runArenaSide('b', bEngine, basePrompt, urls);
   };
 
-  // Bên lỗi: user dán API key CỦA CHÍNH MÌNH để chạy lại. Prefix key quyết
-  // định model (gsk_ = Groq, AIza = Gemini — xem detectEngineFromApiKey).
-  // Nếu key thuộc engine KHÁC bên đang lỗi, bên đó đổi hẳn sang engine của
-  // key và mapping cập nhật tương ứng — để lúc lộ danh tính vẫn trung thực.
-  const handleArenaRetryWithKey = (side: 'a' | 'b', apiKey: string) => {
+  // Bên lỗi: user dán API key CỦA CHÍNH MÌNH để chạy lại. Engine (`engine`)
+  // đã được ArenaDuel xác định sẵn: tự đoán từ prefix VỚI MỌI provider phổ
+  // biến (xem detectEngineFromApiKey — gsk_=Groq, AIza=Gemini, sk-ant-=Claude,
+  // sk-or-=OpenRouter, xai-=Grok, pplx-=Perplexity, hf_=HF...), hoặc user chọn
+  // TAY ở dropdown khi key không có prefix riêng (DeepSeek sk-thuần, Mistral,
+  // Together). Nếu engine KHÁC bên đang lỗi, bên đó đổi hẳn sang engine đó và
+  // mapping cập nhật tương ứng — để lúc lộ danh tính vẫn trung thực.
+  // Server (arenaUserKeyEngines.js) tự validate lại prefix/kiểm tra lần nữa.
+  const handleArenaRetryWithKey = (side: 'a' | 'b', apiKey: string, engine: ArenaEngine) => {
     if (!arena || arena.phase !== 'battling') return;
-    const detected = detectEngineFromApiKey(apiKey);
-    if (!detected) return; // ArenaDuel đã chặn; server cũng tự validate prefix
-    setSessionUserApiKey(detected, apiKey);
+    setSessionUserApiKey(engine, apiKey);
     setArena((prev) =>
       prev
         ? {
             ...prev,
-            mapping: { ...prev.mapping, [side]: detected },
+            mapping: { ...prev.mapping, [side]: engine },
             sides: { ...prev.sides, [side]: { status: 'loading' } },
           }
         : prev,
     );
-    runArenaSide(side, detected, buildArenaPrompt(arena.description, arena.videoUrls), arena.videoUrls, apiKey);
+    runArenaSide(side, engine, buildArenaPrompt(arena.description, arena.videoUrls), arena.videoUrls, apiKey);
   };
 
   const handleArenaVote = (choice: ArenaVoteChoice) => {
@@ -643,7 +643,14 @@ const App: React.FC = () => {
     const { mapping, description, videoUrls } = arena;
     setArena((prev) => (prev ? { ...prev, vote: choice } : prev));
     // Lưu vote ẩn danh lên R2 — fire-and-forget: lỗi lưu KHÔNG ảnh hưởng việc
-    // lộ kết quả (vote chỉ phục vụ thống kê Groq vs Gemini sau này).
+    // lộ kết quả. Trận 2 bên TRÙNG ENGINE (mapping.a === mapping.b — xảy ra
+    // khi user retry 1 bên bằng key cùng provider với bên kia, vd cả hai đều
+    // chạy OpenAI) thì KHÔNG phải so sánh giữa 2 model khác nhau → bỏ ghi để
+    // không làm bẩn thống kê.
+    if (mapping.a === mapping.b) {
+      setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev));
+      return;
+    }
     recordArenaVote({
       vote: choice,
       modelA: mapping.a,

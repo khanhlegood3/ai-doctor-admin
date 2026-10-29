@@ -761,33 +761,44 @@ async function callGemini({ prompt, fileBase64, mimeType, videoUrl, geminiFileUr
 
 // --- Điều phối Groq (mặc định, miễn phí, chỉ ảnh/PDF/text) ↔ Gemini (bắt buộc cho
 // video, fallback tự động cho ảnh/PDF/text) ---
+import { runArenaUserKeyGenerate, assertArenaUserKeyMatchesEngine, isArenaEngineName, isArenaUserKeyEngine, ARENA_USER_KEY_ENGINE_TABLE, ArenaUserKeyEngineError } from './arenaUserKeyEngines.js'
+
 export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeType, videoUrl, imageUrl, webUrl, geminiFileUri, geminiFileMimeType, geminiKeyLabel, envSource, frameImages, engine, userApiKey }) {
   // Chế độ GON ARENA "dùng API key của chính user": khi engine server-side lỗi
   // (hết quota/timeout/không đọc được video...), client cho user dán API key
-  // CỦA MÌNH để chạy lại. Client đoán model từ prefix key (gsk_... = Groq,
-  // AIza... = Gemini, xem detectEngineFromApiKey trong lib/api.ts) và gửi kèm
-  // `engine` tương ứng + `userApiKey`. Ở đây key của user THAY THẾ TOÀN BỘ
-  // key pool (bản + các biến đánh số GROQ_API_KEY1..n / GEMINI_API_KEY1..n,
-  // xem api/_lib/apiKeyPool.js) CHỈ trong request này — dùng xong quên ngay:
-  // KHÔNG log, KHÔNG lưu database/cloud (client giữ ở sessionStorage của tab).
+  // CỦA MÌNH để chạy lại. Client đoán nhà cung cấp từ prefix key (gsk_ → Groq,
+  // AIza → Gemini, sk-or- → OpenRouter, sk-ant- → Anthropic, xai- → xAI, ... —
+  // xem bảng đầy đủ trong arenaUserKeyEngines.js + detectEngineFromApiKey ở
+  // lib/api.ts) và gửi kèm `engine` tương ứng + `userApiKey`. Key của user
+  // chỉ sống trong request này: KHÔNG log, KHÔNG lưu database/cloud (client
+  // giữ ở sessionStorage của tab để dùng tiếp trong session).
   if (envSource === undefined) envSource = process.env
-  const forcedEngineForKey = engine === 'groq' || engine === 'gemini' ? engine : null
+  const forcedEngineForKey = isArenaEngineName(engine) ? engine : null
   if (userApiKey && forcedEngineForKey) {
     const keyString = String(userApiKey).trim()
-    const baseKeyName = forcedEngineForKey === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'
-    const expectedPrefix = forcedEngineForKey === 'groq' ? 'gsk_' : 'AIza'
-    if (!keyString.startsWith(expectedPrefix)) {
-      throw new BringAnyIdeaToLifeProxyError(
-        `API key không đúng định dạng của ${forcedEngineForKey === 'groq' ? 'Groq (bắt đầu bằng "gsk_")' : 'Gemini/Google (bắt đầu bằng "AIza")'}.`,
-        400,
-      )
+    if (isArenaUserKeyEngine(forcedEngineForKey)) {
+      // openai/anthropic/xai/...: validate prefix theo bảng chung; key được
+      // truyền THẲNG vào adapter (không đụng envSource/key pool server).
+      assertArenaUserKeyMatchesEngine(forcedEngineForKey, keyString)
+    } else {
+      // groq/gemini (engine nội bộ chạy bằng key pool server): key của user
+      // THAY THẾ TOÀN BỘ pool (bản + các biến đánh số GROQ_API_KEY1..n /
+      // GEMINI_API_KEY1..n, xem api/_lib/apiKeyPool.js) CHỈ trong request này.
+      const baseKeyName = forcedEngineForKey === 'groq' ? 'GROQ_API_KEY' : 'GEMINI_API_KEY'
+      const expectedPrefix = forcedEngineForKey === 'groq' ? 'gsk_' : 'AIza'
+      if (!keyString.startsWith(expectedPrefix)) {
+        throw new BringAnyIdeaToLifeProxyError(
+          `API key không đúng định dạng của ${forcedEngineForKey === 'groq' ? 'Groq (bắt đầu bằng "gsk_")' : 'Gemini/Google (bắt đầu bằng "AIza")'}.`,
+          400,
+        )
+      }
+      const overridden = { ...envSource, [baseKeyName]: keyString }
+      const numberedPattern = new RegExp(`^${baseKeyName}\\d+$`)
+      for (const name of Object.keys(overridden)) {
+        if (numberedPattern.test(name)) delete overridden[name]
+      }
+      envSource = overridden
     }
-    const overridden = { ...envSource, [baseKeyName]: keyString }
-    const numberedPattern = new RegExp(`^${baseKeyName}\\d+$`)
-    for (const name of Object.keys(overridden)) {
-      if (numberedPattern.test(name)) delete overridden[name]
-    }
-    envSource = overridden
   }
   if (!prompt) throw new BringAnyIdeaToLifeProxyError('Missing prompt', 400)
 
@@ -819,6 +830,52 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     }
   }
 
+  // Engine chạy bằng KEY CỦA USER (openai/anthropic/xai/openrouter/deepseek/
+  // perplexity/fireworks/mistral/cerebras/githubmodels/huggingface/together —
+  // bảng đầy đủ trong arenaUserKeyEngines.js): hoàn toàn độc lập với key pool
+  // server nên xử lý SỚM tại đây — TRƯỚC cả đoạn kiểm tra env GROQ/GEMINI bên
+  // dưới (server có thể không có env key nào mà key của user vẫn chạy được) —
+  // rồi return ngay. Chỉ hỗ trợ TEXT và LINK VIDEO có transcript/phụ đề (đọc
+  // transcript giống nhánh Groq), CHƯA hỗ trợ ảnh/file upload — đúng phạm vi
+  // input của arena (mô tả text + link video).
+  if (isArenaEngineName(engine) && isArenaUserKeyEngine(engine)) {
+    const providerLabel = ARENA_USER_KEY_ENGINE_TABLE[engine].label
+    if (!userApiKey) {
+      throw new BringAnyIdeaToLifeProxyError(`${providerLabel} chạy bằng API key của chính bạn — hãy dán key vào ô "Chạy lại bằng API key của bạn" dưới panel lỗi.`, 400)
+    }
+    if (fileBase64 || imageUrl || geminiFileUri || (Array.isArray(frameImages) && frameImages.length > 0)) {
+      throw new BringAnyIdeaToLifeProxyError('Engine nhập bằng key người dùng hiện hỗ trợ TEXT và LINK VIDEO có phụ đề — chưa hỗ trợ ảnh/PDF/file video upload. Hãy đấu bằng mô tả text hoặc link video.', 422)
+    }
+    let transcript
+    if (videoUrl) {
+      const isFacebook = isFacebookVideoUrl(videoUrl)
+      let transcriptResult = null
+      try {
+        transcriptResult = isFacebook ? await fetchFacebookTranscript(videoUrl) : await fetchYoutubeTranscript(videoUrl)
+      } catch (transcriptErr) {
+        throw new BringAnyIdeaToLifeProxyError(`${providerLabel} không xem được video trực tiếp và không lấy được transcript/phụ đề của video này (${transcriptErr?.message || transcriptErr}). Thử video có bật phụ đề CC.`, 422)
+      }
+      if (!transcriptResult || transcriptResult.transcript.length < MIN_TRANSCRIPT_CHARS) {
+        throw new BringAnyIdeaToLifeProxyError(`Video không có transcript/phụ đề đủ dài — ${providerLabel} chỉ đọc được TEXT transcript, không xem được video trực tiếp. Thử video có bật phụ đề CC.`, 422)
+      }
+      transcript = transcriptResult.transcript
+    }
+    try {
+      const generated = await runArenaUserKeyGenerate({
+        engine,
+        apiKey: userApiKey,
+        prompt,
+        transcript,
+        systemInstruction: SYSTEM_INSTRUCTION,
+        envSource,
+      })
+      return { html: cleanHtml(generated.html), source: engine }
+    } catch (err) {
+      if (err instanceof ArenaUserKeyEngineError) throw new BringAnyIdeaToLifeProxyError(err.message, err.status)
+      throw new BringAnyIdeaToLifeProxyError(err?.message || `${providerLabel} gặp sự cố khi tạo app.`, 502)
+    }
+  }
+
   const hasGroq = countApiKeyPool('GROQ_API_KEY', { envSource }) > 0
   const hasGemini = countApiKeyPool('GEMINI_API_KEY', { envSource }) > 0
 
@@ -829,15 +886,16 @@ export async function runBringAnyIdeaToLifeGenerate({ prompt, fileBase64, mimeTy
     )
   }
 
-  // engine = 'groq' | 'gemini' — chế độ GON ARENA (xem components/ArenaDuel.tsx):
-  // client chủ động ÉP CHẠY ĐÚNG 1 engine, bỏ qua chuỗi fallback tự động, để
-  // gọi song song 2 request từ CÙNG 1 input (1 ép Groq, 1 ép Gemini) rồi hiển
-  // thị 2 kết quả ẩn danh Model A/B cho người dùng vote (giống arena.ai).
-  // Nếu không ép ở server, khi 1 model lỗi code fallback bên dưới sẽ LẶNG LẼ
-  // đổi sang model còn lại — khiến 2 "đấu thủ ẩn danh" vô tình là CÙNG 1
-  // model, phá vỡ phép so sánh. Không truyền engine (mặc định, mọi luồng cũ)
-  // thì hành vi Groq-trước/Gemini-dự-phòng giữ nguyên 100%.
-  const forcedEngine = engine === 'groq' || engine === 'gemini' ? engine : null
+  // engine = 'groq' | 'gemini' | engine-key-user (xem arenaUserKeyEngines.js)
+  // — chế độ GON ARENA (xem components/ArenaDuel.tsx): client chủ động ÉP
+  // CHẠY ĐÚNG 1 engine, bỏ qua chuỗi fallback tự động, để gọi song song 2
+  // request từ CÙNG 1 input (1 ép Groq, 1 ép Gemini) rồi hiển thị 2 kết quả
+  // ẩn danh Model A/B cho người dùng vote (giống arena.ai). Nếu không ép ở
+  // server, khi 1 model lỗi code fallback bên dưới sẽ LẶNG LẼ đổi sang model
+  // còn lại — khiến 2 "đấu thủ ẩn danh" vô tình là CÙNG 1 model, phá vỡ phép
+  // so sánh. Không truyền engine (mặc định, mọi luồng cũ) thì hành vi
+  // Groq-trước/Gemini-dự-phòng giữ nguyên 100%.
+  const forcedEngine = isArenaEngineName(engine) ? engine : null
   if (forcedEngine === 'groq' && !hasGroq) {
     throw new BringAnyIdeaToLifeProxyError('Arena yêu cầu Groq nhưng chưa cấu hình GROQ_API_KEY (hoặc GROQ_API_KEY1, ...) trên server.', 501)
   }

@@ -30,6 +30,7 @@ import { runVibeCheckGenerate, VibeCheckProxyError } from './_lib/vibeCheckProxy
 import { runAiChatbotControlGenerate, AiChatbotControlProxyError } from './_lib/aiChatbotControlProxy.js'
 import { runVideoToLearningGenerate, runPageToLearningGenerate, VideoToLearningProxyError } from './_lib/videoToLearningProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './_lib/bringAnyIdeaToLifeProxy.js'
+import { isArenaEngineName } from './_lib/arenaUserKeyEngines.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCodeProxy.js'
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, loadBringAnyIdeaToLifeCreationFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { searchYoutubeVideoLinks, YoutubeSearchScrapeError } from './_lib/youtubeSearchScrape.js'
@@ -228,16 +229,21 @@ export default async function handler(req, res) {
         // upload trực tiếp — cho phép thử Groq (miễn phí) trước cho cả video,
         // thay vì luôn đi thẳng Gemini. Xem ghi chú đầy đủ trong bringAnyIdeaToLifeProxy.js.
         frameImages: Array.isArray(body.frameImages) ? body.frameImages : undefined,
-        // Chế độ GON ARENA: client ÉP đúng 1 engine ('groq' | 'gemini') cho
-        // từng request song song để so sánh ẩn danh 2 model — server sẽ không
-        // fallback chéo khi engine bị ép (xem forcedEngine trong proxy).
-        engine: body.engine === 'groq' || body.engine === 'gemini' ? body.engine : undefined,
+        // Chế độ GON ARENA: client ÉP đúng 1 engine cho từng request song
+        // song để so sánh ẩn danh 2 model — server sẽ không fallback chéo khi
+        // engine bị ép (xem forcedEngine trong proxy). Danh sách engine hợp
+        // lệ = ARENA_ENGINE_NAMES (api/_lib/arenaUserKeyEngines.js): 'groq'/
+        // 'gemini' (key pool server) + 12 engine chạy bằng KEY CỦA USER
+        // (openai, anthropic, xai, deepseek...).
+        engine: isArenaEngineName(body.engine) ? body.engine : undefined,
         // Arena: khi engine mặc định lỗi, user có thể dán API KEY CỦA CHÍNH
-        // MÌNH để chạy lại (client đoán model theo prefix gsk_/AIza). Chỉ
-        // chấp nhận khi đã ép engine — server dùng key này thay key pool cho
-        // ĐÚNG request này rồi quên, KHÔNG lưu/log (xem bringAnyIdeaToLifeProxy.js).
+        // MÌNH để chạy lại (client đoán model theo prefix key — gsk_/AIza/
+        // sk-ant-/sk-or-/hf_..., hoặc chọn tay khi key không prefix — xem
+        // lib/api.ts detectEngineFromApiKey/ARENA_PROVIDER_INFO). Chỉ chấp
+        // nhận khi đã ép engine — server dùng key này cho ĐÚNG request này
+        // rồi quên, KHÔNG lưu/log (xem bringAnyIdeaToLifeProxy.js).
         userApiKey:
-          (body.engine === 'groq' || body.engine === 'gemini') && typeof body.userApiKey === 'string'
+          isArenaEngineName(body.engine) && typeof body.userApiKey === 'string'
             ? body.userApiKey.trim().slice(0, 200)
             : undefined,
       })
