@@ -232,6 +232,14 @@ export default async function handler(req, res) {
         // từng request song song để so sánh ẩn danh 2 model — server sẽ không
         // fallback chéo khi engine bị ép (xem forcedEngine trong proxy).
         engine: body.engine === 'groq' || body.engine === 'gemini' ? body.engine : undefined,
+        // Arena: khi engine mặc định lỗi, user có thể dán API KEY CỦA CHÍNH
+        // MÌNH để chạy lại (client đoán model theo prefix gsk_/AIza). Chỉ
+        // chấp nhận khi đã ép engine — server dùng key này thay key pool cho
+        // ĐÚNG request này rồi quên, KHÔNG lưu/log (xem bringAnyIdeaToLifeProxy.js).
+        userApiKey:
+          (body.engine === 'groq' || body.engine === 'gemini') && typeof body.userApiKey === 'string'
+            ? body.userApiKey.trim().slice(0, 200)
+            : undefined,
       })
       return res.status(200).json(payload)
     } catch (err) {
