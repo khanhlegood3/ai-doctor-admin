@@ -67,6 +67,7 @@
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { connectToDatabase } from './_lib/mongodb.js';
+import { verifyGoogleAccessToken, linkGoogleIdentity } from './_lib/googleIdentity.js';
 
 const COLLECTION = 'user_profiles';
 const USER_ID_REGEX = /^[A-Za-z0-9_]{3,24}$/;
@@ -243,6 +244,17 @@ export default async function handler(req, res) {
         try { body = JSON.parse(body); } catch { body = {}; }
       }
 
+      if (body?.action === 'loginWithGoogle') {
+        try {
+          const profile = await verifyGoogleAccessToken(body.accessToken);
+          const identity = await linkGoogleIdentity(col, body, profile);
+          return res.status(200).json({ ok: true, ...identity });
+        } catch (error) {
+          // Do not log Google tokens or raw upstream response bodies.
+          return res.status(error.status || 503).json({ error: error.status ? error.message : 'Không liên kết được Google. Vui lòng thử lại.' });
+        }
+      }
+
       // Admin: duyệt / từ chối 1 yêu cầu dùng API trả phí.
       if (body?.action === 'decideApiAccess') {
         if (!isValidAdminSecret(body?.adminSecret)) {
@@ -320,7 +332,7 @@ export default async function handler(req, res) {
       // bị mới (setFields.secretHash = secretHash bên dưới), từ đó "chuyển
       // quyền chủ sở hữu cục bộ" sang thiết bị vừa đăng nhập thành công.
       const passwordAuthorized = !!(existing?.passwordHash && password && verifyPassword(password, existing.passwordSalt, existing.passwordHash));
-      if (existing?.secretHash && existing.secretHash !== secretHash && !passwordAuthorized) {
+      if (existing?.secretHash && existing.secretHash !== secretHash && !existing.googleDeviceSecretHashes?.includes(secretHash) && !passwordAuthorized) {
         return res.status(403).json({ error: 'Không có quyền cập nhật tên cho UUID này (secret không khớp chủ sở hữu đã đăng ký trước đó).' });
       }
 

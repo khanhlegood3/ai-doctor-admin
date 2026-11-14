@@ -659,7 +659,9 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeIdentity, readActiveIdentity } from '/device-identity.js';
+await initializeIdentity();
 (function(){
   "use strict";
 
@@ -738,21 +740,13 @@
   function saveLB(list){ try{ localStorage.setItem(LB_KEY, JSON.stringify(list.slice(-MAX_ENTRIES))); }catch(e){} }
   function getPlayerName(){ return (localStorage.getItem(NAME_KEY) || "").trim(); }
   function setPlayerName(n){ try{ localStorage.setItem(NAME_KEY, n); }catch(e){} }
-  function getPlayerUUID(){ return (localStorage.getItem(UUID_KEY) || "").trim(); }
+  function getPlayerUUID(){ return readActiveIdentity()?.uuid || ""; }
   function setPlayerUUID(u){ try{ localStorage.setItem(UUID_KEY, u || ""); }catch(e){} }
 
-  // Người chơi standalone (chưa được app cha gán UUID qua
-  // window.setPlayerIdentity) vẫn cần 1 UUID ổn định để đăng ký affiliate.
-  // Chỉ tự sinh nếu CHƯA có sẵn — không ghi đè UUID app cha đã gán.
+  // Both embedded and standalone portal use the same IndexedDB identity.
   function ensureOwnUUID(){
-    let uuid = getPlayerUUID();
-    if(!uuid){
-      uuid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-        return v.toString(16);
-      }));
-      setPlayerUUID(uuid);
-    }
+    const uuid = getPlayerUUID();
+    if(!uuid) throw new Error('UID chưa được khởi tạo');
     return uuid;
   }
 
@@ -886,6 +880,7 @@
   // Fallback qua postMessage — dùng khi truy cập contentWindow trực tiếp bị
   // chặn (ví dụ do sandbox), theo đúng pattern PORTAL_VKEY đã có sẵn.
   window.addEventListener('message', (event) => {
+    if(event.origin !== location.origin || event.source !== parent) return;
     const data = event.data;
     if(!data || data.type !== 'PORTAL_PLAYER_IDENTITY') return;
     window.setPlayerIdentity(data.name, data.uuid);

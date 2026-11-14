@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { FAMILY_MEMBERS_CHANGED_EVENT, FAMILY_USER_STORAGE_KEY, LXK_PATIENT_PROFILE, getFamilyOwnerKey } from '../components/family/familyData.js'
-import { getAnonSession, saveAnonSession, updateAnonSession, deleteAnonSession, clearAllGuestData, migrateGuestDataToUuid } from '../lib/anonDB.js'
+import { updateAnonSession, clearAllGuestData } from '../lib/anonDB.js'
+
+import { getOrCreateAnonymous, consumeAnonymous, publishIdentity, withIdentityLock, createGuestProfile } from '../../public/device-identity.js'
 
 const AuthContext = createContext(null)
 const ADMIN_EMAIL = 'khanhlegood1@gmail.com'
@@ -128,6 +130,7 @@ function googleOAuthPopup() {
             if (!res.ok) throw new Error('Không lấy được thông tin tài khoản Google')
             const info = await res.json()
             resolve({
+              accessToken: tokenResponse.access_token, // transient: never persisted
               email: info.email,
               name: info.name,
               given_name: info.given_name || '',
@@ -166,58 +169,8 @@ function simulateAppleOAuth() {
   }
 }
 
-// ─── Anonymous UUID Generator ─────────────────────────────────────────────────
-// Format: HEALTH-YYYYMMDDhhmmss-XXXXXXXX-SALT
-// SALT = short hash derived from browser fingerprint (userAgent + screen + timezone)
-function generateAnonUUID() {
-  const now = new Date()
-  const pad = (n, l = 2) => String(n).padStart(l, '0')
-  const timestamp =
-    String(now.getFullYear()) +
-    pad(now.getMonth() + 1) +
-    pad(now.getDate()) +
-    pad(now.getHours()) +
-    pad(now.getMinutes()) +
-    pad(now.getSeconds())
-  const random = Math.floor(10000000 + Math.random() * 90000000) // 8 digits
-  // Device salt: simple non-cryptographic fingerprint
-  const raw = `${navigator.userAgent}|${screen.width}x${screen.height}|${Intl.DateTimeFormat().resolvedOptions().timeZone}`
-  let hash = 0
-  for (let i = 0; i < raw.length; i++) { hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0 }
-  const salt = Math.abs(hash).toString(36).toUpperCase().padStart(6, '0').slice(0, 6)
-  return `HEALTH-${timestamp}-${random}-${salt}`
-}
-
-function seedAdmin() {
-  const users = getUsers()
-  if (!users[ADMIN_EMAIL]) {
-    const adminName = 'Lê Xuân Khánh'
-    const adminAvatar = `https://ui-avatars.com/api/?name=Le+Xuan+Khanh&background=00b8cc&color=fff&size=128&bold=true&rounded=true`
-    users[ADMIN_EMAIL] = {
-      email: ADMIN_EMAIL,
-      uuid: generateAnonUUID(),
-      name: adminName,
-      given_name: 'Khánh',
-      family_name: 'Lê',
-      // Use Google avatar as default — user can change later
-      avatar: adminAvatar,
-      googleAvatar: adminAvatar, // keep original Google avatar
-      provider: 'google',
-      password: 'admin123',
-      specialty: 'Quản trị hệ thống',
-      phone: '',
-      profileComplete: true, // admin profile pre-seeded
-      createdAt: '2024-01-01T00:00:00.000Z',
-      patients: [],
-      records: [],
-    }
-    saveUsers(users)
-  } else if (!users[ADMIN_EMAIL].uuid) {
-    // Backfill uuid for an admin record seeded before uuid existed
-    users[ADMIN_EMAIL].uuid = generateAnonUUID()
-    saveUsers(users)
-  }
-}
+// Legacy named accounts without a UUID get a random identifier once.
+const generateAnonUUID = () => createGuestProfile().uuid
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -227,7 +180,6 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const init = async () => {
-      seedAdmin()
       // 1. Restore named session first
       const session = getSavedSession()
       if (session) {
@@ -239,39 +191,37 @@ export function AuthProvider({ children }) {
             users[session.email] = restored
             saveUsers(users)
           }
+          await consumeAnonymous(restored.uuid).catch(e => console.warn('Không hoàn tất được phiên nâng cấp trước đó:', e))
+          publishIdentity(restored)
           setUser({ ...restored, isAdmin: session.email === ADMIN_EMAIL, ...enrichRoleFields(restored) })
           setLoading(false)
           return
         }
       }
-      // 2. Restore anonymous session from IndexedDB
+      // Create immediately on first visit, or restore the exact IndexedDB UID.
       try {
-        const anon = await getAnonSession()
-        // `uuid` is the unified identifier field (same name used for every
-        // user type). Older guest sessions stored it as `anonUUID` — accept
-        // either so an existing guest's journey is never lost on this device.
-        const existingUUID = anon?.uuid || anon?.anonUUID
-        if (existingUUID) {
-          const backfilled = {
-            given_name: '', family_name: '', specialty: '', phone: '',
-            avatarCustomized: false, profileComplete: false,
-            level: 1, journeyProgress: 0, achievements: 0,
-            ...anon,
-            uuid: existingUUID,
-          }
-          delete backfilled.anonUUID
-          if (!anon.uuid) {
-            // One-time migration: persist under the new field name going forward
-            updateAnonSession({ uuid: existingUUID }).catch(() => {})
-          }
-          setUser({ ...backfilled, isAnonymous: true, isAdmin: false })
-        }
+        const anon = await getOrCreateAnonymous()
+        saveSession(null)
+        publishIdentity(anon)
+        setUser(anon)
       } catch (e) {
-        console.warn('anonDB restore failed, falling back to localStorage', e)
+        console.error('Không khởi tạo được UID trong IndexedDB:', e)
       }
       setLoading(false)
     }
     init()
+  }, [])
+
+  useEffect(() => { if (user?.uuid) publishIdentity(user) }, [user?.uuid, user?.name, user?.userId])
+
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (!['cdoc_session', 'cdoc_active_identity'].includes(event.key)) return
+      // A different tab changed accounts; remount all per-user game caches.
+      window.location.reload()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   // ─── Đồng bộ TÊN của chính mình lên server theo UUID (best-effort) ───────
@@ -321,7 +271,7 @@ export function AuthProvider({ children }) {
         if (!data?.userId) return
         setUser(u => (u && u.uuid === uuid && !u.userId) ? { ...u, userId: data.userId } : u)
         if (user?.isAnonymous) {
-          updateAnonSession({ userId: data.userId }).catch(() => {})
+          updateAnonSession({ userId: data.userId }, uuid).catch(() => {})
         } else if (user?.email) {
           try {
             const users = getUsers()
@@ -361,72 +311,15 @@ export function AuthProvider({ children }) {
   // Enrich and save a new or returning user, then set as current session
   const _finalize = (u) => {
     const enriched = { ...u, isAdmin: u.email === ADMIN_EMAIL, ...enrichRoleFields(u) }
-    setUser(enriched)
     saveSession({ email: u.email })
+    publishIdentity(enriched)
+    setUser(enriched)
     return enriched
   }
 
-  // ── Uuid cho TÀI KHOẢN THẬT mới tạo (đăng ký email hoặc lần đầu login
-  // Google/Apple) ───────────────────────────────────────────────────────────
-  // Yêu cầu: uuid CHỈ được sinh 1 LẦN DUY NHẤT — nếu thiết bị này đã có 1
-  // phiên "khách" (anonymous, vd từ lúc bấm nút mic trên Anh Hùng Hiến Tặng
-  // hoặc "Tiếp tục với tư cách khách") thì tài khoản thật phải TÁI SỬ DỤNG
-  // đúng uuid đó thay vì sinh uuid mới, để mọi thứ đã lưu theo uuid (lịch sử
-  // chat, v.v.) tự động "đồng bộ" sang tài khoản thật — không bị tách rời
-  // thành 2 danh tính khác nhau. Chỉ khi thiết bị CHƯA từng có phiên nào
-  // (guest lẫn tài khoản) mới sinh uuid mới hoàn toàn.
-  const resolveUUIDForNewAccount = async () => {
-    // Nếu đang có 1 link giới thiệu (?ref=...) chờ xử lý TRÙNG với chính uuid
-    // ẩn danh sắp được tái sử dụng bên dưới -> đây rất có thể là ca "User 1
-    // dùng máy này (đang có sẵn phiên ẩn danh của User 1) để đăng ký tài
-    // khoản THẬT (email/Google) CHO User 2, bằng đúng link giới thiệu của
-    // chính User 1" — vd ngồi cạnh nhau, User 1 đưa máy cho User 2 gõ email/
-    // chọn tài khoản Google của User 2. Nếu cứ tái sử dụng uuid ẩn danh như
-    // bình thường, tài khoản MỚI (của User 2) sẽ vô tình trùng UUID với
-    // chính người giới thiệu (User 1) -> biến 1 lượt giới thiệu hợp lệ thành
-    // "tự giới thiệu chính mình" (bị chặn) một cách oan uổng. Trường hợp này
-    // KHÔNG tái sử dụng uuid ẩn danh — sinh uuid mới hoàn toàn cho tài khoản
-    // thật, để quan hệ F1 giữa 2 người tách biệt được ghi nhận đúng.
-    const pendingReferralUuid = (() => {
-      try {
-        return JSON.parse(sessionStorage.getItem('cdoc_pending_referral') || 'null')?.uuid || null
-      } catch { return null }
-    })()
-
-    // 1. Phiên anonymous đang có sẵn trong state (đã gọi loginAnonymous() ở
-    // tab này, vd qua nút mic) -> dùng luôn, khỏi cần đọc IndexedDB.
-    if (user?.isAnonymous && user?.uuid && user.uuid !== pendingReferralUuid) {
-      // Khoá lại toàn bộ dữ liệu journey/inventory/records đang ở "bucket
-      // khách chung" của thiết bị vào ĐÚNG uuid vừa nâng cấp — nếu không làm
-      // bước này, dữ liệu đó vẫn nằm ở dạng "chưa có chủ" và một vị khách
-      // khác dùng chung thiết bị sau khi đăng xuất có thể vô tình ghi đè lên.
-      migrateGuestDataToUuid(user.uuid).catch(() => {})
-      // Uuid này vừa được "thăng cấp" thành tài khoản thật -> xoá phiên
-      // anonymous cũ trong IndexedDB, để nếu có 1 khách KHÁC dùng chung
-      // thiết bị này sau khi đăng xuất, loginAnonymous() sẽ sinh uuid mới
-      // thay vì vô tình dùng lại uuid đã thuộc về tài khoản vừa tạo.
-      deleteAnonSession().catch(() => {})
-      return user.uuid
-    }
-    // 2. Chưa có trong state (vd người dùng mở thẳng form đăng ký mà chưa
-    // từng bấm mic/"Tiếp tục với tư cách khách" trong tab này) -> vẫn có
-    // thể đã tồn tại phiên anonymous từ lần ghé thăm trước TRÊN CÙNG THIẾT
-    // BỊ (lưu bền trong IndexedDB) -> đọc ra dùng lại.
-    try {
-      const anon = await getAnonSession()
-      const existingUUID = anon?.uuid || anon?.anonUUID
-      if (existingUUID && existingUUID !== pendingReferralUuid) {
-        migrateGuestDataToUuid(existingUUID).catch(() => {}) // tương tự lý do ở nhánh (1)
-        deleteAnonSession().catch(() => {}) // tương tự lý do ở nhánh (1)
-        return existingUUID
-      }
-    } catch (e) {
-      console.warn('Không đọc được phiên anonymous khi tạo tài khoản mới:', e)
-    }
-    // 3. Thật sự chưa từng có phiên nào trước đó (hoặc bị bỏ qua ở trên vì
-    // trùng chính người giới thiệu) -> sinh uuid mới duy nhất 1 lần.
-    return generateAnonUUID()
-  }
+  // Referrals must NEVER fork the UID. Resolve without deleting the guest;
+  // a failed registration leaves the same guest and all their progress intact.
+  const resolveUUIDForNewAccount = async () => (await getOrCreateAnonymous()).uuid
 
   // Create user from OAuth profile if first time, else merge only non-overridable fields
   const _upsertOAuth = async (oauthProfile) => {
@@ -436,8 +329,10 @@ export function AuthProvider({ children }) {
     if (!existing) {
       // First-time login: seed from Google/Apple profile
       const newUser = {
+        ...(await getOrCreateAnonymous()),
         email: oauthProfile.email,
         uuid: await resolveUUIDForNewAccount(),
+        isAnonymous: false,
         name: oauthProfile.name,                  // from Google
         given_name: oauthProfile.given_name,
         family_name: oauthProfile.family_name,
@@ -456,6 +351,7 @@ export function AuthProvider({ children }) {
       }
       users[oauthProfile.email] = newUser
       saveUsers(users)
+      await consumeAnonymous(newUser.uuid)
       setNeedsProfileSetup(true)              // show profile setup after login
       return _finalize(newUser)
     } else {
@@ -473,70 +369,66 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // ── Anonymous login: no account needed, progress stored in IndexedDB ────────
-  const loginAnonymous = async () => {
-    // Reuse existing anon session if present (same device)
-    try {
-      const existing = await getAnonSession()
-      const existingUUID = existing?.uuid || existing?.anonUUID
-      if (existingUUID) {
-        const backfilled = {
-          given_name: '', family_name: '', specialty: '', phone: '',
-          avatarCustomized: false, profileComplete: false,
-          level: 1, journeyProgress: 0, achievements: 0,
-          ...existing,
-          uuid: existingUUID,
-        }
-        delete backfilled.anonUUID
-        if (!existing.uuid) {
-          // One-time migration: persist under the new field name going forward
-          updateAnonSession({ uuid: existingUUID }).catch(() => {})
-        }
-        const anonUser = { ...backfilled, isAnonymous: true, isAdmin: false }
-        setUser(anonUser)
-        return anonUser
-      }
-    } catch (e) {
-      console.warn('anonDB read failed', e)
-    }
-    const uuid = generateAnonUUID()
-    const anonUser = {
-      uuid,
-      name: 'Guest Explorer',
-      given_name: 'Guest',
-      family_name: 'Explorer',
-      email: null,
-      provider: 'anonymous',
-      isAnonymous: true,
-      isAdmin: false,
-      avatar: null,
-      avatarCustomized: false,
-      specialty: '',
-      phone: '',
-      profileComplete: false,
-      level: 1,
-      journeyProgress: 0,
-      achievements: 0,
-      createdAt: new Date().toISOString(),
-    }
-    try {
-      await saveAnonSession(anonUser)
-    } catch (e) {
-      console.warn('anonDB write failed, session will not persist', e)
-    }
-    setUser(anonUser)
-    return anonUser
-  }
+  // Explicit switch to anonymous: reuse the one pending guest (if any).
+  // A new UID is created only when the previous one was already linked.
+  const loginAnonymous = () => withIdentityLock(async () => {
+    const anon = await getOrCreateAnonymous()
+    saveSession(null)
+    publishIdentity(anon)
+    setNeedsProfileSetup(false)
+    setUser(anon)
+    return anon
+  })
 
-  const loginWithGoogle = async (adminHint = null) => {
-    // adminHint kept for backward-compat but real OAuth always opens popup
+  const loginWithGoogle = async () => {
     const profile = await googleOAuthPopup()
-    return _upsertOAuth(profile)
+    return withIdentityLock(async () => {
+      const users = getUsers()
+      const existing = users[profile.email]
+      // Existing accounts must not consume the pending guest for another user.
+      const anon = existing?.uuid ? null : await getOrCreateAnonymous()
+      const candidateUuid = existing?.uuid || anon.uuid
+      const secret = getOrCreateProfileSecret(candidateUuid)
+      if (!secret) throw new Error('Không lưu được khoá sở hữu trên thiết bị này.')
+      const res = await fetch('/api/user-profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'loginWithGoogle', accessToken: profile.accessToken, uuid: candidateUuid, secret, existingAccount: !!existing?.uuid }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.uuid) throw new Error(data.error || 'Không liên kết được Google. UID ẩn danh vẫn được giữ nguyên.')
+      // Do not silently rewrite an established local UID: old deployments may
+      // already have multiple UIDs for this Google account; needs audited merge.
+      if (existing?.uuid && existing.uuid !== data.uuid) {
+        throw new Error('Tài khoản này có UID cũ khác UID trên server. Cần đối soát dữ liệu trước khi chuyển tài khoản.')
+      }
+      // Server authorized the submitted device secret for its canonical UID.
+      localStorage.setItem(`${PROFILE_SECRET_PREFIX}${data.uuid}`, secret)
+      const sameGuest = anon?.uuid === data.uuid
+      const account = {
+        ...(sameGuest ? anon : {}), ...existing,
+        uuid: data.uuid, email: profile.email, provider: 'google',
+        isAnonymous: false, isAdmin: profile.email === ADMIN_EMAIL,
+        name: existing?.name || profile.name,
+        given_name: existing?.given_name || profile.given_name,
+        family_name: existing?.family_name || profile.family_name,
+        avatar: existing?.avatarCustomized ? existing.avatar : profile.picture,
+        googleAvatar: profile.picture, email_verified: true,
+        userId: data.userId || existing?.userId || (sameGuest ? anon?.userId : null),
+        apiAccessStatus: data.apiAccessStatus || 'none',
+        profileComplete: existing?.profileComplete || false,
+        createdAt: existing?.createdAt || anon?.createdAt || new Date().toISOString(),
+      }
+      users[profile.email] = account
+      saveUsers(users)
+      if (sameGuest) await consumeAnonymous(data.uuid)
+      setNeedsProfileSetup(!account.profileComplete)
+      return _finalize(account)
+    })
   }
 
   const loginWithApple = async () => {
     const profile = simulateAppleOAuth()
-    return _upsertOAuth(profile)
+    return withIdentityLock(() => _upsertOAuth(profile))
   }
 
   // wantsApiAccess: true khi user tick "Tôi muốn dùng API trả phí" ở form
@@ -548,7 +440,7 @@ export function AuthProvider({ children }) {
   // không còn chỉ so sánh plaintext cục bộ như trước. Vẫn giữ tương thích
   // với tài khoản tạo TRƯỚC thay đổi này (chỉ tồn tại trong localStorage,
   // server chưa từng biết) — xem nhánh "Login" bên dưới.
-  const loginWithEmail = async (email, password, name = null, wantsApiAccess = false) => {
+  const loginWithEmail = (email, password, name = null, wantsApiAccess = false) => withIdentityLock(async () => {
     const users = getUsers()
     if (name) {
       // Register
@@ -607,6 +499,7 @@ export function AuthProvider({ children }) {
       }
       users[email] = u
       saveUsers(users)
+      await consumeAnonymous(uuid)
       setNeedsProfileSetup(true)
       return _finalize(u)
     } else {
@@ -681,25 +574,22 @@ export function AuthProvider({ children }) {
 
       return _finalize(u)
     }
-  }
+  })
 
-  const logout = () => {
-    setUser(null)
-    setNeedsProfileSetup(false)
-    saveSession(null)
-    // Logout only ends the current session — it never deletes anyone's data.
-    // Guest (anonymous) progress stays in IndexedDB so the same UUID and journey
-    // are restored next time loginAnonymous() runs on this device. Permanent
-    // removal only happens via deleteAccount().
-  }
+  const logout = () => loginAnonymous().catch(error => {
+    console.error('Không chuyển được sang ẩn danh:', error)
+    window.alert('Không lưu được UID ẩn danh vào IndexedDB. Vui lòng cho phép lưu dữ liệu trang web rồi thử lại.')
+  })
 
   // Called from ProfileSetupModal or Settings when user updates their info
   const updateProfile = (updates) => {
+    const { uuid: ignoredUuid, anonUUID: ignoredLegacyUuid, ...safeUpdates } = updates
+    updates = safeUpdates
     // Guest (anonymous) users have no email/localStorage record — persist to IndexedDB instead
     if (user?.isAnonymous) {
       const merged = { ...user, ...updates, profileComplete: true, isAnonymous: true, isAdmin: false }
       setUser(merged)
-      updateAnonSession({ ...updates, profileComplete: true }).catch(e => console.warn('anonDB profile update failed', e))
+      updateAnonSession({ ...updates, profileComplete: true }, user.uuid).catch(e => console.warn('anonDB profile update failed', e))
       return merged
     }
     const users = getUsers()
@@ -843,7 +733,7 @@ export function AuthProvider({ children }) {
     if (!res.ok) throw new Error(data?.error || 'Không thể cập nhật User ID.')
 
     if (user.isAnonymous) {
-      updateAnonSession({ userId: id }).catch(() => {})
+      updateAnonSession({ userId: id }, user.uuid).catch(() => {})
     } else if (user.email) {
       const users = getUsers()
       const existing = users[user.email] || user

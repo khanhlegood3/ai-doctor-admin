@@ -115,10 +115,7 @@ export default function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   const identity = getIdentity();
-  // uuid dùng để LƯU lên R2: identity.uuid thật (nếu đã đăng nhập) hoặc uuid
-  // ẩn danh riêng cho trình duyệt này (nếu đang duyệt dưới dạng Guest) — xem
-  // getOrCreateGuestUuid() trong lib/identity.ts. Việc TẢI R2 (loadHistory
-  // bên dưới) thì luôn lấy TOÀN HỆ THỐNG, không cần biết r2Uuid này.
+  // Same immutable UID as the parent app; initialized before App renders.
   const r2Uuid = identity.uuid || getOrCreateGuestUuid();
   const selected = selectedIndex !== null ? items[selectedIndex] : null;
 

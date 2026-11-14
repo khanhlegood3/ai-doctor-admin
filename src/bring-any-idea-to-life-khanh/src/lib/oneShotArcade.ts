@@ -166,109 +166,14 @@ export const ONE_SHOT_ARCADE_HTML = `<!DOCTYPE html>
     { id: 'ninja', emoji: '🥷', label: 'Ninja Bóng Tối', desc: 'a shadowy ninja villain in black with glowing crimson eyes and twin daggers' },
   ];
 
-  // ---------------------------------------------------------------------
-  // Danh tính người chơi cho leaderboard — ƯU TIÊN:
-  //   1) Tên tài khoản THẬT đang đăng nhập trên app chính, đọc trực tiếp
-  //      từ localStorage 'cdoc_session' (session hiện tại) + 'cdoc_users'
-  //      (bảng user), CÙNG key mà src/context/AuthContext.jsx dùng —
-  //      không tạo hệ thống tài khoản riêng cho game.
-  //   2) Nếu tài khoản có 'uuid'/'userId' nhưng CHƯA đặt tên hiển thị
-  //      (name rỗng) -> dùng userId ("mã người dùng" người dùng tự đặt 1
-  //      lần trong hồ sơ) làm tên hiển thị.
-  //   3) Nếu vẫn chưa có (khách chưa đăng nhập, đã có phiên "khách" từ
-  //      app chính lưu trong IndexedDB 'cdoc_guest') -> dùng uuid của
-  //      phiên khách đó (rút gọn) làm tên hiển thị. CHỈ ĐỌC, không bao
-  //      giờ tự mở/ tạo DB này nếu nó chưa tồn tại, để không vô tình phá
-  //      schema mà anonDB.js (app chính) đang quản lý.
-  //   4) Cuối cùng, nếu trình duyệt chặn hết (không cookie/site data từ
-  //      app chính, ví dụ mở game này độc lập) -> tự sinh 1 uuid CỤC BỘ
-  //      riêng cho game, chỉ dùng khi thật sự không tìm được danh tính
-  //      nào khác — hiển thị "Ẩn danh".
-  // Cùng 1 uuid được ghi thẳng lên leaderboard MongoDB dùng chung
-  // (api/game-leaderboard.js) nên nếu người chơi đã đăng nhập, điểm của
-  // họ sẽ nối tiếp đúng vào cùng 1 danh tính dù chơi ở game/thiết bị nào.
-  // ---------------------------------------------------------------------
-  function readLocalJSON(key) {
-    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; }
-  }
-
-  function resolveLoggedInAccount() {
-    var session = readLocalJSON('cdoc_session');
-    if (session && session.email) {
-      var users = readLocalJSON('cdoc_users') || {};
-      var rec = users[session.email];
-      if (rec && (rec.uuid || rec.name || rec.userId)) {
-        return { uuid: rec.uuid || null, name: rec.name || null, userId: rec.userId || null };
-      }
-    }
-    return null;
-  }
-
-  function guestDbExists() {
-    if (!window.indexedDB || typeof indexedDB.databases !== 'function') return Promise.resolve(false);
-    return indexedDB.databases().then(function (list) {
-      return Array.isArray(list) && list.some(function (d) { return d && d.name === 'cdoc_guest'; });
-    }).catch(function () { return false; });
-  }
-
-  // Chỉ ĐỌC phiên khách có sẵn — không set version khi open() và huỷ ngay
-  // nếu trình duyệt định chạy onupgradeneeded (nghĩa là DB chưa tồn tại
-  // đúng như mong đợi), để không bao giờ tự tạo/đổi schema 'cdoc_guest'.
-  function resolveGuestAccount() {
-    return guestDbExists().then(function (exists) {
-      if (!exists) return null;
-      return new Promise(function (resolve) {
-        try {
-          var req = indexedDB.open('cdoc_guest');
-          req.onupgradeneeded = function () { try { req.transaction.abort(); } catch (e) {} };
-          req.onerror = function () { resolve(null); };
-          req.onsuccess = function () {
-            var db = req.result;
-            try {
-              if (!db.objectStoreNames.contains('session')) { db.close(); return resolve(null); }
-              var tx = db.transaction('session', 'readonly');
-              var getReq = tx.objectStore('session').get('anon');
-              getReq.onsuccess = function () {
-                var row = getReq.result;
-                db.close();
-                resolve(row ? { uuid: row.uuid || null, name: row.name || null, userId: row.userId || null } : null);
-              };
-              getReq.onerror = function () { db.close(); resolve(null); };
-            } catch (e) { try { db.close(); } catch (e2) {} resolve(null); }
-          };
-        } catch (e) { resolve(null); }
-      });
-    }).catch(function () { return null; });
-  }
-
-  function localFallbackIdentity() {
-    var v = null;
-    try { v = localStorage.getItem('osa_fallback_uuid'); } catch (e) {}
-    if (!v) {
-      v = 'osa-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-      try { localStorage.setItem('osa_fallback_uuid', v); } catch (e) {}
-    }
-    return { uuid: v, name: null, userId: null };
-  }
-
-  var _identityPromise = null;
+  // Never mint a per-game fallback UID. Even standalone srcDoc games share
+  // the authoritative guest in cdoc_guest with the parent application.
   function resolveIdentity() {
-    if (_identityPromise) return _identityPromise;
-    _identityPromise = Promise.resolve().then(function () {
-      var acc = resolveLoggedInAccount();
-      if (acc) return acc;
-      return resolveGuestAccount().then(function (g) { return g || localFallbackIdentity(); });
+    return import('/device-identity.js').then(function (identity) {
+      return identity.initializeIdentity();
     }).then(function (acc) {
-      var uuid = acc.uuid || localFallbackIdentity().uuid;
-      var displayName = (acc.name && String(acc.name).trim())
-        || (acc.userId && String(acc.userId).trim())
-        || (uuid ? uuid.slice(0, 10) : 'Ẩn danh');
-      return { uuid: uuid, name: displayName };
-    }).catch(function () {
-      var fb = localFallbackIdentity();
-      return { uuid: fb.uuid, name: fb.uuid.slice(0, 10) };
+      return { uuid: acc.uuid, name: acc.name || acc.userId || acc.uuid.slice(0, 10) };
     });
-    return _identityPromise;
   }
 
   // ---------------------------------------------------------------------
