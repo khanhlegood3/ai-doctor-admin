@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test:identity": "node --test tests/*.test.js",
     "predev": "node scripts-copy-mediapipe-wasm.mjs && node scripts-copy-mediapipe-models.mjs && node scripts-copy-vibecheck-vendor.mjs",
     "build": "npm run build:main && npm run build:subapps",
     "build:main": "BUILD_TARGET=main vite build",
@@ -66,7 +67,9 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.5.2",
+    "fake-indexeddb": "^6.2.8",
     "postcss": "^8.5.16",
+    "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.19",
     "vite": "^5.4.1"
   }

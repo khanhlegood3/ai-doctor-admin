@@ -39,44 +39,7 @@
  * journey/inventory/records không bị bỏ lại trong bucket khách chung nữa.
  */
 
-const DB_NAME = 'cdoc_guest'
-const DB_VERSION = 1
-
-// ─── Open / upgrade ───────────────────────────────────────────────────────────
-let _db = null
-
-function openDB() {
-  if (_db) return Promise.resolve(_db)
-
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result
-
-      if (!db.objectStoreNames.contains('session')) {
-        db.createObjectStore('session', { keyPath: 'id' })
-      }
-      if (!db.objectStoreNames.contains('journey')) {
-        const s = db.createObjectStore('journey', { keyPath: 'id', autoIncrement: true })
-        s.createIndex('by_date', 'date')
-      }
-      if (!db.objectStoreNames.contains('inventory')) {
-        db.createObjectStore('inventory', { keyPath: 'id' })
-      }
-      if (!db.objectStoreNames.contains('records')) {
-        const s = db.createObjectStore('records', { keyPath: 'id', autoIncrement: true })
-        s.createIndex('by_type', 'type')
-      }
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' })
-      }
-    }
-
-    req.onsuccess = (e) => { _db = e.target.result; resolve(_db) }
-    req.onerror   = (e) => reject(e.target.error)
-  })
-}
+import { openIdentityDB as openDB } from '../../public/device-identity.js'
 
 // ─── Generic helpers ──────────────────────────────────────────────────────────
 function tx(storeName, mode, fn) {
@@ -135,11 +98,26 @@ export async function saveAnonSession(data) {
 }
 
 // Patch only the given fields onto the existing guest session (e.g. profile edits)
-export async function updateAnonSession(updates) {
-  const existing = await getAnonSession()
-  const merged = { ...(existing || {}), ...updates, id: 'anon' }
-  await tx('session', 'readwrite', s => s.put(merged))
-  return merged
+export async function updateAnonSession(updates, expectedUuid = null) {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const t = db.transaction('session', 'readwrite')
+    const store = t.objectStore('session')
+    let merged = null
+    const req = store.get('anon')
+    req.onsuccess = () => {
+      const existing = req.result
+      const uuid = existing?.uuid || existing?.anonUUID
+      if (!uuid || (expectedUuid && expectedUuid !== uuid)) return
+      // The UID is immutable; a late response must not recreate a consumed
+      // session or modify the next guest after switching Google accounts.
+      const { uuid: ignored, anonUUID: ignoredLegacy, ...safe } = updates
+      merged = { ...existing, ...safe, uuid, id: 'anon' }
+      store.put(merged)
+    }
+    t.oncomplete = () => resolve(merged)
+    t.onerror = t.onabort = () => reject(t.error)
+  })
 }
 
 export async function deleteAnonSession() {
@@ -227,7 +205,7 @@ export async function migrateGuestDataToUuid(uuid) {
   }))
 }
 
-// ─── Nuke everything (on logout / account upgrade) ───────────────────────────
+// ─── Explicit full reset only — NEVER use for logout / account upgrade ───────────────────────────
 export async function clearAllGuestData() {
   await Promise.all(['session', 'journey', 'inventory', 'records', 'settings'].map(clearStore))
 }

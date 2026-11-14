@@ -7,24 +7,13 @@
 // Lỗi ở đây KHÔNG được chặn UX chính vì IndexedDB đã lưu xong trước đó
 // (đúng pattern historyR2Client.ts của Bring Any Idea to Life).
 //
-// Tính năng này không có đăng nhập, nên dùng 1 id ẩn danh lưu trong
-// localStorage (giống deviceId) để biết bản ghi R2 nào thuộc về trình duyệt
-// nào khi khôi phục lại.
-
+// Use the same immutable user UID, including when opened standalone.
+// @ts-ignore — shared JS module
+import { initializeIdentity } from '../../../../public/device-identity.js';
 import type { DinoSharedProgress } from "./dinoSharedProgress";
 
-const DEVICE_ID_KEY = "dino-pal-device-id";
-
-export function getDinoPalDeviceId(): string {
-  if (typeof window === "undefined" || !window.localStorage) return "anonymous";
-  let id = window.localStorage.getItem(DEVICE_ID_KEY);
-  if (!id) {
-    id = (typeof crypto !== "undefined" && "randomUUID" in crypto)
-      ? crypto.randomUUID()
-      : `dino-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    window.localStorage.setItem(DEVICE_ID_KEY, id);
-  }
-  return id;
+export async function getDinoPalDeviceId(): Promise<string> {
+  return (await initializeIdentity()).uuid;
 }
 
 export async function saveDinoProgressToR2(progress: DinoSharedProgress): Promise<boolean> {
@@ -34,7 +23,7 @@ export async function saveDinoProgressToR2(progress: DinoSharedProgress): Promis
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         provider: "dino-pal-save-progress",
-        deviceId: getDinoPalDeviceId(),
+        deviceId: await getDinoPalDeviceId(),
         progress,
       }),
     });
@@ -54,7 +43,7 @@ export async function loadDinoProgressFromR2(): Promise<DinoSharedProgress | nul
     const res = await fetch("/api/groq-proxy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: "dino-pal-load-progress", deviceId: getDinoPalDeviceId() }),
+      body: JSON.stringify({ provider: "dino-pal-load-progress", deviceId: await getDinoPalDeviceId() }),
     });
     if (!res.ok) {
       console.warn("[dino-pal] loadDinoProgressFromR2 failed with status", res.status);

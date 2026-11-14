@@ -3,12 +3,10 @@
 // Đọc danh tính ẩn danh (uuid/userId/name) của user đang đăng nhập ở app
 // CHA, dùng bởi MỌI sub-app "-khanh" được nhúng qua <iframe> CÙNG-ORIGIN
 // (video-to-learning-khanh, vision-sync-khanh, vibe-tracking-khanh, ...).
-// Vì cùng origin nên đọc thẳng được localStorage của app cha
-// (AuthContext.jsx) — KHÔNG cần postMessage hay truyền props riêng.
-//
-// Cấu trúc localStorage (xem src/context/AuthContext.jsx):
-//   cdoc_session = { email }                                 (ai đang đăng nhập)
-//   cdoc_users   = { [email]: { uuid, userId, name, ... } }   (hồ sơ từng user)
+// Cùng origin nên đọc cache danh tính đã được AuthProvider / initializeIdentity
+// khởi tạo từ IndexedDB. Tài khoản có tên lấy từ cdoc_session + cdoc_users;
+// guest lấy từ cdoc_active_identity (cache, không phải nguồn UID chính).
+// Không sinh UID riêng cho từng iframe.
 //
 // Các sub-app "-khanh" KHÔNG có server-session thật (toàn bộ auth
 // client-side), nên đây CHỈ là định danh ẩn danh để nhóm dữ liệu/lịch sử
@@ -28,28 +26,10 @@
  * @typedef {{ uuid: string|null, userId: string|null, name: string|null }} Identity
  */
 
-function safeParse(raw) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+import { readActiveIdentity } from '../../public/device-identity.js'
 
 /** @returns {Identity} */
 export function getIdentity() {
-  try {
-    const session = safeParse(localStorage.getItem('cdoc_session'));
-    const users = safeParse(localStorage.getItem('cdoc_users'));
-    const email = session?.email;
-    const user = email && users ? users[email] : null;
-    return {
-      uuid: user?.uuid || null,
-      userId: user?.userId || null,
-      name: user?.name || null,
-    };
-  } catch {
-    return { uuid: null, userId: null, name: null };
-  }
+  const user = readActiveIdentity()
+  return { uuid: user?.uuid || null, userId: user?.userId || null, name: user?.name || null }
 }

@@ -217,7 +217,7 @@ export default function App() {
   useEffect(() => {
     // Vừa logout (trước đó có user, giờ không còn) -> lần vào tiếp theo lại
     // bắt đầu từ màn hình "Chọn Vai Trò Anh Hùng" thay vì thẳng vào Login.
-    if (prevUserRef.current && !user) {
+    if (prevUserRef.current && (!user || (!prevUserRef.current.isAnonymous && user.isAnonymous))) {
       setPreLoginView('chooseRole')
       setLoginInitialMode('login')
       setHasCompletedLogin(false)
