@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test:identity": "node --test tests/*.test.js",
+    "test:gon-arena": "node --test tests/gon-arena-*.test.js",
     "predev": "node scripts-copy-mediapipe-wasm.mjs && node scripts-copy-mediapipe-models.mjs && node scripts-copy-vibecheck-vendor.mjs",
     "build": "npm run build:main && npm run build:subapps",
     "build:main": "BUILD_TARGET=main vite build",

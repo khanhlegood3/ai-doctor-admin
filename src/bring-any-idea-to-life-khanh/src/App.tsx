@@ -10,9 +10,10 @@ import { CreationHistory, Creation, getCreationSourceKey } from './components/Cr
 import { DemoTemplates } from './components/DemoTemplates';
 import { OneShotArcadeCard } from './components/OneShotArcadeCard';
 import { ONE_SHOT_ARCADE_HTML } from './lib/oneShotArcade';
-import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, recordArenaVote, getSessionUserApiKey, setSessionUserApiKey, ARENA_PROVIDER_INFO, ARENA_ENGINES } from './lib/api';
+import { bringToLife, uploadVideoFileToGemini, searchVideoLinks, getSessionUserApiKey, setSessionUserApiKey, ARENA_PROVIDER_INFO, ARENA_ENGINES } from './lib/api';
 import type { ArenaEngine } from './lib/api';
 import { ArenaDuel } from './components/ArenaDuel';
+import { buildArenaComparison, persistArenaComparison, retryPendingArenaComparisons, downloadArenaComparison } from './lib/arenaComparisonStorage';
 import type { ArenaSideState, ArenaVoteChoice } from './components/ArenaDuel';
 import { classifyVideoUrl } from './lib/videoLink';
 import { compressImageFile, MAX_UNCOMPRESSED_FILE_BYTES } from './lib/imageCompress';
@@ -39,6 +40,10 @@ const App: React.FC = () => {
   // thật sự). Vị trí Model A/B được random để không ai biết trước bên nào là
   // model nào; danh tính chỉ lộ SAU KHI người dùng vote.
   interface ArenaState {
+    id: string;
+    revision: number;
+    createdAt: string;
+    votedAt: string | null;
     description: string;
     videoUrls: string[];
     videoTitles: string[];
@@ -50,7 +55,9 @@ const App: React.FC = () => {
     sides: { a: ArenaSideState; b: ArenaSideState };
     mapping: { a: ArenaEngine; b: ArenaEngine };
     vote: ArenaVoteChoice | null;
-    voteSaved: boolean;
+    saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+    saveError?: string;
+    jsonUrl?: string;
   }
   const [arena, setArena] = useState<ArenaState | null>(null);
 
@@ -489,6 +496,7 @@ const App: React.FC = () => {
   ) as Record<ArenaEngine, string>;
 
   const newArenaState = (description: string, phase: ArenaState['phase'], videoUrls: string[], videoTitles: string[]): ArenaState => ({
+    id: crypto.randomUUID(), revision: 0, createdAt: new Date().toISOString(), votedAt: null,
     description,
     videoUrls,
     videoTitles,
@@ -497,7 +505,7 @@ const App: React.FC = () => {
     sides: { a: { status: 'loading' }, b: { status: 'loading' } },
     mapping: { a: 'groq', b: 'gemini' }, // placeholder — random hoá lại lúc xác nhận đấu thật
     vote: null,
-    voteSaved: false,
+    saveStatus: 'idle',
   });
 
   // Link thứ 2 (nếu có): server proxy chỉ "xem" trực tiếp 1 video URL, nên
@@ -574,15 +582,21 @@ const App: React.FC = () => {
   // Chạy 1 bên của trận đấu. Dùng key của user (nếu vừa dán HOẶC đã giữ trong
   // sessionStorage từ lần retry trước) thay cho key pool server — xem
   // userApiKey trong lib/api.ts + bringAnyIdeaToLifeProxy.js.
-  const runArenaSide = async (side: 'a' | 'b', engine: ArenaEngine, basePrompt: string, urls: string[], explicitUserApiKey?: string) => {
+  const runArenaSide = async (matchId: string, resultId: string, side: 'a' | 'b', engine: ArenaEngine, basePrompt: string, urls: string[], explicitUserApiKey?: string) => {
+    const userApiKey = explicitUserApiKey || getSessionUserApiKey(engine);
     try {
-      const userApiKey = explicitUserApiKey || getSessionUserApiKey(engine);
       const html = await bringToLife(basePrompt, undefined, undefined, urls[0], undefined, undefined, undefined, undefined, undefined, undefined, engine, userApiKey);
-      setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'done', html } } } : prev));
+      const result: ArenaSideState = { id: resultId, completedAt: new Date().toISOString(), status: 'done', html };
+      setArena(prev => prev?.id === matchId && prev.sides[side].id === resultId
+        ? { ...prev, revision: prev.revision + 1, sides: { ...prev.sides, [side]: result } } : prev);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      // Some providers echo rejected credentials in their error message.
+      const message = userApiKey ? rawMessage.split(userApiKey).join('[REDACTED]') : rawMessage;
       console.warn(`[GON Arena] Engine "${engine}" (Model ${side.toUpperCase()}) failed:`, message);
-      setArena((prev) => (prev ? { ...prev, sides: { ...prev.sides, [side]: { status: 'error', error: message } } } : prev));
+      const result: ArenaSideState = { id: resultId, completedAt: new Date().toISOString(), status: 'error', error: message };
+      setArena(prev => prev?.id === matchId && prev.sides[side].id === resultId
+        ? { ...prev, revision: prev.revision + 1, sides: { ...prev.sides, [side]: result } } : prev);
     }
   };
 
@@ -590,7 +604,8 @@ const App: React.FC = () => {
   // giữ so sánh MÙ, rồi bắn 2 request song song (mỗi bên ép đúng 1 engine).
   const handleArenaConfirmBattle = () => {
     if (!arena || arena.phase !== 'confirming' || arena.videoUrls.length === 0) return;
-    const { description, videoUrls: urls } = arena;
+    const { id: matchId, description, videoUrls: urls } = arena;
+    const resultIds = { a: crypto.randomUUID(), b: crypto.randomUUID() };
     const aEngine: ArenaEngine = Math.random() < 0.5 ? 'groq' : 'gemini';
     const bEngine: ArenaEngine = aEngine === 'groq' ? 'gemini' : 'groq';
     const mapping: { a: ArenaEngine; b: ArenaEngine } = { a: aEngine, b: bEngine };
@@ -601,9 +616,9 @@ const App: React.FC = () => {
             ...prev,
             phase: 'battling' as const,
             mapping,
-            sides: { a: { status: 'loading' }, b: { status: 'loading' } },
+            sides: { a: { status: 'loading', id: resultIds.a }, b: { status: 'loading', id: resultIds.b } },
             vote: null,
-            voteSaved: false,
+            saveStatus: 'idle',
             searchError: null,
           }
         : prev,
@@ -611,8 +626,8 @@ const App: React.FC = () => {
 
     const basePrompt = buildArenaPrompt(description, urls);
     // Song song hoá thật sự — 2 request độc lập, bên nào xong trước hiện trước.
-    runArenaSide('a', aEngine, basePrompt, urls);
-    runArenaSide('b', bEngine, basePrompt, urls);
+    runArenaSide(matchId, resultIds.a, 'a', aEngine, basePrompt, urls);
+    runArenaSide(matchId, resultIds.b, 'b', bEngine, basePrompt, urls);
   };
 
   // Bên lỗi: user dán API key CỦA CHÍNH MÌNH để chạy lại. Engine (`engine`)
@@ -624,49 +639,79 @@ const App: React.FC = () => {
   // mapping cập nhật tương ứng — để lúc lộ danh tính vẫn trung thực.
   // Server (arenaUserKeyEngines.js) tự validate lại prefix/kiểm tra lần nữa.
   const handleArenaRetryWithKey = (side: 'a' | 'b', apiKey: string, engine: ArenaEngine) => {
-    if (!arena || arena.phase !== 'battling') return;
+    if (!arena || arena.phase !== 'battling' || arena.vote || arena.sides[side].status !== 'error') return;
+    const resultId = crypto.randomUUID();
     setSessionUserApiKey(engine, apiKey);
     setArena((prev) =>
       prev
         ? {
             ...prev,
             mapping: { ...prev.mapping, [side]: engine },
-            sides: { ...prev.sides, [side]: { status: 'loading' } },
+            revision: prev.revision + 1, saveStatus: 'idle',
+            sides: { ...prev.sides, [side]: { status: 'loading', id: resultId } },
           }
         : prev,
     );
-    runArenaSide(side, engine, buildArenaPrompt(arena.description, arena.videoUrls), arena.videoUrls, apiKey);
+    runArenaSide(arena.id, resultId, side, engine, buildArenaPrompt(arena.description, arena.videoUrls), arena.videoUrls, apiKey);
   };
+
+  // Save both settled outcomes even before a vote. Selecting a winner creates
+  // a newer snapshot of the same duel, not a second database comparison.
+  const saveArenaSnapshot = async (snapshot: ArenaState) => {
+    const isCurrent = (prev: ArenaState | null) => prev?.id === snapshot.id && prev.revision === snapshot.revision;
+    setArena(prev => isCurrent(prev) ? { ...prev!, saveStatus: 'saving', saveError: undefined } : prev);
+    try {
+      const comparison = buildArenaComparison(snapshot);
+      const creations: Creation[] = (['a', 'b'] as const).flatMap(side => {
+        const result = comparison.results[side];
+        return result.status === 'done' ? [{
+          id: result.id,
+          name: `${(comparison.description || comparison.videoUrls[0] || 'GON Arena').slice(0, 120)} • Model ${side.toUpperCase()}`,
+          html: result.html!, videoUrl: comparison.videoUrls[0], timestamp: new Date(result.completedAt),
+        }] : [];
+      });
+      setHistory(prev => [...creations, ...prev.filter(item => !creations.some(c => c.id === item.id))]);
+      // Pair+vote has its own durable local outbox, independent of the normal
+      // creation cache. Failure in one cache must not prevent cloud saving.
+      for (const creation of creations) {
+        putCreation({ ...creation, timestamp: creation.timestamp.toISOString() }).catch(error => console.warn('[GON Arena] Creation cache failed:', error));
+      }
+      const receipt = await persistArenaComparison(comparison);
+      setArena(prev => isCurrent(prev) ? { ...prev!, saveStatus: 'saved', jsonUrl: receipt.jsonUrl } : prev);
+    } catch (error) {
+      setArena(prev => isCurrent(prev) ? { ...prev!, saveStatus: 'error', saveError: error instanceof Error ? error.message : 'Không lưu được kết quả.' } : prev);
+    }
+  };
+
+  useEffect(() => {
+    if (arena?.phase === 'battling' && arena.sides.a.status !== 'loading' && arena.sides.b.status !== 'loading') {
+      void saveArenaSnapshot(arena);
+    }
+  }, [arena?.id, arena?.revision]);
+
+  useEffect(() => {
+    const retry = () => {
+      retryPendingArenaComparisons().then(outcomes => {
+        for (const outcome of outcomes) {
+          if (outcome.status !== 'fulfilled') continue;
+          const receipt = outcome.value;
+          setArena(prev => prev?.id === receipt.id && prev.revision === receipt.revision
+            ? { ...prev, saveStatus: 'saved', saveError: undefined, jsonUrl: receipt.jsonUrl } : prev);
+        }
+      }).catch(error => console.warn('[GON Arena] Pending archive retry failed:', error));
+    };
+    retry();
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, []);
 
   const handleArenaVote = (choice: ArenaVoteChoice) => {
-    if (!arena || arena.vote) return; // chỉ vote 1 lần/trận
-    const { mapping, description, videoUrls } = arena;
-    setArena((prev) => (prev ? { ...prev, vote: choice } : prev));
-    // Lưu vote ẩn danh lên R2 — fire-and-forget: lỗi lưu KHÔNG ảnh hưởng việc
-    // lộ kết quả. Trận 2 bên TRÙNG ENGINE (mapping.a === mapping.b — xảy ra
-    // khi user retry 1 bên bằng key cùng provider với bên kia, vd cả hai đều
-    // chạy OpenAI) thì KHÔNG phải so sánh giữa 2 model khác nhau → bỏ ghi để
-    // không làm bẩn thống kê.
-    if (mapping.a === mapping.b) {
-      setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev));
-      return;
-    }
-    recordArenaVote({
-      vote: choice,
-      modelA: mapping.a,
-      modelB: mapping.b,
-      description: description.slice(0, 500),
-      videoUrls,
-    })
-      .then(() => setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev)))
-      .catch((err) => {
-        console.warn('[GON Arena] Không lưu được vote lên R2 (kết quả hiển thị không bị ảnh hưởng):', err?.message || err);
-        setArena((prev) => (prev ? { ...prev, voteSaved: true } : prev));
-      });
+    setArena(prev => !prev || prev.vote || prev.sides.a.status === 'loading' || prev.sides.b.status === 'loading'
+      ? prev : { ...prev, vote: choice, votedAt: new Date().toISOString(), revision: prev.revision + 1, saveStatus: 'idle' });
   };
 
-  // "Dùng phiên bản này": chuyển phiên bản được chọn thành 1 creation bình
-  // thường trong lịch sử GON (IndexedDB + R2) rồi mở ở LivePreview đầy đủ.
+  // Both results are already archived automatically. Reuse the selected
+  // result ID when opening LivePreview; do not create a duplicate creation.
   const handleArenaUseVersion = (side: 'a' | 'b') => {
     if (!arena) return;
     const sideState = arena.sides[side];
@@ -674,7 +719,7 @@ const App: React.FC = () => {
     const engine = arena.mapping[side];
     const baseName = (arena.description || arena.videoUrls[0] || 'GON Arena').slice(0, 120) || 'GON Arena';
     const newCreation: Creation = {
-      id: crypto.randomUUID(),
+      id: sideState.id!,
       name: `${baseName} • ${ARENA_ENGINE_LABELS[engine].split(' ')[0]}`,
       html: sideState.html,
       mimeType: null,
@@ -682,8 +727,7 @@ const App: React.FC = () => {
       timestamp: new Date(),
     };
     setActiveCreation(newCreation);
-    setHistory((prev) => [newCreation, ...prev]);
-    persistCreation(newCreation, undefined, undefined, undefined);
+    setHistory((prev) => [newCreation, ...prev.filter(item => item.id !== newCreation.id)]);
     setArena(null);
   };
 
@@ -1043,7 +1087,11 @@ ${message}`);
           searchError={arena.searchError}
           sides={arena.sides}
           vote={arena.vote}
-          voteSaved={arena.voteSaved}
+          saveStatus={arena.saveStatus}
+          saveError={arena.saveError}
+          jsonUrl={arena.jsonUrl}
+          onRetrySave={() => void saveArenaSnapshot(arena)}
+          onDownloadJson={() => { if (arena.vote) downloadArenaComparison(buildArenaComparison(arena)); }}
           revealedLabels={arenaRevealedLabels}
           onVote={handleArenaVote}
           onUseVersion={handleArenaUseVersion}

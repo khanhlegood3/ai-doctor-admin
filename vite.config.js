@@ -13,6 +13,7 @@ import { fetchFacebookClipToR2, FacebookDownloadError } from './api/_lib/faceboo
 import { createKolR2UploadUrl, KolR2UploadError } from './api/_lib/kolR2Upload.js'
 import { createVideoAnalyzerR2UploadUrl, uploadVideoAnalyzerFromR2, checkVideoAnalyzerFile, generateVideoAnalyzerContent, VideoAnalyzerProxyError } from './api/_lib/videoAnalyzerProxy.js'
 import { runBringAnyIdeaToLifeGenerate, BringAnyIdeaToLifeProxyError, createBringAnyIdeaToLifeVideoUploadUrl, uploadBringAnyIdeaToLifeVideoToGemini, checkBringAnyIdeaToLifeVideoFile } from './api/_lib/bringAnyIdeaToLifeProxy.js'
+import { saveGonArenaComparison } from './api/_lib/gonArenaComparisons.js'
 import { runImageToCodeGenerate, ImageToCodeProxyError } from './api/_lib/imageToCodeProxy.js'
 
 // Plugin dev-server: chạy OCR THẬT (Claude Vision) ngay trong `npm run dev`,
@@ -96,6 +97,22 @@ function geminiComicDevMiddleware(env) {
             res.statusCode = 400
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+            return
+          }
+
+          if (parsed.provider === 'bring-any-idea-to-life-arena-vote' && parsed.action === 'save-comparison') {
+            try {
+              // Lazy Mongo helper reads the same server-only env as production.
+              for (const key of ['MONGODB_URI']) if (env[key]) process.env[key] = env[key]
+              const payload = await saveGonArenaComparison(parsed.comparison, { envSource: env })
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = 200
+              res.end(JSON.stringify(payload))
+            } catch (error) {
+              res.setHeader('Content-Type', 'application/json')
+              res.statusCode = error?.status || 503
+              res.end(JSON.stringify({ error: error?.status ? error.message : 'Chưa lưu đủ JSON và database. Vui lòng thử lại.' }))
+            }
             return
           }
 
