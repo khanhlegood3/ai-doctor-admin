@@ -36,6 +36,8 @@ export type ArenaVoteChoice = ArenaSideName | 'tie';
 
 export interface ArenaSideState {
   status: 'loading' | 'done' | 'error';
+  id?: string;
+  completedAt?: string;
   html?: string;
   error?: string;
 }
@@ -52,7 +54,11 @@ export interface ArenaDuelProps {
   searchError?: string | null;
   sides: Record<ArenaSideName, ArenaSideState>;
   vote: ArenaVoteChoice | null;
-  voteSaved: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  saveError?: string;
+  jsonUrl?: string;
+  onRetrySave: () => void;
+  onDownloadJson: () => void;
   // Nhãn engine thật của từng bên — CHỈ được truyền xuống sau khi đã vote
   // (trước đó = null để giữ so sánh mù).
   revealedLabels: Partial<Record<ArenaSideName, string>> | null;
@@ -158,7 +164,7 @@ const SidePanel: React.FC<{
             <p className="text-sm text-red-400 font-medium">Model này gặp sự cố khi tạo app</p>
             <p className="text-xs text-zinc-500 leading-relaxed max-h-32 overflow-y-auto break-words">{state.error}</p>
             {/* Form API key của user — dùng lại trong session, không lưu DB/cloud */}
-            <div className="w-full max-w-md mt-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2 text-left">
+            {!revealedLabel && <div className="w-full max-w-md mt-2 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 space-y-2 text-left">
               <label className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-200">
                 <KeyIcon className="w-3.5 h-3.5" />
                 Chạy lại bằng API key của bạn
@@ -225,7 +231,7 @@ const SidePanel: React.FC<{
                 (sk-ant-), xAI Grok (xai-), Perplexity (pplx-), Fireworks (fw_), Cerebras (csk-), GitHub Models
                 (ghp_/github_pat_), Hugging Face (hf_) — tự nhận diện; DeepSeek, Mistral, Together — chọn tay ở dropdown.
               </p>
-            </div>
+            </div>}
           </div>
         )}
         {state.status === 'done' && state.html && (
@@ -249,7 +255,11 @@ export const ArenaDuel: React.FC<ArenaDuelProps> = ({
   searchError,
   sides,
   vote,
-  voteSaved,
+  saveStatus,
+  saveError,
+  jsonUrl,
+  onRetrySave,
+  onDownloadJson,
   revealedLabels,
   onVote,
   onUseVersion,
@@ -469,8 +479,8 @@ export const ArenaDuel: React.FC<ArenaDuelProps> = ({
               ) : (
                 <div className="flex flex-col items-center gap-2 text-center">
                   <p className="text-sm text-zinc-200 font-medium">
-                    🗳️ Đã ghi nhận: {vote === 'tie' ? 'hai bên hoà nhau' : `${SIDE_TITLE[winnerSide as ArenaSideName]} thắng`}
-                    {!voteSaved && <span className="text-zinc-500 font-normal"> (đang lưu vote...)</span>}
+                    🗳️ Đánh giá của bạn: {vote === 'tie' ? 'hai bên hoà nhau' : `${SIDE_TITLE[winnerSide as ArenaSideName]} thắng`}
+
                   </p>
                   {revealedLabels && (
                     <p className="text-xs text-zinc-400">
@@ -478,7 +488,27 @@ export const ArenaDuel: React.FC<ArenaDuelProps> = ({
                       {' • '}Model B: <span className="text-amber-300 font-semibold">{revealedLabels.b}</span>
                     </p>
                   )}
-                  <p className="text-[11px] text-zinc-600">Vote được lưu ẩn danh để thống kê Groq vs Gemini (không lưu thông tin cá nhân).</p>
+                  <p className="text-[11px] text-zinc-600">Hai kết quả và đánh giá được lưu ẩn danh, không kèm thông tin cá nhân hoặc API key.</p>
+                </div>
+              )}
+              {bothSettled && (
+                <div className="mt-3 flex flex-col items-center gap-2 text-center text-xs" aria-live="polite">
+                  {saveStatus === 'saved' ? (
+                    <p className="text-emerald-300">✓ Đã lưu cả hai kết quả{vote ? ' và đánh giá' : ''} vào JSON + database.</p>
+                  ) : saveStatus === 'error' ? (
+                    <>
+                      <p className="text-red-300">Chưa lưu đủ JSON + database: {saveError}</p>
+                      <button type="button" onClick={onRetrySave} className="text-blue-300 underline">Thử lưu lại</button>
+                    </>
+                  ) : (
+                    <p className="text-zinc-400">Đang lưu cả hai kết quả{vote ? ' và đánh giá' : ''}...</p>
+                  )}
+                  {vote && (
+                    <div className="flex gap-4">
+                      <button type="button" onClick={onDownloadJson} className="text-blue-300 underline">Tải JSON hai kết quả + đánh giá</button>
+                      {saveStatus === 'saved' && jsonUrl && <a href={jsonUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">JSON trên R2</a>}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

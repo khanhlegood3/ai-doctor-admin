@@ -35,6 +35,7 @@ import { runImageToCodeGenerate, ImageToCodeProxyError } from './_lib/imageToCod
 import { saveBringAnyIdeaToLifeCreationToR2, loadAllBringAnyIdeaToLifeCreationsFromR2, loadBringAnyIdeaToLifeCreationFromR2, createBringAnyIdeaToLifeSourceUploadUrl, BringAnyIdeaToLifeHistoryR2Error } from './_lib/bringAnyIdeaToLifeHistoryR2.js'
 import { searchYoutubeVideoLinks, YoutubeSearchScrapeError } from './_lib/youtubeSearchScrape.js'
 import { recordGonArenaVote, GonArenaVoteError } from './_lib/gonArenaVotesR2.js'
+import { saveGonArenaComparison } from './_lib/gonArenaComparisons.js'
 import { saveDinoPalProgressToR2, loadDinoPalProgressFromR2, DinoPalProgressR2Error } from './_lib/dinoPalProgressR2.js'
 import { saveHistoryEntry, listHistoryEntries, getAdminOverview, VideoToLearningHistoryError } from './_lib/videoToLearningHistory.js'
 import { saveVideoToLearningCreationToR2, loadVideoToLearningCreationsFromR2, loadAllVideoToLearningCreationsFromR2, createVideoToLearningSourceUploadUrl, VideoToLearningHistoryR2Error } from './_lib/videoToLearningHistoryR2.js'
@@ -270,10 +271,17 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- GON Arena: ghi vote ẨN DANH (người dùng chọn Model A / Model B / hoà)
-  // lên R2 để sau này tổng hợp bảng xếp hạng Groq vs Gemini — xem
-  // api/_lib/gonArenaVotesR2.js. Client: lib/api.ts recordArenaVote(). ---
+  // --- GON Arena: full A/B result + evaluation snapshots in R2 and MongoDB.
+  // Keep legacy action=record for older clients that only send a vote. ---
   if (body.provider === 'bring-any-idea-to-life-arena-vote') {
+    if (body.action === 'save-comparison') {
+      try {
+        return res.status(200).json(await saveGonArenaComparison(body.comparison))
+      } catch (error) {
+        console.error('[GON Arena] comparison save failed:', error?.status || 503)
+        return res.status(error?.status || 503).json({ error: error?.status ? error.message : 'Chưa lưu đủ JSON và database. Vui lòng thử lại.' })
+      }
+    }
     if (body.action !== 'record') {
       return res.status(400).json({ error: 'Unknown bring-any-idea-to-life-arena-vote action' })
     }
